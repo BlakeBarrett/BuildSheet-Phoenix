@@ -151,7 +151,7 @@ const App: React.FC = () => {
                     <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
                     <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
                   </div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">Calculating Geometry...</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">Thinking...</span>
                 </div>
               </div>
             )}
@@ -208,7 +208,7 @@ const App: React.FC = () => {
           <header className="px-8 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-black text-xl tracking-tighter uppercase">Chilton Viewer</h2>
+                <h2 className="font-black text-xl tracking-tighter uppercase">Diagram Visualizer</h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Procedural Assembly Active</span>
