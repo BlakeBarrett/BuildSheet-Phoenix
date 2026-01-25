@@ -33,4 +33,9 @@ export interface AIService {
    * Finds purchase options for a part using search grounding.
    */
   findPartSources?(query: string): Promise<{ options: { title: string; url: string; source: string }[] } | null>;
+
+  /**
+   * Uses Gemini 3.0 Thinking models to perform a deep technical audit of the BOM.
+   */
+  verifyDesign?(bom: any[], requirements: string): Promise<string>;
 }

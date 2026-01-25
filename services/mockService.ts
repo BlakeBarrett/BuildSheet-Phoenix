@@ -71,4 +71,17 @@ export class MockService implements AIService {
           ]
       };
   }
+
+  async verifyDesign(bom: any[], requirements: string): Promise<string> {
+    await new Promise(r => setTimeout(r, 2000));
+    return `### ⚠️ Simulation Audit Report
+    
+**Status: Provisional Pass**
+
+1.  **Voltage Check:** ✅ All logic levels appear consistent at 5V.
+2.  **Mechanical:** ⚠️ Please verify case depth. Current stack height (PCB + Battery) may exceed enclosure limits by 1.2mm.
+3.  **Missing:** ❌ No USB-C Cable detected in BOM. User cannot charge device.
+
+*Recommendation: Add a standard USB-C cable and check z-height constraints.*`;
+  }
 }

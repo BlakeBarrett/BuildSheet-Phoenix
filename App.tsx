@@ -103,6 +103,53 @@ const ProjectManager: React.FC<{
     );
 };
 
+const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: string | null; isRunning: boolean }> = ({ isOpen, onClose, result, isRunning }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-green-100 text-green-600'}`}>
+                           {isRunning ? (
+                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                           ) : (
+                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                           )}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">System Integrity Verification</h3>
+                            <p className="text-xs text-gray-500">{isRunning ? "Gemini 3.0 Pro Thinking..." : "Audit Complete"}</p>
+                        </div>
+                    </div>
+                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>}
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-white">
+                    {isRunning ? (
+                        <div className="space-y-4">
+                            <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
+                            <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse"></div>
+                            <div className="h-4 bg-gray-100 rounded w-5/6 animate-pulse"></div>
+                            <p className="text-center text-xs text-gray-400 mt-8">Analyzing voltage rails, mechanical constraints, and logical compatibility...</p>
+                        </div>
+                    ) : (
+                        <div className="prose prose-sm prose-slate max-w-none">
+                            {result?.split('\n').map((line, i) => (
+                                <p key={i} className={line.startsWith('#') ? 'font-bold text-lg mt-4 mb-2' : 'mb-2'}>{line}</p>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                    <Button onClick={onClose} variant="primary" className={isRunning ? 'opacity-50 pointer-events-none' : ''}>
+                        {isRunning ? 'Auditing...' : 'Close Report'}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
   const { service: aiService, status: aiStatus, error: serviceError } = useService();
   const [draftingEngine] = useState(() => getDraftingEngine());
@@ -119,6 +166,9 @@ const AppContent: React.FC = () => {
   const [showLogs, setShowLogs] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditResult, setAuditResult] = useState<string | null>(null);
+  const [isAuditing, setIsAuditing] = useState(false);
   
   // Mobile UI State
   const [mobileView, setMobileView] = useState<'chat' | 'visuals'>('chat');
@@ -326,9 +376,31 @@ const AppContent: React.FC = () => {
       }
   };
 
+  const handleVerifyDesign = async () => {
+      if (!aiService.verifyDesign || session.bom.length === 0) return;
+      setAuditOpen(true);
+      setIsAuditing(true);
+      setAuditResult(null);
+
+      try {
+          const report = await aiService.verifyDesign(session.bom, session.designRequirements);
+          setAuditResult(report);
+      } catch (e) {
+          setAuditResult("Audit failed due to connection error.");
+      } finally {
+          setIsAuditing(false);
+      }
+  };
+
   return (
     <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative flex-col md:flex-row">
-      
+      <AuditModal 
+          isOpen={auditOpen} 
+          onClose={() => setAuditOpen(false)} 
+          result={auditResult}
+          isRunning={isAuditing}
+      />
+
       {/* Sidebar Navigation - Hidden on Mobile */}
       <nav className="hidden md:flex w-20 border-r border-gray-200 bg-white flex-col items-center py-8 gap-6 flex-shrink-0 shadow-sm z-20 relative">
         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-4">B</div>
@@ -681,8 +753,22 @@ const AppContent: React.FC = () => {
           </div>
 
           <footer className="p-6 bg-white border-t border-gray-200">
-            <Button className="w-full py-4 text-xs font-bold uppercase tracking-[0.2em] bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100">
-              Submit Spec for Sourcing
+            <Button 
+                onClick={handleVerifyDesign}
+                disabled={session.bom.length === 0}
+                className="w-full py-4 text-xs font-bold uppercase tracking-[0.2em] bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
+            >
+                {isAuditing ? (
+                    <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>Running Deep Audit...</span>
+                    </>
+                ) : (
+                    <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Verify System Integrity</span>
+                    </>
+                )}
             </Button>
           </footer>
         </section>

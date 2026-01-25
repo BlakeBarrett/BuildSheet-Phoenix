@@ -118,9 +118,6 @@ export class GeminiService implements AIService {
     }
 
     // Cleanup whitespace artifacts from removed tool calls
-    // 1. Remove trailing spaces on lines
-    // 2. Collapse 3+ newlines into 2 (paragraph break)
-    // 3. Trim start/end
     reasoning = reasoning.replace(/[ \t]+$/gm, '');
     reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
 
@@ -136,21 +133,16 @@ export class GeminiService implements AIService {
         if (referenceImage) {
             const imageData = this.cleanBase64(referenceImage);
             if (imageData) {
-                // Prepend image so model sees "This image + This text"
                 parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
             }
         }
 
-        // Using Gemini 2.5 Flash Image (Nano Banana) for generation
         const response: GenerateContentResponse = await this.ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts },
-            config: {
-                // Config tailored for visual output where supported
-            }
+            config: {}
         });
         
-        // Check for inline data (Base64 image)
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
                 return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
@@ -173,7 +165,6 @@ export class GeminiService implements AIService {
             }
         });
 
-        // Extract grounding chunks
         const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
         
         if (!chunks || chunks.length === 0) return null;
@@ -190,6 +181,46 @@ export class GeminiService implements AIService {
     } catch (e) {
         console.error("Sourcing lookup failed", e);
         return null;
+    }
+  }
+
+  async verifyDesign(bom: any[], requirements: string): Promise<string> {
+    try {
+        // Simplified BOM for the model to digest
+        const digest = bom.map(b => `${b.quantity}x ${b.part.name} (${b.part.sku}) - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
+        
+        const prompt = `
+        PERFORM A DEEP TECHNICAL AUDIT ON THIS HARDWARE SYSTEM.
+        
+        DESIGN GOALS: ${requirements}
+        
+        BILL OF MATERIALS:
+        ${digest}
+        
+        TASK:
+        1. Identify voltage mismatches (e.g. 3.3v vs 5v logic).
+        2. Identify physical connector mismatches (Male/Male, etc).
+        3. Identify missing critical components (Power supplies, cables, controllers).
+        4. Validate against Design Goals.
+        
+        OUTPUT FORMAT:
+        Return a clean Markdown report with emojis for status (✅, ⚠️, ❌). 
+        Be extremely critical. If something will smoke/fire, say so.
+        `;
+
+        const response = await this.ai.models.generateContent({
+            model: 'gemini-3-pro-preview', // Using Pro for reasoning
+            contents: prompt,
+            config: {
+                // The Killer Feature: Thinking Config
+                thinkingConfig: { thinkingBudget: 2048 }
+            }
+        });
+
+        return response.text || "Verification inconclusive.";
+    } catch (e: any) {
+        console.error("Verification failed", e);
+        return `Verification failed: ${e.message}`;
     }
   }
 }

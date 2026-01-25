@@ -7,12 +7,14 @@ export const Card: React.FC<{ children: React.ReactNode, className?: string }> =
   </div>
 );
 
+// Added disabled prop to Button component definition
 export const Button: React.FC<{ 
   onClick?: () => void, 
   variant?: 'primary' | 'secondary' | 'ghost', 
   children: React.ReactNode,
-  className?: string
-}> = ({ onClick, variant = 'primary', children, className }) => {
+  className?: string,
+  disabled?: boolean
+}> = ({ onClick, variant = 'primary', children, className, disabled }) => {
   const styles = {
     primary: 'bg-indigo-600 text-white hover:bg-indigo-700',
     secondary: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
@@ -22,7 +24,8 @@ export const Button: React.FC<{
   return (
     <button 
       onClick={onClick}
-      className={`px-4 py-2 rounded-full font-medium transition-all text-sm active:scale-95 ${styles[variant]} ${className}`}
+      disabled={disabled}
+      className={`px-4 py-2 rounded-full font-medium transition-all text-sm ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} ${styles[variant]} ${className}`}
     >
       {children}
     </button>
