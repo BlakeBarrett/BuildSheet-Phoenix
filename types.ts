@@ -53,6 +53,13 @@ export interface BOMEntry {
   warnings?: string[];
 }
 
+export interface GeneratedImage {
+  id: string;
+  url: string; // Base64 data URL
+  prompt: string;
+  timestamp: Date;
+}
+
 export interface DraftingSession {
   id: string;
   slug: string;
@@ -61,6 +68,7 @@ export interface DraftingSession {
   designRequirements: string;
   bom: BOMEntry[];
   visualManifest?: VisualManifest;
+  generatedImages: GeneratedImage[];
   createdAt: Date;
 }
 
@@ -75,7 +83,7 @@ export interface User {
 export interface UserActivityLog {
   id: string;
   timestamp: Date;
-  action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED';
+  action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED' | 'IMAGE_GENERATED';
   metadata: any;
 }
 

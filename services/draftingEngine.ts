@@ -1,4 +1,4 @@
-import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest } from '../types.ts';
+import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
@@ -21,6 +21,12 @@ export class DraftingEngine {
             this.session = JSON.parse(saved);
             // Re-hydrate dates
             this.session.createdAt = new Date(this.session.createdAt);
+            // Re-hydrate image dates if they exist
+            if (this.session.generatedImages) {
+                this.session.generatedImages.forEach(img => img.timestamp = new Date(img.timestamp));
+            } else {
+                this.session.generatedImages = [];
+            }
         } catch (e) {
             console.error("Failed to hydrate session", e);
             this.session = this.createNewSession();
@@ -39,6 +45,7 @@ export class DraftingEngine {
       name: 'Untitled Assembly',
       designRequirements: '',
       bom: [],
+      generatedImages: [],
       createdAt: new Date()
     };
   }
@@ -52,15 +59,40 @@ export class DraftingEngine {
     this.saveSession();
   }
 
-  private async saveSession() {
+  private saveSession() {
     try {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.session));
+        
         // We log the commit, but we don't need to await a DB call anymore
         if (UserService.getCurrentUser()) {
              ActivityLogService.log('DRAFT_COMMITTED', { sessionId: this.session.id });
         }
-    } catch (e) {
-        console.error("Failed to save session locally", e);
+    } catch (e: any) {
+        // Handle LocalStorage Quota Exceeded gracefully
+        // We want to keep the in-memory session full (preserve album), but trim persistence if needed.
+        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
+            console.warn("LocalStorage quota exceeded. Trimming persistence history to prevent crash.");
+            
+            // Shallow copy session, but new array for generatedImages to allow mutation of the copy
+            const sessionForStorage = {
+                ...this.session,
+                generatedImages: [...this.session.generatedImages]
+            };
+
+            // Aggressively trim oldest images from the STORAGE copy only
+            while (sessionForStorage.generatedImages.length > 0) {
+                sessionForStorage.generatedImages.shift(); // Remove oldest
+                try {
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessionForStorage));
+                    return; // Saved successfully with reduced history
+                } catch (retryError) {
+                    continue; // Still too big, keep trimming
+                }
+            }
+            console.error("Critical: Could not save session even after clearing image history.");
+        } else {
+            console.error("Failed to save session locally", e);
+        }
     }
   }
 
@@ -74,7 +106,31 @@ export class DraftingEngine {
     this.session.designRequirements = requirements;
     this.session.bom = [];
     this.session.visualManifest = undefined;
+    
+    // CRITICAL: Do NOT clear generatedImages on re-initialization. 
+    // We want to preserve the full design history album across BOM resets.
+    if (!this.session.generatedImages) {
+        this.session.generatedImages = [];
+    }
+
     ActivityLogService.log('SESSION_INITIALIZED', { name, requirements });
+    this.saveSession();
+  }
+
+  public addGeneratedImage(url: string, prompt: string) {
+    const img: GeneratedImage = {
+        id: Math.random().toString(36).substr(2, 9),
+        url,
+        prompt,
+        timestamp: new Date()
+    };
+    
+    // UNLIMITED HISTORY IN-MEMORY
+    // We rely on the saveSession quota handling to manage LocalStorage limits
+    // while keeping the active session's album intact for the user.
+    this.session.generatedImages.push(img);
+    
+    ActivityLogService.log('IMAGE_GENERATED', { promptLength: prompt.length });
     this.saveSession();
   }
 

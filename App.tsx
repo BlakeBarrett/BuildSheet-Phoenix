@@ -46,7 +46,6 @@ const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   // Visualizer State
-  const [visualizerUrl, setVisualizerUrl] = useState<string | null>(null);
   const [isVisualizing, setIsVisualizing] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -60,6 +59,41 @@ const AppContent: React.FC = () => {
   }, [draftingEngine]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // Separate function to handle visual generation logic
+  const handleGenerateVisual = async (architectReasoning?: string) => {
+    // We get the LATEST session state directly from engine, as React state might lag
+    const currentSession = draftingEngine.getSession();
+    
+    // Don't generate if empty (unless we have requirements)
+    if (currentSession.bom.length === 0 && !currentSession.designRequirements) return;
+    
+    // Don't block UI if already running
+    if (isVisualizing) return;
+
+    setIsVisualizing(true);
+    
+    try {
+        const partsList = currentSession.bom.map(b => `${b.quantity}x ${b.part.name}`).join(', ');
+        
+        // Construct a rich prompt that evolves with the design
+        let prompt = `Product Design Sketch.`;
+        if (currentSession.designRequirements) prompt += ` Context: ${currentSession.designRequirements}.`;
+        if (partsList) prompt += ` Visible Components: ${partsList}.`;
+        if (architectReasoning) prompt += ` Design Notes: ${architectReasoning.slice(0, 150)}...`; // Truncate to avoid context limit issues
+        
+        const imageUrl = await aiService.generateProductImage(prompt);
+        
+        if (imageUrl) {
+            draftingEngine.addGeneratedImage(imageUrl, prompt);
+            setSession(draftingEngine.getSession()); // Force re-render to show new image in gallery
+        }
+    } catch (e) {
+        console.error("Visual generation failed", e);
+    } finally {
+        setIsVisualizing(false);
+    }
+  };
 
   const handleSend = async (overrideInput?: string) => {
     const textToSend = overrideInput || input;
@@ -83,7 +117,6 @@ const AppContent: React.FC = () => {
       parsed.toolCalls.forEach(call => {
         if (call.type === 'initializeDraft') {
           draftingEngine.initialize(call.name, call.reqs);
-          setVisualizerUrl(null);
         } else if (call.type === 'addPart') {
           draftingEngine.addPart(call.partId, call.qty);
         } else if (call.type === 'removePart') {
@@ -97,6 +130,11 @@ const AppContent: React.FC = () => {
         content: parsed.reasoning || architectResponse, 
         timestamp: new Date() 
       }]);
+
+      // AUTO-GENERATE VISUAL
+      // Triggering this asynchronously so we don't block the UI update for the text response
+      handleGenerateVisual(parsed.reasoning);
+
     } catch (error: any) {
       console.error(error);
       setMessages(prev => [...prev, { 
@@ -106,21 +144,6 @@ const AppContent: React.FC = () => {
       }]);
     } finally {
       setIsThinking(false);
-    }
-  };
-
-  const handleGenerateVisual = async () => {
-    if (session.bom.length === 0 || isVisualizing) return;
-    setIsVisualizing(true);
-    try {
-        const partsList = session.bom.map(b => `${b.quantity}x ${b.part.name}`).join(', ');
-        const prompt = `A product design featuring: ${partsList}. Design Context: ${session.designRequirements || 'Engineering prototype'}`;
-        const imageUrl = await aiService.generateProductImage(prompt);
-        if (imageUrl) setVisualizerUrl(imageUrl);
-    } catch (e) {
-        console.error("Visual generation failed", e);
-    } finally {
-        setIsVisualizing(false);
     }
   };
 
@@ -306,10 +329,10 @@ const AppContent: React.FC = () => {
           </header>
 
           {/* Image Visualizer Section */}
-          <div className="h-1/2 p-4 bg-gray-50 border-b border-gray-100 shadow-inner">
+          <div className="h-[60%] p-4 bg-gray-50 border-b border-gray-100 shadow-inner">
             <ChiltonVisualizer 
-                imageUrl={visualizerUrl} 
-                onGenerate={handleGenerateVisual}
+                images={session.generatedImages}
+                onGenerate={() => handleGenerateVisual()}
                 isGenerating={isVisualizing}
                 hasItems={session.bom.length > 0}
             />
