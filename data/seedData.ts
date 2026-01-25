@@ -1,5 +1,4 @@
-
-import { Part, PortType, Gender } from '../types';
+import { Part, PortType, Gender } from '../types.ts';
 
 export const HARDWARE_REGISTRY: Part[] = [
   // --- CUSTOM KEYBOARD ECOSYSTEM ---

@@ -1,5 +1,4 @@
-
-import { UserActivityLog } from '../types';
+import { UserActivityLog } from '../types.ts';
 
 export class ActivityLogService {
   private static logs: UserActivityLog[] = [];

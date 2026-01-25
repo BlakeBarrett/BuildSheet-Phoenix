@@ -1,28 +1,98 @@
+import React, { useState, useRef, useEffect, Component, ErrorInfo } from 'react';
+import { getDraftingEngine } from './services/draftingEngine.ts';
+import { UserService } from './services/userService.ts';
+import { ActivityLogService } from './services/activityLogService.ts';
+import { DraftingSession, UserMessage, User } from './types.ts';
+import { Button, Chip } from './components/Material3UI.tsx';
+import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
+import { AIManager } from './services/aiManager.ts';
+import { AIService } from './services/aiTypes.ts';
+import { MockService } from './services/mockService.ts';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { askArchitect, parseArchitectResponse } from './services/geminiService';
-import { draftingEngine } from './services/draftingEngine';
-import { UserService } from './services/userService';
-import { ActivityLogService } from './services/activityLogService';
-import { DraftingSession, UserMessage, Part, PortType } from './types';
-import { Card, Button, Chip } from './components/Material3UI';
-import { ChiltonVisualizer } from './components/ChiltonVisualizer';
+// --- ERROR BOUNDARY ---
+interface ErrorBoundaryProps { children?: React.ReactNode; }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-const App: React.FC = () => {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
+  
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Uncaught error:", error, errorInfo); }
+  
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen w-full flex items-center justify-center bg-slate-900 text-white p-8">
+            <div className="max-w-lg">
+                <h1 className="text-2xl font-bold text-red-500 mb-4">System Critical Failure</h1>
+                <p className="mb-4 text-slate-300">The application encountered an unrecoverable error.</p>
+                <pre className="bg-black/50 p-4 rounded text-xs font-mono overflow-auto border border-red-900/50">{this.state.error?.message}</pre>
+                <button onClick={() => window.location.reload()} className="mt-6 px-4 py-2 bg-slate-700 rounded hover:bg-slate-600">Reboot System</button>
+            </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const AppContent: React.FC = () => {
+  const [draftingEngine] = useState(() => getDraftingEngine());
   const [messages, setMessages] = useState<UserMessage[]>([]);
   const [input, setInput] = useState('');
   const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
   const [isThinking, setIsThinking] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // AI Service State
+  const [aiService, setAiService] = useState<AIService>(new MockService());
+  const [aiStatus, setAiStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
+  const [serviceError, setServiceError] = useState<string | null>(null);
+
+  // Visualizer State
+  const [visualizerUrl, setVisualizerUrl] = useState<string | null>(null);
+  const [isVisualizing, setIsVisualizing] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const currentUser = UserService.getCurrentUser();
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const initService = async () => {
+    setAiStatus('connecting');
+    const { service, error } = await AIManager.createService();
+    setAiService(service);
+    
+    if (service.isOffline) {
+        setAiStatus('offline');
+        if (error) setServiceError(error);
+        
+        // Alert user if we fell back to mock due to error
+        if (error) {
+             setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `[SYSTEM ALERT] Could not connect to Gemini Service. Falling back to offline simulation.\n\nReason: ${error}`,
+                timestamp: new Date()
+            }]);
+        }
+    } else {
+        setAiStatus('online');
+        setServiceError(null);
+    }
   };
 
-  useEffect(scrollToBottom, [messages]);
+  useEffect(() => {
+    initService();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = UserService.onUserChange((user) => {
+      setCurrentUser(user);
+      if (user) draftingEngine.updateOwner(user.id);
+    });
+    return unsubscribe;
+  }, [draftingEngine]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const handleSend = async (overrideInput?: string) => {
     const textToSend = overrideInput || input;
@@ -34,17 +104,19 @@ const App: React.FC = () => {
     setIsThinking(true);
 
     try {
-      const history = messages.map(m => ({
+      // Filter out system alerts from history
+      const history = messages.filter(m => !m.content.startsWith('[SYSTEM ALERT]')).map(m => ({
         role: m.role === 'user' ? 'user' as const : 'model' as const,
         parts: [{ text: m.content }]
       }));
 
-      const architectResponse = await askArchitect(textToSend, history);
-      const parsed = parseArchitectResponse(architectResponse);
+      const architectResponse = await aiService.askArchitect(textToSend, history);
+      const parsed = aiService.parseArchitectResponse(architectResponse);
 
       parsed.toolCalls.forEach(call => {
         if (call.type === 'initializeDraft') {
           draftingEngine.initialize(call.name, call.reqs);
+          setVisualizerUrl(null);
         } else if (call.type === 'addPart') {
           draftingEngine.addPart(call.partId, call.qty);
         } else if (call.type === 'removePart') {
@@ -52,25 +124,36 @@ const App: React.FC = () => {
         }
       });
 
-      if (parsed.visualization) {
-        draftingEngine.setVisualManifest(parsed.visualization);
-      }
-
       setSession(draftingEngine.getSession());
       setMessages(prev => [...prev, { 
         role: 'assistant', 
         content: parsed.reasoning || architectResponse, 
         timestamp: new Date() 
       }]);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "Drafting Engine Fault: Failed to synchronize spatial manifest.", 
+        content: `[SYSTEM ERROR] ${error.message || "Unknown error occurred during processing."}`, 
         timestamp: new Date() 
       }]);
     } finally {
       setIsThinking(false);
+    }
+  };
+
+  const handleGenerateVisual = async () => {
+    if (session.bom.length === 0 || isVisualizing) return;
+    setIsVisualizing(true);
+    try {
+        const partsList = session.bom.map(b => `${b.quantity}x ${b.part.name}`).join(', ');
+        const prompt = `A product design featuring: ${partsList}. Design Context: ${session.designRequirements || 'Engineering prototype'}`;
+        const imageUrl = await aiService.generateProductImage(prompt);
+        if (imageUrl) setVisualizerUrl(imageUrl);
+    } catch (e) {
+        console.error("Visual generation failed", e);
+    } finally {
+        setIsVisualizing(false);
     }
   };
 
@@ -87,8 +170,20 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <div className="mt-auto">
-          <img src={currentUser?.avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100" />
+        <div className="mt-auto flex flex-col items-center gap-4">
+          {currentUser ? (
+             <button onClick={() => UserService.logout()} className="relative group">
+                <img src={currentUser.avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100 group-hover:border-red-400 transition-colors" />
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+             </button>
+          ) : (
+            <button 
+              onClick={() => UserService.login()}
+              className="w-10 h-10 rounded-full bg-white border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+            </button>
+          )}
         </div>
       </nav>
 
@@ -101,10 +196,20 @@ const App: React.FC = () => {
                 <h1 className="font-bold text-xl tracking-tight">BuildArchitect</h1>
                 <Chip label="DRAFTING" color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
               </div>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1">SYSTEMS_ARCHITECT_v3.5.0_SPATIAL</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
+                <button 
+                    onClick={() => initService()}
+                    className={`flex items-center gap-1.5 transition-all ${aiStatus === 'offline' ? 'hover:bg-gray-100 px-2 py-0.5 rounded cursor-pointer' : ''}`}
+                    title={aiStatus === 'offline' ? 'Click to retry connection' : 'Connected'}
+                >
+                    <div className={`w-1.5 h-1.5 rounded-full ${aiStatus === 'online' ? 'bg-green-500' : aiStatus === 'offline' ? 'bg-amber-500' : 'bg-gray-300 animate-pulse'}`}></div>
+                    {aiStatus === 'offline' && <span className="text-[9px] font-bold text-amber-600 uppercase">OFFLINE (RETRY)</span>}
+                </button>
+              </div>
             </div>
             <div className="flex gap-2 text-xs font-mono text-gray-400">
-               {currentUser?.username}@{session.slug}
+               {currentUser ? `${currentUser.username}@${session.slug}` : 'guest@local-draft'}
             </div>
           </header>
 
@@ -116,8 +221,14 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-slate-800">Architectural Drafting</h3>
-                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">Provide high-level design goals. I will infer components, validate ports, and generate a 3D stack-up view.</p>
+                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">Provide high-level design goals. I will infer components, validate ports, and generate a concept render.</p>
                 </div>
+                {aiStatus === 'offline' && (
+                     <div className="bg-amber-50 text-amber-800 text-xs px-4 py-2 rounded-lg border border-amber-200 text-left">
+                        <strong>Running in Offline Simulation Mode.</strong><br/>
+                        {serviceError ? `Error: ${serviceError}` : "Check API Key or Network Connection."}
+                    </div>
+                )}
                 <div className="flex flex-col gap-2 w-full">
                   <button onClick={() => handleSend("Let's build an LED votive light with wireless Qi charging.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
                     "Draft an LED votive with wireless charging."
@@ -134,7 +245,11 @@ const App: React.FC = () => {
                 <div className={`max-w-[90%] rounded-xl px-4 py-3 border ${
                   m.role === 'user' 
                   ? 'bg-slate-800 text-white border-slate-900 shadow-lg' 
-                  : 'bg-white text-slate-800 border-gray-200 shadow-sm'
+                  : m.content.includes('[SYSTEM ALERT]') 
+                    ? 'bg-amber-50 text-amber-900 border-amber-200 shadow-sm'
+                    : m.content.includes('[SYSTEM ERROR]')
+                    ? 'bg-red-50 text-red-900 border-red-200 shadow-sm' 
+                    : 'bg-white text-slate-800 border-gray-200 shadow-sm'
                 }`}>
                   <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">{m.content}</div>
                   <div className={`text-[8px] mt-2 font-mono uppercase tracking-widest opacity-40 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
@@ -151,7 +266,9 @@ const App: React.FC = () => {
                     <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
                     <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
                   </div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">Thinking...</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">
+                    {aiService.name} Thinking...
+                  </span>
                 </div>
               </div>
             )}
@@ -186,7 +303,7 @@ const App: React.FC = () => {
                <header className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                  <div>
                    <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">Audit Trail Log</h2>
-                   <p className="text-[10px] text-gray-400 font-bold">MONITORING ACTIVE • {currentUser?.id}</p>
+                   <p className="text-[10px] text-gray-400 font-bold">MONITORING ACTIVE • {currentUser ? currentUser.id : 'GUEST_SESSION'}</p>
                  </div>
                  <Button onClick={() => setShowLogs(false)} variant="ghost" className="w-8 h-8 p-0">&times;</Button>
                </header>
@@ -208,10 +325,10 @@ const App: React.FC = () => {
           <header className="px-8 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-black text-xl tracking-tighter uppercase">Diagram Visualizer</h2>
+                <h2 className="font-black text-xl tracking-tighter uppercase">Design Visualizer</h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Procedural Assembly Active</span>
+                   <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
+                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Nano Banana Active</span>
                 </div>
               </div>
               <div className="text-right">
@@ -222,9 +339,14 @@ const App: React.FC = () => {
             </div>
           </header>
 
-          {/* 3D Visualizer Section */}
+          {/* Image Visualizer Section */}
           <div className="h-1/2 p-4 bg-gray-50 border-b border-gray-100 shadow-inner">
-            <ChiltonVisualizer manifest={session.visualManifest} />
+            <ChiltonVisualizer 
+                imageUrl={visualizerUrl} 
+                onGenerate={handleGenerateVisual}
+                isGenerating={isVisualizing}
+                hasItems={session.bom.length > 0}
+            />
           </div>
 
           {/* BOM Section */}
@@ -302,6 +424,14 @@ const App: React.FC = () => {
       </main>
     </div>
   );
+};
+
+const App: React.FC = () => {
+    return (
+        <ErrorBoundary>
+            <AppContent />
+        </ErrorBoundary>
+    );
 };
 
 export default App;
