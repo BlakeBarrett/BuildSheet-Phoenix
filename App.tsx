@@ -317,6 +317,7 @@ const AppContent: React.FC = () => {
   const [showLogs, setShowLogs] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isBomOpen, setIsBomOpen] = useState(true);
   
   // Audit Modal
   const [auditOpen, setAuditOpen] = useState(false);
@@ -711,6 +712,17 @@ const AppContent: React.FC = () => {
                 <div className="hidden md:block">
                    {currentUser ? `${currentUser.username}@${session.slug}` : 'guest@local-draft'}
                 </div>
+                {/* Desktop/Tablet Toggle for BOM */}
+                <button 
+                  onClick={() => setIsBomOpen(!isBomOpen)}
+                  className="hidden md:flex p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all ml-2 border border-transparent hover:border-indigo-100"
+                  title={isBomOpen ? "Close BOM Panel" : "Open BOM Panel"}
+                >
+                    <svg className={`w-5 h-5 transform transition-transform ${isBomOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span className="sr-only">Toggle Sidebar</span>
+                </button>
                 {/* Mobile Project Trigger */}
                 <button 
                     onClick={() => setShowProjects(true)}
@@ -877,7 +889,16 @@ const AppContent: React.FC = () => {
         </section>
 
         {/* Right Pane: BOM (Desktop) or Visuals+BOM (Mobile) */}
-        <section className={`flex-col bg-white border-l border-gray-200 z-20 w-full md:w-[450px] ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}>
+        <section 
+          className={`
+            flex-col bg-white border-l border-gray-200 z-20 
+            transition-all duration-300 ease-in-out
+            ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}
+            ${isBomOpen ? 'md:w-[450px]' : 'md:w-0 md:border-l-0 md:overflow-hidden'}
+          `}
+        >
+          {/* Inner wrapper forces fixed width on desktop to prevent squishing during slide animation */}
+          <div className="flex flex-col h-full w-full md:w-[450px]">
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
@@ -1042,6 +1063,7 @@ const AppContent: React.FC = () => {
                 )}
             </Button>
           </footer>
+          </div>
         </section>
       </main>
 
