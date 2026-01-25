@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, Component, ErrorInfo } from 'react'
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
-import { DraftingSession, UserMessage, User } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry } from './types.ts';
 import { Button, Chip, Card } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -150,6 +150,94 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
     );
 };
 
+const PartDetailModal: React.FC<{ entry: BOMEntry | null; onClose: () => void }> = ({ entry, onClose }) => {
+    if (!entry) return null;
+    const { part, isCompatible, warnings } = entry;
+    const isVirtual = part.sku.startsWith('DRAFT-');
+
+    return (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-slate-50">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <Chip label={part.category} color={isVirtual ? "bg-indigo-100 text-indigo-700" : "bg-gray-200 text-gray-700"} />
+                            {!isCompatible && <Chip label="Incompatible" color="bg-red-100 text-red-700" />}
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-900 leading-tight">{part.name}</h3>
+                        <p className="text-xs font-mono text-gray-400 mt-1">{part.sku}</p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1">&times;</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Status Banner */}
+                    {(!isCompatible || (warnings && warnings.length > 0)) && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <h4 className="text-xs font-bold text-amber-800 uppercase mb-1">Compatibility Warnings</h4>
+                            <ul className="list-disc list-inside text-xs text-amber-700 space-y-1">
+                                {warnings?.map((w, i) => <li key={i}>{w}</li>)}
+                                {!isCompatible && <li>Interfaces do not match existing system ports.</li>}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* Overview */}
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Overview</h4>
+                        <p className="text-sm text-slate-700 leading-relaxed">{part.description}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <span className="block text-[10px] text-gray-400 uppercase">Brand</span>
+                                <span className="text-sm font-medium text-slate-800">{part.brand}</span>
+                            </div>
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <span className="block text-[10px] text-gray-400 uppercase">Unit Price</span>
+                                <span className="text-sm font-medium text-slate-800">${part.price.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Ports */}
+                    <div>
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Ports</h4>
+                        {part.ports.length > 0 ? (
+                            <div className="border border-gray-100 rounded-lg overflow-hidden">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="bg-gray-50 text-gray-500 font-medium">
+                                        <tr>
+                                            <th className="px-3 py-2">Name</th>
+                                            <th className="px-3 py-2">Type</th>
+                                            <th className="px-3 py-2">Gender</th>
+                                            <th className="px-3 py-2">Spec</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {part.ports.map((port, i) => (
+                                            <tr key={i} className="hover:bg-gray-50">
+                                                <td className="px-3 py-2 font-medium text-slate-700">{port.name}</td>
+                                                <td className="px-3 py-2 text-gray-500">{port.type}</td>
+                                                <td className="px-3 py-2 text-gray-500">{port.gender}</td>
+                                                <td className="px-3 py-2 font-mono text-slate-600">{port.spec}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <p className="text-sm italic text-gray-400">No explicit ports defined for this component.</p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                    <Button onClick={onClose} variant="primary">Close</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
   const { service: aiService, status: aiStatus, error: serviceError } = useService();
   const [draftingEngine] = useState(() => getDraftingEngine());
@@ -169,6 +257,7 @@ const AppContent: React.FC = () => {
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditResult, setAuditResult] = useState<string | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
   
   // Mobile UI State
   const [mobileView, setMobileView] = useState<'chat' | 'visuals'>('chat');
@@ -399,6 +488,10 @@ const AppContent: React.FC = () => {
           onClose={() => setAuditOpen(false)} 
           result={auditResult}
           isRunning={isAuditing}
+      />
+      <PartDetailModal 
+        entry={selectedPart}
+        onClose={() => setSelectedPart(null)}
       />
 
       {/* Sidebar Navigation - Hidden on Mobile */}
@@ -667,21 +760,31 @@ const AppContent: React.FC = () => {
                 const isVirtual = entry.part.sku.startsWith('DRAFT-');
                 const sourcing = (entry as any).sourcing; // Cast to access extended prop
                 return (
-                  <div key={entry.instanceId} className={`bg-white border p-4 rounded-xl shadow-sm transition-all hover:border-indigo-300 group ${
+                  <div 
+                    key={entry.instanceId} 
+                    className={`bg-white border p-4 rounded-xl shadow-sm transition-all hover:border-indigo-300 group cursor-default ${
                     isVirtual ? 'border-dashed border-indigo-400 bg-indigo-50/10' : 
                     !entry.isCompatible ? 'border-amber-400 bg-amber-50/20' : 'border-gray-200'
                   }`}>
                       <div className="flex justify-between items-start">
-                        <div className="flex-1">
+                        <div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)}>
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
                               isVirtual ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
                             }`}>
                               {isVirtual ? 'Design Placeholder' : entry.part.category}
                             </span>
+                            {!entry.isCompatible && (
+                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase bg-red-100 text-red-500 animate-pulse">
+                                    Incompatible
+                                </span>
+                            )}
                           </div>
-                          <h4 className="font-bold text-sm text-slate-900 leading-tight">{entry.part.name}</h4>
-                          <div className="text-[9px] text-gray-400 font-mono mt-1">{entry.part.sku}</div>
+                          <h4 className="font-bold text-sm text-slate-900 leading-tight hover:text-indigo-600 transition-colors">{entry.part.name}</h4>
+                          <div className="text-[9px] text-gray-400 font-mono mt-1 flex items-center gap-1">
+                            {entry.part.sku}
+                            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                          </div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs font-mono font-bold text-slate-900">
@@ -691,7 +794,7 @@ const AppContent: React.FC = () => {
                           {/* Sourcing Button */}
                           {!isVirtual && (
                               <button 
-                                onClick={() => handleSourcePart(entry)}
+                                onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }}
                                 disabled={sourcing?.loading}
                                 className="mt-2 p-1.5 bg-gray-50 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-all"
                                 title="Find Purchase Options"
@@ -737,7 +840,8 @@ const AppContent: React.FC = () => {
                             <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors">+</button>
                          </div>
                          <button 
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             draftingEngine.removePart(entry.instanceId);
                             setSession(draftingEngine.getSession());
                           }}
