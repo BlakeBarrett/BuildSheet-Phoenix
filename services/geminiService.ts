@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
@@ -151,6 +152,36 @@ export class GeminiService implements AIService {
         return null;
     } catch (e) {
         console.warn("Image generation failed", e);
+        return null;
+    }
+  }
+
+  async findPartSources(query: string): Promise<{ options: { title: string; url: string; source: string }[] } | null> {
+    try {
+        const response = await this.ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Find purchase options for this hardware component: ${query}. Return a list of reliable vendors.`,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        });
+
+        // Extract grounding chunks
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        
+        if (!chunks || chunks.length === 0) return null;
+
+        const options = chunks
+            .filter((c: any) => c.web && c.web.uri)
+            .map((c: any) => ({
+                title: c.web.title || "Part Source",
+                url: c.web.uri,
+                source: new URL(c.web.uri).hostname
+            }));
+
+        return { options };
+    } catch (e) {
+        console.error("Sourcing lookup failed", e);
         return null;
     }
   }

@@ -1,4 +1,5 @@
 
+
 import { VisualManifest } from '../types.ts';
 
 export interface ArchitectResponse {
@@ -27,4 +28,9 @@ export interface AIService {
    * @param referenceImage Optional Base64 Data URL to guide generation
    */
   generateProductImage(description: string, referenceImage?: string): Promise<string | null>;
+
+  /**
+   * Finds purchase options for a part using search grounding.
+   */
+  findPartSources?(query: string): Promise<{ options: { title: string; url: string; source: string }[] } | null>;
 }

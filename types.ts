@@ -1,4 +1,5 @@
 
+
 export enum PortType {
   MECHANICAL = 'MECHANICAL',
   ELECTRICAL = 'ELECTRICAL',
@@ -51,6 +52,10 @@ export interface BOMEntry {
   parentInstanceId?: string;
   isCompatible: boolean;
   warnings?: string[];
+  sourcing?: {
+    loading?: boolean;
+    data?: any;
+  };
 }
 
 export interface GeneratedImage {

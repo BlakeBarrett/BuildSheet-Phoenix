@@ -3,7 +3,7 @@ import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { DraftingSession, UserMessage, User } from './types.ts';
-import { Button, Chip } from './components/Material3UI.tsx';
+import { Button, Chip, Card } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
 
@@ -55,7 +55,7 @@ const ProjectManager: React.FC<{
     if (!isOpen) return null;
 
     return (
-        <div className="absolute left-20 top-0 bottom-0 w-72 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
+        <div className="absolute left-0 md:left-20 top-0 bottom-0 w-full md:w-72 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                 <h2 className="font-bold text-slate-800">Your Projects</h2>
                 <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>
@@ -120,6 +120,9 @@ const AppContent: React.FC = () => {
   const [showProjects, setShowProjects] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
+  // Mobile UI State
+  const [mobileView, setMobileView] = useState<'chat' | 'visuals'>('chat');
+  
   // Visualizer State
   const [isVisualizing, setIsVisualizing] = useState(false);
 
@@ -133,7 +136,12 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, [draftingEngine]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [session.messages]);
+  useEffect(() => { 
+      // Only scroll if we are in chat mode (on mobile) or desktop
+      if (mobileView === 'chat') {
+          chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+      }
+  }, [session.messages, mobileView]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -170,6 +178,12 @@ const AppContent: React.FC = () => {
     if (isVisualizing) return;
 
     setIsVisualizing(true);
+    
+    // Auto-switch to visual tab on mobile if a new visual is generated
+    if (window.innerWidth < 768) {
+        setMobileView('visuals');
+    }
+
     try {
         const partsList = currentSession.bom.map(b => `${b.quantity}x ${b.part.name}`).join(', ');
         let prompt = `Product Design Sketch.`;
@@ -230,9 +244,6 @@ const AppContent: React.FC = () => {
         };
       });
 
-      // Pass the *current* attachment separately to the service to ensure it gets prioritized/added
-      // The history constructed above includes *previous* messages.
-      // The GeminiService.askArchitect will append the *current* prompt.
       const architectResponse = await aiService.askArchitect(textToSend, history, attachmentToSend || undefined);
       const parsed = aiService.parseArchitectResponse(architectResponse);
 
@@ -246,7 +257,6 @@ const AppContent: React.FC = () => {
         }
       });
 
-      // Add assistant message to persistence
       draftingEngine.addMessage({ 
         role: 'assistant', 
         content: parsed.reasoning || architectResponse, 
@@ -276,6 +286,7 @@ const AppContent: React.FC = () => {
       if (draftingEngine.loadProject(id)) {
           setSession(draftingEngine.getSession());
           setShowProjects(false);
+          setMobileView('chat');
       }
   };
 
@@ -283,6 +294,7 @@ const AppContent: React.FC = () => {
       draftingEngine.createNewProject();
       setSession(draftingEngine.getSession());
       setShowProjects(false);
+      setMobileView('chat');
   };
 
   const handleDeleteProject = (id: string) => {
@@ -290,11 +302,35 @@ const AppContent: React.FC = () => {
       setSession(draftingEngine.getSession()); // Update in case active project was deleted
   };
 
-  return (
-    <div className="flex h-screen w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative">
+  const handleSourcePart = async (entry: any) => {
+      if (entry.part.sku.startsWith('DRAFT-')) return; // Can't source virtual parts yet
       
-      {/* Sidebar Navigation */}
-      <nav className="w-20 border-r border-gray-200 bg-white flex flex-col items-center py-8 gap-6 flex-shrink-0 shadow-sm z-20 relative">
+      // Optimistic update to show loading
+      const updatedBom = session.bom.map(b => {
+          if (b.instanceId === entry.instanceId) {
+              return { ...b, sourcing: { loading: true } };
+          }
+          return b;
+      });
+      // We don't save loading state to engine persistence, just local state for UI
+      setSession({ ...session, bom: updatedBom });
+
+      try {
+          const result = await aiService.findPartSources?.(entry.part.name + " " + entry.part.sku);
+          if (result) {
+             draftingEngine.updatePartSourcing(entry.instanceId, result);
+             setSession(draftingEngine.getSession());
+          }
+      } catch (e) {
+          console.error("Sourcing failed", e);
+      }
+  };
+
+  return (
+    <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative flex-col md:flex-row">
+      
+      {/* Sidebar Navigation - Hidden on Mobile */}
+      <nav className="hidden md:flex w-20 border-r border-gray-200 bg-white flex-col items-center py-8 gap-6 flex-shrink-0 shadow-sm z-20 relative">
         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-4">B</div>
         
         <div className="flex flex-col gap-6 flex-1 w-full px-4">
@@ -338,7 +374,7 @@ const AppContent: React.FC = () => {
         </div>
       </nav>
 
-      {/* Project Drawer */}
+      {/* Project Drawer - Full width on Mobile */}
       <ProjectManager 
         isOpen={showProjects} 
         onClose={() => setShowProjects(false)}
@@ -350,12 +386,12 @@ const AppContent: React.FC = () => {
       />
 
       <main className="flex-1 flex overflow-hidden relative">
-        {/* Left Pane: The Architect */}
-        <section className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${showLogs ? 'opacity-30 pointer-events-none scale-95' : ''}`}>
-          <header className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
+        {/* Left Pane: The Architect (Chat) */}
+        <section className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${showLogs ? 'opacity-30 pointer-events-none scale-95' : ''} ${mobileView === 'visuals' ? 'hidden md:flex' : 'flex'}`}>
+          <header className="px-6 py-4 md:px-8 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-xl tracking-tight">BuildArchitect</h1>
+                <h1 className="font-bold text-lg md:text-xl tracking-tight">BuildArchitect</h1>
                 <Chip label={session.name || "Untitled"} color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
               </div>
               <div className="flex items-center gap-2 mt-1">
@@ -369,12 +405,21 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2 text-xs font-mono text-gray-400">
-               {currentUser ? `${currentUser.username}@${session.slug}` : 'guest@local-draft'}
+            <div className="flex gap-2 text-xs font-mono text-gray-400 items-center">
+                <div className="hidden md:block">
+                   {currentUser ? `${currentUser.username}@${session.slug}` : 'guest@local-draft'}
+                </div>
+                {/* Mobile Project Trigger */}
+                <button 
+                    onClick={() => setShowProjects(true)}
+                    className="md:hidden p-2 -mr-2 text-gray-400 hover:text-indigo-600"
+                >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                </button>
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-[#FAFAFA]">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[#FAFAFA]">
             {session.messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-6">
                 <div className="w-16 h-16 bg-white border border-gray-200 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
@@ -441,7 +486,7 @@ const AppContent: React.FC = () => {
             <div ref={chatEndRef} />
           </div>
 
-          <footer className="p-6 border-t border-gray-100 bg-white shadow-inner">
+          <footer className="p-4 md:p-6 border-t border-gray-100 bg-white shadow-inner">
             <div className="relative flex flex-col gap-2">
               {pendingAttachment && (
                   <div className="relative inline-block self-start">
@@ -502,9 +547,9 @@ const AppContent: React.FC = () => {
           </footer>
         </section>
 
-        {/* Right Pane: Split Visualizer + BOM */}
-        <section className="w-[550px] flex flex-col bg-white border-l border-gray-200 z-20">
-          <header className="px-8 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
+        {/* Right Pane: Split Visualizer + BOM - Hidden on Mobile unless Toggled */}
+        <section className={`flex-col bg-white border-l border-gray-200 z-20 w-full md:w-[550px] ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}>
+          <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
                 <h2 className="font-black text-xl tracking-tighter uppercase">Design Visualizer</h2>
@@ -513,10 +558,17 @@ const AppContent: React.FC = () => {
                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Nano Banana Active</span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right flex items-center gap-4">
                 <div className="text-[18px] font-mono font-black text-slate-900 tabular-nums">
                   ${draftingEngine.getTotalCost().toLocaleString()}
                 </div>
+                 {/* Mobile Project Trigger */}
+                 <button 
+                    onClick={() => setShowProjects(true)}
+                    className="md:hidden p-2 -mr-2 text-gray-400 hover:text-indigo-600"
+                >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                </button>
               </div>
             </div>
           </header>
@@ -541,6 +593,7 @@ const AppContent: React.FC = () => {
             ) : (
               session.bom.map((entry) => {
                 const isVirtual = entry.part.sku.startsWith('DRAFT-');
+                const sourcing = (entry as any).sourcing; // Cast to access extended prop
                 return (
                   <div key={entry.instanceId} className={`bg-white border p-4 rounded-xl shadow-sm transition-all hover:border-indigo-300 group ${
                     isVirtual ? 'border-dashed border-indigo-400 bg-indigo-50/10' : 
@@ -558,10 +611,40 @@ const AppContent: React.FC = () => {
                           <h4 className="font-bold text-sm text-slate-900 leading-tight">{entry.part.name}</h4>
                           <div className="text-[9px] text-gray-400 font-mono mt-1">{entry.part.sku}</div>
                         </div>
-                        <div className="text-xs font-mono font-bold text-slate-900">
-                          {isVirtual ? 'TBD' : `$${(entry.part.price * entry.quantity).toLocaleString()}`}
+                        <div className="text-right">
+                          <div className="text-xs font-mono font-bold text-slate-900">
+                            {isVirtual ? 'TBD' : `$${(entry.part.price * entry.quantity).toLocaleString()}`}
+                          </div>
+                          
+                          {/* Sourcing Button */}
+                          {!isVirtual && (
+                              <button 
+                                onClick={() => handleSourcePart(entry)}
+                                disabled={sourcing?.loading}
+                                className="mt-2 p-1.5 bg-gray-50 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-all"
+                                title="Find Purchase Options"
+                              >
+                                {sourcing?.loading ? (
+                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                )}
+                              </button>
+                          )}
                         </div>
                       </div>
+                      
+                      {/* Sourcing Result */}
+                      {sourcing?.data && (
+                          <div className="mt-3 bg-gray-50 rounded border border-gray-100 p-2">
+                             <div className="text-[10px] font-bold text-slate-700 uppercase mb-1">Available at:</div>
+                             {sourcing.data.options.map((opt: any, i: number) => (
+                                 <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline">
+                                     {opt.title || opt.source}
+                                 </a>
+                             ))}
+                          </div>
+                      )}
                       
                       {/* Port Display */}
                       <div className="flex flex-wrap gap-1 mt-3">
@@ -604,6 +687,29 @@ const AppContent: React.FC = () => {
           </footer>
         </section>
       </main>
+
+      {/* Mobile Bottom Navigation - Strict Two Tab Experience */}
+      <div className="md:hidden h-16 bg-white border-t border-gray-200 flex items-center justify-around shrink-0 z-30 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button 
+            onClick={() => setMobileView('chat')} 
+            className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'chat' ? 'text-indigo-600' : 'text-gray-400'}`}
+        >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+            <span className="text-[10px] font-bold uppercase">Architect</span>
+            {mobileView === 'chat' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
+        </button>
+
+        <div className="w-px h-8 bg-gray-200"></div>
+
+        <button 
+            onClick={() => setMobileView('visuals')} 
+            className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'visuals' ? 'text-indigo-600' : 'text-gray-400'}`}
+        >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <span className="text-[10px] font-bold uppercase">Blueprint</span>
+            {mobileView === 'visuals' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
+        </button>
+      </div>
     </div>
   );
 };

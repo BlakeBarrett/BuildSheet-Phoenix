@@ -1,3 +1,5 @@
+
+
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
@@ -286,6 +288,16 @@ export class DraftingEngine {
     this.session.bom = this.session.bom.filter(entry => entry.instanceId !== instanceId);
     ActivityLogService.log('PART_REMOVED', { instanceId, partId: part?.part.id });
     this.saveSession();
+  }
+
+  public updatePartSourcing(instanceId: string, sourcingData: any) {
+    const entry = this.session.bom.find(b => b.instanceId === instanceId);
+    if (entry) {
+        if (!entry.sourcing) entry.sourcing = {};
+        entry.sourcing.loading = false;
+        entry.sourcing.data = sourcingData;
+        this.saveSession();
+    }
   }
 
   private validateCompatibility(newPart: Part): { isCompatible: boolean; warnings: string[] } {

@@ -1,4 +1,5 @@
 
+
 import { AIService, ArchitectResponse } from './aiTypes.ts';
 
 export class MockService implements AIService {
@@ -54,5 +55,16 @@ export class MockService implements AIService {
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     await new Promise(r => setTimeout(r, 1000));
     return null;
+  }
+
+  async findPartSources(query: string): Promise<any> {
+      await new Promise(r => setTimeout(r, 1000));
+      return {
+          options: [
+              { title: "Mouser Electronics", url: "https://www.mouser.com", source: "mouser.com" },
+              { title: "DigiKey", url: "https://www.digikey.com", source: "digikey.com" },
+              { title: "Adafruit", url: "https://www.adafruit.com", source: "adafruit.com" }
+          ]
+      };
   }
 }
