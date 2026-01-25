@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
+import { ServiceProvider } from './contexts/ServiceContext.tsx';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -10,6 +11,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ServiceProvider>
+      <App />
+    </ServiceProvider>
   </React.StrictMode>
 );

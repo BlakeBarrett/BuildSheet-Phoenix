@@ -5,9 +5,7 @@ import { ActivityLogService } from './services/activityLogService.ts';
 import { DraftingSession, UserMessage, User } from './types.ts';
 import { Button, Chip } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
-import { AIManager } from './services/aiManager.ts';
-import { AIService } from './services/aiTypes.ts';
-import { MockService } from './services/mockService.ts';
+import { useService } from './contexts/ServiceContext.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -38,6 +36,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 const AppContent: React.FC = () => {
+  const { service: aiService, status: aiStatus, error: serviceError } = useService();
   const [draftingEngine] = useState(() => getDraftingEngine());
   const [messages, setMessages] = useState<UserMessage[]>([]);
   const [input, setInput] = useState('');
@@ -46,43 +45,11 @@ const AppContent: React.FC = () => {
   const [showLogs, setShowLogs] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
-  // AI Service State
-  const [aiService, setAiService] = useState<AIService>(new MockService());
-  const [aiStatus, setAiStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
-  const [serviceError, setServiceError] = useState<string | null>(null);
-
   // Visualizer State
   const [visualizerUrl, setVisualizerUrl] = useState<string | null>(null);
   const [isVisualizing, setIsVisualizing] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const initService = async () => {
-    setAiStatus('connecting');
-    const { service, error } = await AIManager.createService();
-    setAiService(service);
-    
-    if (service.isOffline) {
-        setAiStatus('offline');
-        if (error) setServiceError(error);
-        
-        // Alert user if we fell back to mock due to error
-        if (error) {
-             setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `[SYSTEM ALERT] Could not connect to Gemini Service. Falling back to offline simulation.\n\nReason: ${error}`,
-                timestamp: new Date()
-            }]);
-        }
-    } else {
-        setAiStatus('online');
-        setServiceError(null);
-    }
-  };
-
-  useEffect(() => {
-    initService();
-  }, []);
 
   useEffect(() => {
     const unsubscribe = UserService.onUserChange((user) => {
@@ -198,14 +165,13 @@ const AppContent: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
-                <button 
-                    onClick={() => initService()}
-                    className={`flex items-center gap-1.5 transition-all ${aiStatus === 'offline' ? 'hover:bg-gray-100 px-2 py-0.5 rounded cursor-pointer' : ''}`}
-                    title={aiStatus === 'offline' ? 'Click to retry connection' : 'Connected'}
+                <div 
+                    className={`flex items-center gap-1.5 transition-all`}
+                    title={aiStatus === 'offline' ? 'Offline Mode' : 'Connected'}
                 >
                     <div className={`w-1.5 h-1.5 rounded-full ${aiStatus === 'online' ? 'bg-green-500' : aiStatus === 'offline' ? 'bg-amber-500' : 'bg-gray-300 animate-pulse'}`}></div>
-                    {aiStatus === 'offline' && <span className="text-[9px] font-bold text-amber-600 uppercase">OFFLINE (RETRY)</span>}
-                </button>
+                    {aiStatus === 'offline' && <span className="text-[9px] font-bold text-amber-600 uppercase">SIMULATION</span>}
+                </div>
               </div>
             </div>
             <div className="flex gap-2 text-xs font-mono text-gray-400">
@@ -226,7 +192,7 @@ const AppContent: React.FC = () => {
                 {aiStatus === 'offline' && (
                      <div className="bg-amber-50 text-amber-800 text-xs px-4 py-2 rounded-lg border border-amber-200 text-left">
                         <strong>Running in Offline Simulation Mode.</strong><br/>
-                        {serviceError ? `Error: ${serviceError}` : "Check API Key or Network Connection."}
+                        {serviceError ? `System: ${serviceError}` : "Check API Key or Network Connection."}
                     </div>
                 )}
                 <div className="flex flex-col gap-2 w-full">
