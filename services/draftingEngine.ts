@@ -1,57 +1,204 @@
-import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage } from '../types.ts';
+import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 
 export class DraftingEngine {
   private session: DraftingSession;
-  private STORAGE_KEY = 'buildsheet_active_draft';
+  
+  // Storage Keys
+  private INDEX_KEY = 'buildsheet_projects_index';
+  private ACTIVE_ID_KEY = 'buildsheet_active_project_id';
+  private LEGACY_KEY = 'buildsheet_active_draft';
+  private SESSION_PREFIX = 'buildsheet_project_';
 
   constructor() {
-    // Try to load from local storage first to prevent data loss on refresh
-    let saved: string | null = null;
-    try {
-        saved = localStorage.getItem(this.STORAGE_KEY);
-    } catch (e) {
-        console.warn("LocalStorage access failed", e);
-    }
-
-    if (saved) {
-        try {
-            this.session = JSON.parse(saved);
-            // Re-hydrate dates
-            this.session.createdAt = new Date(this.session.createdAt);
-            // Re-hydrate image dates if they exist
-            if (this.session.generatedImages) {
-                this.session.generatedImages.forEach(img => img.timestamp = new Date(img.timestamp));
-            } else {
-                this.session.generatedImages = [];
-            }
-        } catch (e) {
-            console.error("Failed to hydrate session", e);
-            this.session = this.createNewSession();
-        }
-    } else {
-        this.session = this.createNewSession();
-    }
+    this.session = this.loadInitialSession();
   }
 
-  private createNewSession(): DraftingSession {
-    const user = UserService.getCurrentUser();
+  // --- PERSISTENCE MANAGER ---
+
+  private loadInitialSession(): DraftingSession {
+    // 1. Check for legacy data and migrate
+    const legacyData = localStorage.getItem(this.LEGACY_KEY);
+    if (legacyData) {
+        try {
+            const parsed = JSON.parse(legacyData);
+            console.log("Migrating legacy session...", parsed.id);
+            this.saveSessionToStorage(parsed); // Save to new format
+            localStorage.removeItem(this.LEGACY_KEY);
+            localStorage.setItem(this.ACTIVE_ID_KEY, parsed.id);
+            return this.hydrateSession(parsed);
+        } catch (e) {
+            console.error("Legacy migration failed", e);
+        }
+    }
+
+    // 2. Load Active Project ID
+    const activeId = localStorage.getItem(this.ACTIVE_ID_KEY);
+    if (activeId) {
+        const storedSession = localStorage.getItem(this.SESSION_PREFIX + activeId);
+        if (storedSession) {
+            try {
+                return this.hydrateSession(JSON.parse(storedSession));
+            } catch (e) {
+                console.error("Failed to parse active session", e);
+            }
+        }
+    }
+
+    // 3. Fallback: Create New
+    const newSession = this.createNewSessionTemplate();
+    this.saveSessionToStorage(newSession);
+    localStorage.setItem(this.ACTIVE_ID_KEY, newSession.id);
+    return newSession;
+  }
+
+  private hydrateSession(data: any): DraftingSession {
     return {
-      id: Math.random().toString(36).substr(2, 9),
-      slug: 'new-build',
+        ...data,
+        createdAt: new Date(data.createdAt),
+        lastModified: data.lastModified ? new Date(data.lastModified) : new Date(),
+        generatedImages: data.generatedImages?.map((img: any) => ({
+            ...img,
+            timestamp: new Date(img.timestamp)
+        })) || [],
+        messages: data.messages?.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+        })) || []
+    };
+  }
+
+  private createNewSessionTemplate(): DraftingSession {
+    const user = UserService.getCurrentUser();
+    const id = Math.random().toString(36).substr(2, 9);
+    return {
+      id,
+      slug: `build-${id.substr(0,4)}`,
       ownerId: user?.id || 'anonymous',
       name: 'Untitled Assembly',
       designRequirements: '',
       bom: [],
       generatedImages: [],
-      createdAt: new Date()
+      messages: [],
+      createdAt: new Date(),
+      lastModified: new Date()
     };
   }
 
+  private saveSession() {
+    this.session.lastModified = new Date();
+    this.saveSessionToStorage(this.session);
+  }
+
+  private saveSessionToStorage(session: DraftingSession) {
+    try {
+        const key = this.SESSION_PREFIX + session.id;
+        
+        // Save Session Data
+        this.persistWithQuotaManagement(key, session);
+
+        // Update Index
+        this.updateProjectIndex(session);
+
+        // Set Active
+        localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
+
+        if (UserService.getCurrentUser()) {
+             ActivityLogService.log('DRAFT_COMMITTED', { sessionId: session.id });
+        }
+    } catch (e) {
+        console.error("Persistence failed", e);
+    }
+  }
+
+  private persistWithQuotaManagement(key: string, session: DraftingSession) {
+    try {
+        localStorage.setItem(key, JSON.stringify(session));
+    } catch (e: any) {
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+             console.warn("Quota exceeded. Trimming history.");
+             const trimmed = { ...session, generatedImages: [...session.generatedImages] };
+             // Keep only latest 3 images in persisted storage if full
+             while (trimmed.generatedImages.length > 3) {
+                 trimmed.generatedImages.shift();
+             }
+             // If still failing, trim messages? (Not implemented yet to avoid data loss)
+             try {
+                localStorage.setItem(key, JSON.stringify(trimmed));
+             } catch (innerE) {
+                 console.error("Critical storage failure", innerE);
+             }
+        }
+    }
+  }
+
+  private updateProjectIndex(session: DraftingSession) {
+      try {
+          const indexRaw = localStorage.getItem(this.INDEX_KEY);
+          let index: any[] = indexRaw ? JSON.parse(indexRaw) : [];
+          
+          // Remove existing entry for this ID
+          index = index.filter(i => i.id !== session.id);
+          
+          // Add updated entry to top
+          index.unshift({
+              id: session.id,
+              name: session.name,
+              lastModified: session.lastModified,
+              preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft'
+          });
+
+          localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+      } catch (e) {
+          console.warn("Failed to update project index", e);
+      }
+  }
+
+  // --- PUBLIC API ---
+
   public getSession(): DraftingSession {
     return { ...this.session };
+  }
+
+  public getProjectList() {
+      const raw = localStorage.getItem(this.INDEX_KEY);
+      return raw ? JSON.parse(raw) : [];
+  }
+
+  public createNewProject() {
+      this.session = this.createNewSessionTemplate();
+      this.saveSession();
+  }
+
+  public loadProject(id: string): boolean {
+      const raw = localStorage.getItem(this.SESSION_PREFIX + id);
+      if (raw) {
+          try {
+              this.session = this.hydrateSession(JSON.parse(raw));
+              localStorage.setItem(this.ACTIVE_ID_KEY, id);
+              return true;
+          } catch (e) {
+              console.error("Load failed", e);
+          }
+      }
+      return false;
+  }
+
+  public deleteProject(id: string) {
+      localStorage.removeItem(this.SESSION_PREFIX + id);
+      const index = this.getProjectList().filter((p: any) => p.id !== id);
+      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+      
+      if (this.session.id === id) {
+          // If deleted active project, load the first available or create new
+          if (index.length > 0) {
+              this.loadProject(index[0].id);
+          } else {
+              this.createNewProject();
+          }
+      }
   }
 
   public updateOwner(ownerId: string) {
@@ -59,41 +206,9 @@ export class DraftingEngine {
     this.saveSession();
   }
 
-  private saveSession() {
-    try {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.session));
-        
-        // We log the commit, but we don't need to await a DB call anymore
-        if (UserService.getCurrentUser()) {
-             ActivityLogService.log('DRAFT_COMMITTED', { sessionId: this.session.id });
-        }
-    } catch (e: any) {
-        // Handle LocalStorage Quota Exceeded gracefully
-        // We want to keep the in-memory session full (preserve album), but trim persistence if needed.
-        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
-            console.warn("LocalStorage quota exceeded. Trimming persistence history to prevent crash.");
-            
-            // Shallow copy session, but new array for generatedImages to allow mutation of the copy
-            const sessionForStorage = {
-                ...this.session,
-                generatedImages: [...this.session.generatedImages]
-            };
-
-            // Aggressively trim oldest images from the STORAGE copy only
-            while (sessionForStorage.generatedImages.length > 0) {
-                sessionForStorage.generatedImages.shift(); // Remove oldest
-                try {
-                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessionForStorage));
-                    return; // Saved successfully with reduced history
-                } catch (retryError) {
-                    continue; // Still too big, keep trimming
-                }
-            }
-            console.error("Critical: Could not save session even after clearing image history.");
-        } else {
-            console.error("Failed to save session locally", e);
-        }
-    }
+  public addMessage(message: UserMessage) {
+      this.session.messages.push(message);
+      this.saveSession();
   }
 
   public setVisualManifest(manifest: VisualManifest) {
@@ -107,12 +222,11 @@ export class DraftingEngine {
     this.session.bom = [];
     this.session.visualManifest = undefined;
     
-    // CRITICAL: Do NOT clear generatedImages on re-initialization. 
-    // We want to preserve the full design history album across BOM resets.
-    if (!this.session.generatedImages) {
-        this.session.generatedImages = [];
-    }
-
+    // Keep images and messages? 
+    // Usually 'initializeDraft' means a pivot in the CURRENT conversation.
+    // So we keep images and messages.
+    if (!this.session.generatedImages) this.session.generatedImages = [];
+    
     ActivityLogService.log('SESSION_INITIALIZED', { name, requirements });
     this.saveSession();
   }
@@ -124,12 +238,7 @@ export class DraftingEngine {
         prompt,
         timestamp: new Date()
     };
-    
-    // UNLIMITED HISTORY IN-MEMORY
-    // We rely on the saveSession quota handling to manage LocalStorage limits
-    // while keeping the active session's album intact for the user.
     this.session.generatedImages.push(img);
-    
     ActivityLogService.log('IMAGE_GENERATED', { promptLength: prompt.length });
     this.saveSession();
   }
@@ -164,7 +273,6 @@ export class DraftingEngine {
     
     this.session.bom.push(entry);
     ActivityLogService.log('PART_ADDED', { partId, quantity, isCompatible, isVirtual });
-    
     this.saveSession();
 
     return { 
@@ -214,7 +322,7 @@ export class DraftingEngine {
   }
 }
 
-// Lazy initialization to prevent module evaluation crashes
+// Lazy initialization
 let instance: DraftingEngine | null = null;
 export const getDraftingEngine = () => {
     if (!instance) {

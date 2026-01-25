@@ -60,6 +60,12 @@ export interface GeneratedImage {
   timestamp: Date;
 }
 
+export interface UserMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
 export interface DraftingSession {
   id: string;
   slug: string;
@@ -69,7 +75,9 @@ export interface DraftingSession {
   bom: BOMEntry[];
   visualManifest?: VisualManifest;
   generatedImages: GeneratedImage[];
+  messages: UserMessage[];
   createdAt: Date;
+  lastModified: Date;
 }
 
 export interface User {
@@ -85,10 +93,4 @@ export interface UserActivityLog {
   timestamp: Date;
   action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED' | 'IMAGE_GENERATED';
   metadata: any;
-}
-
-export interface UserMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
 }

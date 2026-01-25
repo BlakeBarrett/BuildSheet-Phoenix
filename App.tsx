@@ -35,14 +35,86 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+const ProjectManager: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onLoad: (id: string) => void;
+    onNew: () => void;
+    onDelete: (id: string) => void;
+    activeId: string;
+    engine: any; 
+}> = ({ isOpen, onClose, onLoad, onNew, onDelete, activeId, engine }) => {
+    const [projects, setProjects] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setProjects(engine.getProjectList());
+        }
+    }, [isOpen, engine]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="absolute left-20 top-0 bottom-0 w-72 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h2 className="font-bold text-slate-800">Your Projects</h2>
+                <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                <button 
+                    onClick={onNew}
+                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 font-bold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+                >
+                    <span>+</span> New Project
+                </button>
+
+                {projects.map(p => (
+                    <div 
+                        key={p.id} 
+                        className={`group relative p-3 rounded-xl text-left border transition-all ${
+                            p.id === activeId 
+                            ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
+                            : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-md'
+                        }`}
+                    >
+                        <div onClick={() => onLoad(p.id)} className="cursor-pointer">
+                            <div className="font-bold text-sm text-slate-800 truncate">{p.name || 'Untitled'}</div>
+                            <div className="text-[10px] text-gray-400 font-mono mt-1 flex justify-between">
+                                <span>{new Date(p.lastModified).toLocaleDateString()}</span>
+                                <span>{p.preview}</span>
+                            </div>
+                        </div>
+                        {p.id !== activeId && (
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); onDelete(p.id); setProjects(engine.getProjectList()); }}
+                                className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                             >
+                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                             </button>
+                        )}
+                    </div>
+                ))}
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100">
+                <p className="text-[10px] text-gray-400 text-center">Projects are saved locally to this device.</p>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
   const { service: aiService, status: aiStatus, error: serviceError } = useService();
   const [draftingEngine] = useState(() => getDraftingEngine());
-  const [messages, setMessages] = useState<UserMessage[]>([]);
-  const [input, setInput] = useState('');
+  
+  // NOTE: We initialize messages from the session now, not empty array
   const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
+  const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  
+  // UI State
   const [showLogs, setShowLogs] = useState(false);
+  const [showProjects, setShowProjects] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   // Visualizer State
@@ -58,35 +130,25 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, [draftingEngine]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [session.messages]);
 
-  // Separate function to handle visual generation logic
   const handleGenerateVisual = async (architectReasoning?: string) => {
-    // We get the LATEST session state directly from engine, as React state might lag
     const currentSession = draftingEngine.getSession();
-    
-    // Don't generate if empty (unless we have requirements)
     if (currentSession.bom.length === 0 && !currentSession.designRequirements) return;
-    
-    // Don't block UI if already running
     if (isVisualizing) return;
 
     setIsVisualizing(true);
-    
     try {
         const partsList = currentSession.bom.map(b => `${b.quantity}x ${b.part.name}`).join(', ');
-        
-        // Construct a rich prompt that evolves with the design
         let prompt = `Product Design Sketch.`;
         if (currentSession.designRequirements) prompt += ` Context: ${currentSession.designRequirements}.`;
         if (partsList) prompt += ` Visible Components: ${partsList}.`;
-        if (architectReasoning) prompt += ` Design Notes: ${architectReasoning.slice(0, 150)}...`; // Truncate to avoid context limit issues
+        if (architectReasoning) prompt += ` Design Notes: ${architectReasoning.slice(0, 150)}...`;
         
         const imageUrl = await aiService.generateProductImage(prompt);
-        
         if (imageUrl) {
             draftingEngine.addGeneratedImage(imageUrl, prompt);
-            setSession(draftingEngine.getSession()); // Force re-render to show new image in gallery
+            setSession(draftingEngine.getSession());
         }
     } catch (e) {
         console.error("Visual generation failed", e);
@@ -100,13 +162,16 @@ const AppContent: React.FC = () => {
     if (!textToSend.trim() || isThinking) return;
 
     const userMsg: UserMessage = { role: 'user', content: textToSend, timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
+    
+    // Update Engine Persistence
+    draftingEngine.addMessage(userMsg);
+    setSession(draftingEngine.getSession()); // Refresh local state
+    
     setInput('');
     setIsThinking(true);
 
     try {
-      // Filter out system alerts from history
-      const history = messages.filter(m => !m.content.startsWith('[SYSTEM ALERT]')).map(m => ({
+      const history = session.messages.filter(m => !m.content.startsWith('[SYSTEM ALERT]')).map(m => ({
         role: m.role === 'user' ? 'user' as const : 'model' as const,
         parts: [{ text: m.content }]
       }));
@@ -124,38 +189,76 @@ const AppContent: React.FC = () => {
         }
       });
 
-      setSession(draftingEngine.getSession());
-      setMessages(prev => [...prev, { 
+      // Add assistant message to persistence
+      draftingEngine.addMessage({ 
         role: 'assistant', 
         content: parsed.reasoning || architectResponse, 
         timestamp: new Date() 
-      }]);
+      });
 
-      // AUTO-GENERATE VISUAL
-      // Triggering this asynchronously so we don't block the UI update for the text response
+      setSession(draftingEngine.getSession());
       handleGenerateVisual(parsed.reasoning);
 
     } catch (error: any) {
       console.error(error);
-      setMessages(prev => [...prev, { 
+      draftingEngine.addMessage({ 
         role: 'assistant', 
         content: `[SYSTEM ERROR] ${error.message || "Unknown error occurred during processing."}`, 
         timestamp: new Date() 
-      }]);
+      });
+      setSession(draftingEngine.getSession());
     } finally {
       setIsThinking(false);
     }
   };
 
+  // Project Management Handlers
+  const handleLoadProject = (id: string) => {
+      if (draftingEngine.loadProject(id)) {
+          setSession(draftingEngine.getSession());
+          setShowProjects(false);
+      }
+  };
+
+  const handleNewProject = () => {
+      draftingEngine.createNewProject();
+      setSession(draftingEngine.getSession());
+      setShowProjects(false);
+  };
+
+  const handleDeleteProject = (id: string) => {
+      draftingEngine.deleteProject(id);
+      setSession(draftingEngine.getSession()); // Update in case active project was deleted
+  };
+
   return (
-    <div className="flex h-screen w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative">
+      
       {/* Sidebar Navigation */}
-      <nav className="w-20 border-r border-gray-200 bg-white flex flex-col items-center py-8 gap-10 flex-shrink-0 shadow-sm z-10">
-        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50">B</div>
+      <nav className="w-20 border-r border-gray-200 bg-white flex flex-col items-center py-8 gap-6 flex-shrink-0 shadow-sm z-20 relative">
+        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-4">B</div>
         
-        <div className="flex flex-col gap-8 flex-1">
-          <button className="text-indigo-600 bg-indigo-50 p-3 rounded-2xl transition-all cursor-default"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></button>
-          <button onClick={() => setShowLogs(!showLogs)} className={`p-3 rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600'}`}>
+        <div className="flex flex-col gap-6 flex-1 w-full px-4">
+          <button 
+            className="w-full aspect-square flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all cursor-default"
+            title="Drafting Mode"
+          >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          </button>
+
+          <button 
+            onClick={() => setShowProjects(!showProjects)}
+            className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all ${showProjects ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
+            title="Projects"
+          >
+             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+          </button>
+
+          <button 
+            onClick={() => setShowLogs(!showLogs)} 
+            className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
+            title="System Logs"
+          >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </button>
         </div>
@@ -164,7 +267,6 @@ const AppContent: React.FC = () => {
           {currentUser ? (
              <button onClick={() => UserService.logout()} className="relative group">
                 <img src={currentUser.avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100 group-hover:border-red-400 transition-colors" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
              </button>
           ) : (
             <button 
@@ -177,6 +279,17 @@ const AppContent: React.FC = () => {
         </div>
       </nav>
 
+      {/* Project Drawer */}
+      <ProjectManager 
+        isOpen={showProjects} 
+        onClose={() => setShowProjects(false)}
+        onLoad={handleLoadProject}
+        onNew={handleNewProject}
+        onDelete={handleDeleteProject}
+        activeId={session.id}
+        engine={draftingEngine}
+      />
+
       <main className="flex-1 flex overflow-hidden relative">
         {/* Left Pane: The Architect */}
         <section className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${showLogs ? 'opacity-30 pointer-events-none scale-95' : ''}`}>
@@ -184,7 +297,7 @@ const AppContent: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-xl tracking-tight">BuildArchitect</h1>
-                <Chip label="DRAFTING" color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
+                <Chip label={session.name || "Untitled"} color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
@@ -203,14 +316,14 @@ const AppContent: React.FC = () => {
           </header>
 
           <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-[#FAFAFA]">
-            {messages.length === 0 && (
+            {session.messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-6">
                 <div className="w-16 h-16 bg-white border border-gray-200 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">Architectural Drafting</h3>
-                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">Provide high-level design goals. I will infer components, validate ports, and generate a concept render.</p>
+                  <h3 className="text-xl font-bold text-slate-800">Hardware System Assembly</h3>
+                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">Describe the product you want to build. I will select the correct kit of parts, validate connections, and generate a system visual.</p>
                 </div>
                 {aiStatus === 'offline' && (
                      <div className="bg-amber-50 text-amber-800 text-xs px-4 py-2 rounded-lg border border-amber-200 text-left">
@@ -220,16 +333,16 @@ const AppContent: React.FC = () => {
                 )}
                 <div className="flex flex-col gap-2 w-full">
                   <button onClick={() => handleSend("Let's build an LED votive light with wireless Qi charging.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
-                    "Draft an LED votive with wireless charging."
+                    "Assemble an LED votive with wireless charging."
                   </button>
                   <button onClick={() => handleSend("Draft a custom 65% keyboard with silent linear switches.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
-                    "Architect a silent mechanical keyboard."
+                    "Configure a silent mechanical keyboard."
                   </button>
                 </div>
               </div>
             )}
             
-            {messages.map((m, i) => (
+            {session.messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
                 <div className={`max-w-[90%] rounded-xl px-4 py-3 border ${
                   m.role === 'user' 
@@ -284,30 +397,6 @@ const AppContent: React.FC = () => {
             </div>
           </footer>
         </section>
-
-        {/* GDPR Audit Overlay */}
-        {showLogs && (
-          <div className="absolute inset-0 z-30 bg-white/40 backdrop-blur-xl flex flex-col p-12 overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="max-w-4xl mx-auto w-full flex flex-col h-full bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden">
-               <header className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                 <div>
-                   <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">Audit Trail Log</h2>
-                   <p className="text-[10px] text-gray-400 font-bold">MONITORING ACTIVE • {currentUser ? currentUser.id : 'GUEST_SESSION'}</p>
-                 </div>
-                 <Button onClick={() => setShowLogs(false)} variant="ghost" className="w-8 h-8 p-0">&times;</Button>
-               </header>
-               <div className="flex-1 overflow-y-auto p-6 space-y-2 font-mono bg-white">
-                 {ActivityLogService.getLogs().map((log) => (
-                   <div key={log.id} className="text-[10px] flex gap-3 p-2 border-b border-gray-50 hover:bg-gray-50">
-                     <span className="text-gray-400">[{log.timestamp.toLocaleTimeString()}]</span>
-                     <span className="font-bold text-indigo-600">{log.action}</span>
-                     <span className="text-gray-600 truncate">{JSON.stringify(log.metadata)}</span>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          </div>
-        )}
 
         {/* Right Pane: Split Visualizer + BOM */}
         <section className="w-[550px] flex flex-col bg-white border-l border-gray-200 z-20">
