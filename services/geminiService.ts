@@ -117,6 +117,13 @@ export class GeminiService implements AIService {
         console.error("Parsing Regex Error", e);
     }
 
+    // Cleanup whitespace artifacts from removed tool calls
+    // 1. Remove trailing spaces on lines
+    // 2. Collapse 3+ newlines into 2 (paragraph break)
+    // 3. Trim start/end
+    reasoning = reasoning.replace(/[ \t]+$/gm, '');
+    reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
+
     return { reasoning: reasoning.trim(), toolCalls };
   }
 

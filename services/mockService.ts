@@ -49,6 +49,10 @@ export class MockService implements AIService {
       });
     } catch (e) { console.error("Regex parsing error", e); }
 
+    // Cleanup whitespace artifacts
+    reasoning = reasoning.replace(/[ \t]+$/gm, '');
+    reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
+
     return { reasoning: reasoning.trim(), toolCalls };
   }
 
