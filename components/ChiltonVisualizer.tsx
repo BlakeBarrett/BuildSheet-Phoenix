@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button, Chip } from './Material3UI.tsx';
 import { GeneratedImage } from '../types.ts';
@@ -34,15 +35,15 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
   };
 
   return (
-    <div className="h-full w-full flex flex-col gap-4">
+    <div className="h-full w-full flex flex-col md:flex-row gap-4">
         {/* Main Viewport */}
-        <div className="relative flex-1 bg-[#f8fafc] rounded-2xl overflow-hidden border border-gray-200 shadow-inner group flex items-center justify-center min-h-[300px]">
+        <div className="relative flex-1 bg-[#f8fafc] rounded-2xl overflow-hidden border border-gray-200 shadow-inner group flex items-center justify-center min-h-[200px] md:min-h-0 h-full">
         {activeImage ? (
             <div className="relative w-full h-full flex items-center justify-center bg-white group-hover:bg-gray-50 transition-colors">
                 <img 
                     src={activeImage.url} 
                     alt="Generated Design" 
-                    className="max-h-full max-w-full object-contain mix-blend-multiply"
+                    className="max-h-full max-w-full object-contain mix-blend-multiply p-4"
                 />
                 
                 {/* Overlay Controls */}
@@ -83,12 +84,12 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
         </div>
         </div>
 
-        {/* Gallery Strip */}
-        <div className="h-20 flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
+        {/* Gallery Strip - Vertical on Desktop, Horizontal on Mobile */}
+        <div className="h-20 w-full md:h-full md:w-28 flex flex-row md:flex-col gap-3 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto pb-2 md:pb-0 md:pl-1 scrollbar-hide snap-x md:snap-y shrink-0">
              <button 
                 onClick={onGenerate}
                 disabled={isGenerating || !hasItems}
-                className="flex-shrink-0 w-20 h-full rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-shrink-0 w-20 h-full md:w-full md:h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
              >
                 <div className={`w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center ${isGenerating ? 'animate-spin' : ''}`}>
                     {isGenerating ? (
@@ -104,7 +105,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                 <button
                     key={img.id}
                     onClick={() => setSelectedImageId(img.id)}
-                    className={`flex-shrink-0 w-20 h-full rounded-xl overflow-hidden border-2 transition-all snap-start relative group ${
+                    className={`flex-shrink-0 w-20 h-full md:w-full md:h-20 rounded-xl overflow-hidden border-2 transition-all snap-start relative group ${
                         activeImage?.id === img.id ? 'border-indigo-600 shadow-md ring-2 ring-indigo-100' : 'border-gray-200 opacity-60 hover:opacity-100'
                     }`}
                 >

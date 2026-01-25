@@ -84,4 +84,25 @@ export class MockService implements AIService {
 
 *Recommendation: Add a standard USB-C cable and check z-height constraints.*`;
   }
+
+  async generateFabricationBrief(partName: string, context: string): Promise<string> {
+    await new Promise(r => setTimeout(r, 2000));
+    return `### 🏭 Manufacturing Specification: ${partName}
+
+**Fabrication Partner:** [PCBWay](https://pcbway.com) (Recommended)
+
+#### Technical Details
+*   **Dimensions:** 295mm x 105mm (Estimated for 65% Layout)
+*   **Layers:** 2-Layer FR4
+*   **Thickness:** 1.6mm
+*   **Copper Weight:** 1oz
+*   **Surface Finish:** ENIG (Electroless Nickel Immersion Gold) - Recommended for hot-swap sockets.
+*   **Solder Mask:** Matte Black
+*   **Silkscreen:** White
+
+#### Critical Notes
+1.  **Mounting:** Ensure USB-C connector (J2) is flush with edge cut.
+2.  **Routing:** Keep traces away from screw hole mounting points (M2.5) by at least 0.5mm.
+3.  **Assembly:** Pick-and-place required for Kailh Hot-swap sockets.`;
+  }
 }

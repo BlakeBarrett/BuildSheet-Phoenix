@@ -212,7 +212,6 @@ export class GeminiService implements AIService {
             model: 'gemini-3-pro-preview', // Using Pro for reasoning
             contents: prompt,
             config: {
-                // The Killer Feature: Thinking Config
                 thinkingConfig: { thinkingBudget: 2048 }
             }
         });
@@ -221,6 +220,40 @@ export class GeminiService implements AIService {
     } catch (e: any) {
         console.error("Verification failed", e);
         return `Verification failed: ${e.message}`;
+    }
+  }
+
+  async generateFabricationBrief(partName: string, context: string): Promise<string> {
+    try {
+        const prompt = `
+        GENERATE A MANUFACTURING SPECIFICATION BRIEF for a custom custom component.
+        
+        COMPONENT: ${partName}
+        CONTEXT: ${context}
+        
+        TASK:
+        You are a Manufacturing Engineer. Infer the likely physical properties of this custom part based on its context (e.g. if it's a PCB, infer layer count and key ICs. If it's a plate, infer material and finish).
+        
+        OUTPUT FORMAT:
+        Markdown.
+        If it's a PCB, format for PCBWay. Include: Dimensions, Layers, Material (FR4), Solder Mask, Silkscreen.
+        If it's Mechanical, format for SendCutSend. Include: Material (Alu/Steel/Acrylic), Thickness, Finish, Operations (Tapping, Countersinking).
+        
+        Be specific and technical.
+        `;
+
+        const response = await this.ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: prompt,
+            config: {
+                thinkingConfig: { thinkingBudget: 2048 }
+            }
+        });
+
+        return response.text || "Brief generation failed.";
+    } catch (e: any) {
+        console.error("Fab brief failed", e);
+        return `Generation failed: ${e.message}`;
     }
   }
 }

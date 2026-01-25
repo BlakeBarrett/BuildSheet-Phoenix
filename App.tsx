@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, Component, ErrorInfo } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
@@ -134,9 +135,7 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
                         </div>
                     ) : (
                         <div className="prose prose-sm prose-slate max-w-none">
-                            {result?.split('\n').map((line, i) => (
-                                <p key={i} className={line.startsWith('#') ? 'font-bold text-lg mt-4 mb-2' : 'mb-2'}>{line}</p>
-                            ))}
+                            <ReactMarkdown>{result || ''}</ReactMarkdown>
                         </div>
                     )}
                 </div>
@@ -150,7 +149,60 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
     );
 };
 
-const PartDetailModal: React.FC<{ entry: BOMEntry | null; onClose: () => void }> = ({ entry, onClose }) => {
+const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result: string | null; isRunning: boolean; partName: string }> = ({ isOpen, onClose, result, isRunning, partName }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                    <div className="flex items-center gap-3">
+                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-blue-100 text-blue-600'}`}>
+                           {isRunning ? (
+                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                           ) : (
+                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                           )}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">Manufacturing Brief</h3>
+                            <p className="text-xs text-gray-500">Drafting fabrication spec for: <strong>{partName}</strong></p>
+                        </div>
+                    </div>
+                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>}
+                </div>
+                <div className="flex-1 overflow-y-auto p-6 bg-white">
+                    {isRunning ? (
+                         <div className="space-y-4">
+                            <div className="h-4 bg-gray-100 rounded w-2/3 animate-pulse"></div>
+                            <div className="h-4 bg-gray-100 rounded w-full animate-pulse"></div>
+                            <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
+                             <p className="text-center text-xs text-gray-400 mt-8">Inferring layer count, surface finish, and tolerances based on system context...</p>
+                        </div>
+                    ) : (
+                         <div className="prose prose-sm prose-slate max-w-none">
+                            <ReactMarkdown>{result || ''}</ReactMarkdown>
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
+                    {!isRunning && (
+                        <>
+                             <Button onClick={() => window.open('https://www.pcbway.com/', '_blank')} variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100">
+                                Quote on PCBWay
+                            </Button>
+                            <Button onClick={() => window.open('https://sendcutsend.com/', '_blank')} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+                                Quote on SendCutSend
+                            </Button>
+                        </>
+                    )}
+                    <Button onClick={onClose} variant="primary">Close Brief</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const PartDetailModal: React.FC<{ entry: BOMEntry | null; onClose: () => void; onFabricate: (part: any) => void }> = ({ entry, onClose, onFabricate }) => {
     if (!entry) return null;
     const { part, isCompatible, warnings } = entry;
     const isVirtual = part.sku.startsWith('DRAFT-');
@@ -186,16 +238,27 @@ const PartDetailModal: React.FC<{ entry: BOMEntry | null; onClose: () => void }>
                     <div>
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Overview</h4>
                         <p className="text-sm text-slate-700 leading-relaxed">{part.description}</p>
-                        <div className="mt-3 grid grid-cols-2 gap-4">
-                            <div className="p-3 bg-gray-50 rounded-lg">
-                                <span className="block text-[10px] text-gray-400 uppercase">Brand</span>
-                                <span className="text-sm font-medium text-slate-800">{part.brand}</span>
+                        
+                        {isVirtual ? (
+                            <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                <h4 className="text-xs font-bold text-indigo-700 uppercase mb-2">Virtual Component</h4>
+                                <p className="text-xs text-indigo-600 mb-3">This part was architected by Gemini but does not exist in the parts registry. You can generate a fabrication spec for it.</p>
+                                <Button onClick={() => onFabricate(part)} className="w-full justify-center">
+                                    Generate Manufacturing Brief
+                                </Button>
                             </div>
-                            <div className="p-3 bg-gray-50 rounded-lg">
-                                <span className="block text-[10px] text-gray-400 uppercase">Unit Price</span>
-                                <span className="text-sm font-medium text-slate-800">${part.price.toLocaleString()}</span>
+                        ) : (
+                            <div className="mt-3 grid grid-cols-2 gap-4">
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <span className="block text-[10px] text-gray-400 uppercase">Brand</span>
+                                    <span className="text-sm font-medium text-slate-800">{part.brand}</span>
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded-lg">
+                                    <span className="block text-[10px] text-gray-400 uppercase">Unit Price</span>
+                                    <span className="text-sm font-medium text-slate-800">${part.price.toLocaleString()}</span>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Ports */}
@@ -254,16 +317,64 @@ const AppContent: React.FC = () => {
   const [showLogs, setShowLogs] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // Audit Modal
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditResult, setAuditResult] = useState<string | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
+  
+  // Part Detail & Fabrication
   const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
+  const [fabModalOpen, setFabModalOpen] = useState(false);
+  const [fabResult, setFabResult] = useState<string | null>(null);
+  const [isFabricating, setIsFabricating] = useState(false);
+  const [fabPartName, setFabPartName] = useState('');
   
   // Mobile UI State
   const [mobileView, setMobileView] = useState<'chat' | 'visuals'>('chat');
   
   // Visualizer State
   const [isVisualizing, setIsVisualizing] = useState(false);
+  
+  // Resizable Visualizer State
+  const [visualizerHeight, setVisualizerHeight] = useState(45); // Start at 45%
+  const leftPaneRef = useRef<HTMLElement>(null);
+  const isResizingRef = useRef(false);
+
+  const startResizing = (e: React.MouseEvent) => {
+      e.preventDefault();
+      isResizingRef.current = true;
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', stopResizing);
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current || !leftPaneRef.current) return;
+      
+      const paneRect = leftPaneRef.current.getBoundingClientRect();
+      // Assume header is ~76px
+      const headerOffset = 76;
+      const relativeY = e.clientY - paneRect.top - headerOffset;
+      
+      // Calculate percentage relative to the full pane height
+      let percentage = (relativeY / (paneRect.height - headerOffset)) * 100;
+
+      // Constraints: Min 33% (2:1 split), Max 50% (1:1 split)
+      if (percentage < 33) percentage = 33;
+      if (percentage > 50) percentage = 50;
+      
+      setVisualizerHeight(percentage);
+  };
+
+  const stopResizing = () => {
+      isResizingRef.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+  };
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -481,6 +592,24 @@ const AppContent: React.FC = () => {
       }
   };
 
+  const handleFabricate = async (part: any) => {
+     if (!aiService.generateFabricationBrief) return;
+     setFabPartName(part.name);
+     setFabModalOpen(true);
+     setIsFabricating(true);
+     setFabResult(null);
+
+     try {
+         const context = `Design Requirements: ${session.designRequirements}. \nFull BOM Context: ${session.bom.map(b => b.part.name).join(', ')}`;
+         const brief = await aiService.generateFabricationBrief(part.name, context);
+         setFabResult(brief);
+     } catch(e) {
+         setFabResult("Failed to generate brief.");
+     } finally {
+         setIsFabricating(false);
+     }
+  };
+
   return (
     <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative flex-col md:flex-row">
       <AuditModal 
@@ -489,9 +618,17 @@ const AppContent: React.FC = () => {
           result={auditResult}
           isRunning={isAuditing}
       />
+      <FabricationModal
+         isOpen={fabModalOpen}
+         onClose={() => setFabModalOpen(false)}
+         result={fabResult}
+         isRunning={isFabricating}
+         partName={fabPartName}
+      />
       <PartDetailModal 
         entry={selectedPart}
         onClose={() => setSelectedPart(null)}
+        onFabricate={handleFabricate}
       />
 
       {/* Sidebar Navigation - Hidden on Mobile */}
@@ -551,8 +688,8 @@ const AppContent: React.FC = () => {
       />
 
       <main className="flex-1 flex overflow-hidden relative">
-        {/* Left Pane: The Architect (Chat) */}
-        <section className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${showLogs ? 'opacity-30 pointer-events-none scale-95' : ''} ${mobileView === 'visuals' ? 'hidden md:flex' : 'flex'}`}>
+        {/* Left Pane: Visualizer (Desktop) + Architect (Chat) */}
+        <section ref={leftPaneRef as React.RefObject<HTMLElement>} className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${showLogs ? 'opacity-30 pointer-events-none scale-95' : ''} ${mobileView === 'visuals' ? 'hidden md:flex' : 'flex'}`}>
           <header className="px-6 py-4 md:px-8 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div>
               <div className="flex items-center gap-2">
@@ -583,6 +720,33 @@ const AppContent: React.FC = () => {
                 </button>
             </div>
           </header>
+
+          {/* VISUALIZER - Desktop Position (Top of Chat Column) */}
+          <div 
+            className="hidden md:block bg-gray-50 border-b border-gray-200 shadow-inner p-4 relative"
+            style={{ height: `${visualizerHeight}%`, minHeight: '200px' }}
+          >
+             <div className="absolute top-4 left-4 z-10">
+                <div className="flex items-center gap-1.5 mt-0.5">
+                   <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
+                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Nano Banana Active</span>
+                </div>
+             </div>
+             <ChiltonVisualizer 
+                images={session.generatedImages}
+                onGenerate={() => handleGenerateVisual()}
+                isGenerating={isVisualizing}
+                hasItems={session.bom.length > 0}
+            />
+          </div>
+
+          {/* DRAG HANDLE */}
+          <div 
+            className="hidden md:flex h-3 w-full cursor-row-resize items-center justify-center hover:bg-indigo-50 group -mt-1.5 z-30 relative"
+            onMouseDown={startResizing}
+          >
+             <div className="w-16 h-1 rounded-full bg-gray-300 group-hover:bg-indigo-300 transition-colors shadow-sm"></div>
+          </div>
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[#FAFAFA]">
             {session.messages.length === 0 && (
@@ -712,15 +876,15 @@ const AppContent: React.FC = () => {
           </footer>
         </section>
 
-        {/* Right Pane: Split Visualizer + BOM - Hidden on Mobile unless Toggled */}
-        <section className={`flex-col bg-white border-l border-gray-200 z-20 w-full md:w-[550px] ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}>
+        {/* Right Pane: BOM (Desktop) or Visuals+BOM (Mobile) */}
+        <section className={`flex-col bg-white border-l border-gray-200 z-20 w-full md:w-[450px] ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}>
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-black text-xl tracking-tighter uppercase">Design Visualizer</h2>
+                <h2 className="font-black text-xl tracking-tighter uppercase">Bill of Materials</h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                   <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
-                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Nano Banana Active</span>
+                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Live Updates</span>
                 </div>
               </div>
               <div className="text-right flex items-center gap-4">
@@ -738,9 +902,12 @@ const AppContent: React.FC = () => {
             </div>
           </header>
 
-          {/* Image Visualizer Section */}
-          <div className="h-[60%] p-4 bg-gray-50 border-b border-gray-100 shadow-inner">
-            <ChiltonVisualizer 
+          {/* VISUALIZER - Mobile Position (Only visible in Blueprint Tab on Mobile) */}
+          <div className="md:hidden h-[300px] bg-gray-50 border-b border-gray-100 shadow-inner p-4 relative">
+             <div className="absolute top-4 left-4 z-10">
+                 <Chip label={isVisualizing ? "Generating..." : "Nano Banana"} color={isVisualizing ? "bg-indigo-100 text-indigo-700 animate-pulse" : "bg-yellow-100 text-yellow-800 border border-yellow-200"} />
+             </div>
+             <ChiltonVisualizer 
                 images={session.generatedImages}
                 onGenerate={() => handleGenerateVisual()}
                 isGenerating={isVisualizing}
@@ -791,7 +958,7 @@ const AppContent: React.FC = () => {
                             {isVirtual ? 'TBD' : `$${(entry.part.price * entry.quantity).toLocaleString()}`}
                           </div>
                           
-                          {/* Sourcing Button */}
+                          {/* Sourcing Button - Only for Real Parts */}
                           {!isVirtual && (
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }}

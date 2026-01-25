@@ -38,4 +38,9 @@ export interface AIService {
    * Uses Gemini 3.0 Thinking models to perform a deep technical audit of the BOM.
    */
   verifyDesign?(bom: any[], requirements: string): Promise<string>;
+
+  /**
+   * Generates a manufacturing specification for a custom/virtual part.
+   */
+  generateFabricationBrief?(partName: string, context: string): Promise<string>;
 }
