@@ -1,3 +1,4 @@
+
 import { VisualManifest } from '../types.ts';
 
 export interface ArchitectResponse {
@@ -12,8 +13,9 @@ export interface AIService {
   
   /**
    * Sends the user prompt and history to the AI model.
+   * @param image Optional Base64 Data URL string for multimodal input
    */
-  askArchitect(prompt: string, history: any[]): Promise<string>;
+  askArchitect(prompt: string, history: any[], image?: string): Promise<string>;
 
   /**
    * Parses the raw text response from the model into structured commands.
@@ -22,6 +24,7 @@ export interface AIService {
 
   /**
    * Generates a visualization for the current design state.
+   * @param referenceImage Optional Base64 Data URL to guide generation
    */
-  generateProductImage(description: string): Promise<string | null>;
+  generateProductImage(description: string, referenceImage?: string): Promise<string | null>;
 }

@@ -63,6 +63,7 @@ export interface GeneratedImage {
 export interface UserMessage {
   role: 'user' | 'assistant';
   content: string;
+  attachment?: string; // Base64 Data URL
   timestamp: Date;
 }
 

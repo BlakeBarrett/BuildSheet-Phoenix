@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
@@ -9,7 +10,8 @@ CORE BEHAVIOR:
 1. DESIGN-FIRST: Architect functional systems. "Yes, and..." philosophy.
 2. HANDLING MISSING DATA: If parts aren't in registry, infer requirements and use addPart("generic-id", 1).
 3. PHYSICAL REASONING: Describe exactly how parts mate (e.g., JST-PH 2.0 connectors).
-4. NO FILLER, NO CODE: Start with analysis. Never use markdown code blocks.
+4. MULTIMODAL ANALYSIS: If the user provides an image, analyze it for mechanical constraints, aesthetic style, or existing component identification.
+5. NO FILLER, NO CODE: Start with analysis. Never use markdown code blocks.
 
 TOOLS:
 - initializeDraft(name: string, requirements: string)
@@ -38,14 +40,33 @@ export class GeminiService implements AIService {
     this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
-  async askArchitect(prompt: string, history: any[]): Promise<string> {
+  private cleanBase64(dataUrl: string): { mimeType: string, data: string } | null {
+    try {
+        const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) return null;
+        return { mimeType: matches[1], data: matches[2] };
+    } catch (e) {
+        return null;
+    }
+  }
+
+  async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     try {
       // Map internal history format to Gemini SDK format
-      // Note: History comes in as { role: 'user'|'model', parts: [{text: string}] }
-      const contents = [
-        ...history,
-        { role: 'user', parts: [{ text: prompt }] }
-      ];
+      // history comes in as { role: 'user'|'model', parts: [...] } from App.tsx construction
+      const contents = [...history];
+      
+      // Construct current turn
+      const currentParts: any[] = [{ text: prompt }];
+      
+      if (image) {
+        const imageData = this.cleanBase64(image);
+        if (imageData) {
+            currentParts.push({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
+        }
+      }
+
+      contents.push({ role: 'user', parts: currentParts });
 
       const response: GenerateContentResponse = await this.ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -98,14 +119,24 @@ export class GeminiService implements AIService {
     return { reasoning: reasoning.trim(), toolCalls };
   }
 
-  async generateProductImage(description: string): Promise<string | null> {
+  async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     try {
+        const parts: any[] = [
+            { text: `Generate a high-quality product design concept sketch for: ${description}` }
+        ];
+
+        if (referenceImage) {
+            const imageData = this.cleanBase64(referenceImage);
+            if (imageData) {
+                // Prepend image so model sees "This image + This text"
+                parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
+            }
+        }
+
         // Using Gemini 2.5 Flash Image (Nano Banana) for generation
         const response: GenerateContentResponse = await this.ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
-            contents: {
-                parts: [{ text: `Generate a high-quality product design concept sketch for: ${description}` }]
-            },
+            contents: { parts },
             config: {
                 // Config tailored for visual output where supported
             }

@@ -110,7 +110,10 @@ const AppContent: React.FC = () => {
   // NOTE: We initialize messages from the session now, not empty array
   const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
   const [input, setInput] = useState('');
+  const [pendingAttachment, setPendingAttachment] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // UI State
   const [showLogs, setShowLogs] = useState(false);
@@ -132,7 +135,36 @@ const AppContent: React.FC = () => {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [session.messages]);
 
-  const handleGenerateVisual = async (architectReasoning?: string) => {
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [input]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        if (event.target?.result) {
+            setPendingAttachment(event.target.result as string);
+        }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const cleanBase64ForAPI = (dataUrl: string): { mimeType: string, data: string } | null => {
+    try {
+        const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) return null;
+        return { mimeType: matches[1], data: matches[2] };
+    } catch (e) { return null; }
+  };
+
+  const handleGenerateVisual = async (architectReasoning?: string, referenceImage?: string) => {
     const currentSession = draftingEngine.getSession();
     if (currentSession.bom.length === 0 && !currentSession.designRequirements) return;
     if (isVisualizing) return;
@@ -145,7 +177,7 @@ const AppContent: React.FC = () => {
         if (partsList) prompt += ` Visible Components: ${partsList}.`;
         if (architectReasoning) prompt += ` Design Notes: ${architectReasoning.slice(0, 150)}...`;
         
-        const imageUrl = await aiService.generateProductImage(prompt);
+        const imageUrl = await aiService.generateProductImage(prompt, referenceImage);
         if (imageUrl) {
             draftingEngine.addGeneratedImage(imageUrl, prompt);
             setSession(draftingEngine.getSession());
@@ -159,24 +191,49 @@ const AppContent: React.FC = () => {
 
   const handleSend = async (overrideInput?: string) => {
     const textToSend = overrideInput || input;
-    if (!textToSend.trim() || isThinking) return;
+    const attachmentToSend = pendingAttachment;
+    
+    if ((!textToSend.trim() && !attachmentToSend) || isThinking) return;
 
-    const userMsg: UserMessage = { role: 'user', content: textToSend, timestamp: new Date() };
+    const userMsg: UserMessage = { 
+        role: 'user', 
+        content: textToSend, 
+        attachment: attachmentToSend || undefined,
+        timestamp: new Date() 
+    };
     
     // Update Engine Persistence
     draftingEngine.addMessage(userMsg);
     setSession(draftingEngine.getSession()); // Refresh local state
     
     setInput('');
+    setPendingAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    
     setIsThinking(true);
 
     try {
-      const history = session.messages.filter(m => !m.content.startsWith('[SYSTEM ALERT]')).map(m => ({
-        role: m.role === 'user' ? 'user' as const : 'model' as const,
-        parts: [{ text: m.content }]
-      }));
+      // Reconstruct history for the API, handling past images
+      const history = session.messages.filter(m => !m.content.startsWith('[SYSTEM ALERT]')).map(m => {
+        const parts: any[] = [{ text: m.content }];
+        
+        if (m.attachment) {
+            const clean = cleanBase64ForAPI(m.attachment);
+            if (clean) {
+                parts.push({ inlineData: { mimeType: clean.mimeType, data: clean.data }});
+            }
+        }
 
-      const architectResponse = await aiService.askArchitect(textToSend, history);
+        return {
+            role: m.role === 'user' ? 'user' as const : 'model' as const,
+            parts
+        };
+      });
+
+      // Pass the *current* attachment separately to the service to ensure it gets prioritized/added
+      // The history constructed above includes *previous* messages.
+      // The GeminiService.askArchitect will append the *current* prompt.
+      const architectResponse = await aiService.askArchitect(textToSend, history, attachmentToSend || undefined);
       const parsed = aiService.parseArchitectResponse(architectResponse);
 
       parsed.toolCalls.forEach(call => {
@@ -197,7 +254,9 @@ const AppContent: React.FC = () => {
       });
 
       setSession(draftingEngine.getSession());
-      handleGenerateVisual(parsed.reasoning);
+      
+      // If the user uploaded an image, pass it to Nano Banana to guide the visual
+      handleGenerateVisual(parsed.reasoning, attachmentToSend || undefined);
 
     } catch (error: any) {
       console.error(error);
@@ -353,6 +412,11 @@ const AppContent: React.FC = () => {
                     ? 'bg-red-50 text-red-900 border-red-200 shadow-sm' 
                     : 'bg-white text-slate-800 border-gray-200 shadow-sm'
                 }`}>
+                  {m.attachment && (
+                      <div className="mb-3 rounded-lg overflow-hidden border border-white/20 shadow-sm">
+                          <img src={m.attachment} alt="User attachment" className="max-w-full max-h-64 object-contain" />
+                      </div>
+                  )}
                   <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">{m.content}</div>
                   <div className={`text-[8px] mt-2 font-mono uppercase tracking-widest opacity-40 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
                     {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -378,22 +442,62 @@ const AppContent: React.FC = () => {
           </div>
 
           <footer className="p-6 border-t border-gray-100 bg-white shadow-inner">
-            <div className="relative">
-              <input 
-                type="text" 
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Instruct the Lead Architect..."
-                className="w-full pl-5 pr-14 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all text-sm font-medium"
-              />
-              <button 
-                onClick={() => handleSend()}
-                disabled={isThinking || !input.trim()}
-                className="absolute right-2 top-2 w-12 h-12 bg-slate-800 text-white rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-slate-900 transition-all active:scale-95 shadow-md"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-              </button>
+            <div className="relative flex flex-col gap-2">
+              {pendingAttachment && (
+                  <div className="relative inline-block self-start">
+                      <div className="h-16 w-16 rounded-lg border border-gray-300 overflow-hidden relative">
+                          <img src={pendingAttachment} className="w-full h-full object-cover" alt="Preview" />
+                      </div>
+                      <button 
+                        onClick={() => { setPendingAttachment(null); if(fileInputRef.current) fileInputRef.current.value=''; }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-red-600 shadow-sm"
+                      >
+                          &times;
+                      </button>
+                  </div>
+              )}
+              
+              <div className="relative w-full">
+                  <textarea 
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSend();
+                        }
+                    }}
+                    placeholder="Instruct the Lead Architect..."
+                    rows={1}
+                    className="w-full pl-5 pr-24 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all text-sm font-medium resize-none min-h-[54px] max-h-[200px] overflow-y-auto"
+                  />
+                  
+                  <div className="absolute right-2 top-2 flex gap-1">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        className="hidden" 
+                      />
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-12 h-12 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg flex items-center justify-center transition-all"
+                        title="Attach Image for Visual Context"
+                      >
+                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                      </button>
+
+                      <button 
+                        onClick={() => handleSend()}
+                        disabled={isThinking || (!input.trim() && !pendingAttachment)}
+                        className="w-12 h-12 bg-slate-800 text-white rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-slate-900 transition-all active:scale-95 shadow-md"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                      </button>
+                  </div>
+              </div>
             </div>
           </footer>
         </section>

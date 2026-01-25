@@ -1,13 +1,18 @@
+
 import { AIService, ArchitectResponse } from './aiTypes.ts';
 
 export class MockService implements AIService {
   public name = "Simulation Engine (Offline)";
   public isOffline = true;
 
-  async askArchitect(prompt: string, history: any[]): Promise<string> {
+  async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     await new Promise(r => setTimeout(r, 800));
     const lower = prompt.toLowerCase();
     
+    if (image) {
+        return `[SIMULATION MODE] Image Analysis...\n\nI see the reference image you uploaded. Based on the visual cues and your request "${prompt}", I am adjusting the draft accordingly.\n\naddPart("inferred-component-from-image", 1)`;
+    }
+
     if (lower.includes('truck') || lower.includes('engine') || lower.includes('chevy')) {
         return `[SIMULATION MODE] Analyzing Heavy Duty Requirements...\n\nBased on the request for a powertrain system, I am initializing a truck configuration.\n\ninitializeDraft("Chevy Truck Config", "Heavy duty application")\naddPart("truck-eng-1", 1)\naddPart("truck-trans-1", 1)`;
     }
@@ -46,7 +51,7 @@ export class MockService implements AIService {
     return { reasoning: reasoning.trim(), toolCalls };
   }
 
-  async generateProductImage(description: string): Promise<string | null> {
+  async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     await new Promise(r => setTimeout(r, 1000));
     return null;
   }
