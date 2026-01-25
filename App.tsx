@@ -42,9 +42,11 @@ const ProjectManager: React.FC<{
     onLoad: (id: string) => void;
     onNew: () => void;
     onDelete: (id: string) => void;
+    onRename: (id: string, name: string) => void;
     activeId: string;
-    engine: any; 
-}> = ({ isOpen, onClose, onLoad, onNew, onDelete, activeId, engine }) => {
+    engine: any;
+    currentUser: User | null;
+}> = ({ isOpen, onClose, onLoad, onNew, onDelete, onRename, activeId, engine, currentUser }) => {
     const [projects, setProjects] = useState<any[]>([]);
 
     useEffect(() => {
@@ -53,52 +55,97 @@ const ProjectManager: React.FC<{
         }
     }, [isOpen, engine]);
 
+    const handleRenameClick = (e: React.MouseEvent, id: string, currentName: string) => {
+        e.stopPropagation();
+        const newName = window.prompt("Rename Project:", currentName);
+        if (newName && newName.trim() !== "") {
+            onRename(id, newName.trim());
+            setProjects(engine.getProjectList()); // Refresh list
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
-        <div className="absolute left-0 md:left-20 top-0 bottom-0 w-full md:w-72 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
+        <div className="absolute left-0 md:left-20 top-0 bottom-0 w-full md:w-80 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h2 className="font-bold text-slate-800">Your Projects</h2>
-                <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>
+                <h2 className="font-bold text-slate-800 text-lg">Your Projects</h2>
+                <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1">&times;</button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 <button 
                     onClick={onNew}
-                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 font-bold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 font-bold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
                 >
-                    <span>+</span> New Project
+                    <span className="text-xl leading-none">+</span> New Project
                 </button>
 
                 {projects.map(p => (
                     <div 
                         key={p.id} 
-                        className={`group relative p-3 rounded-xl text-left border transition-all ${
+                        className={`group relative p-4 rounded-xl text-left border transition-all ${
                             p.id === activeId 
-                            ? 'bg-indigo-50 border-indigo-200 shadow-sm' 
+                            ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-100' 
                             : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-md'
                         }`}
                     >
-                        <div onClick={() => onLoad(p.id)} className="cursor-pointer">
+                        <div onClick={() => onLoad(p.id)} className="cursor-pointer pr-8">
                             <div className="font-bold text-sm text-slate-800 truncate">{p.name || 'Untitled'}</div>
-                            <div className="text-[10px] text-gray-400 font-mono mt-1 flex justify-between">
+                            <div className="text-[10px] text-gray-400 font-mono mt-1 flex justify-between items-center">
                                 <span>{new Date(p.lastModified).toLocaleDateString()}</span>
-                                <span>{p.preview}</span>
+                                <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">{p.preview}</span>
                             </div>
                         </div>
-                        {p.id !== activeId && (
+                        
+                        <div className="absolute top-3 right-2 flex flex-col gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                              <button 
-                                onClick={(e) => { e.stopPropagation(); onDelete(p.id); setProjects(engine.getProjectList()); }}
-                                className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => handleRenameClick(e, p.id, p.name)}
+                                className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                title="Rename"
                              >
-                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                              </button>
-                        )}
+                             {p.id !== activeId && (
+                                 <button 
+                                    onClick={(e) => { e.stopPropagation(); onDelete(p.id); setProjects(engine.getProjectList()); }}
+                                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded"
+                                    title="Delete"
+                                 >
+                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                 </button>
+                             )}
+                        </div>
                     </div>
                 ))}
             </div>
-            <div className="p-4 bg-gray-50 border-t border-gray-100">
-                <p className="text-[10px] text-gray-400 text-center">Projects are saved locally to this device.</p>
+
+            {/* Mobile/Drawer Auth Section */}
+            <div className="p-4 bg-gray-50 border-t border-gray-200">
+                {currentUser ? (
+                    <div className="flex items-center gap-3">
+                        <img src={currentUser.avatar} alt="Avatar" className="w-10 h-10 rounded-full border border-gray-200 shadow-sm" />
+                        <div className="flex-1 overflow-hidden">
+                            <div className="font-bold text-sm text-slate-800 truncate">{currentUser.name}</div>
+                            <div className="text-[10px] text-gray-500 truncate">{currentUser.email}</div>
+                        </div>
+                        <button 
+                            onClick={() => UserService.logout()}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Log Out"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+                        </button>
+                    </div>
+                ) : (
+                    <button 
+                        onClick={() => UserService.login()}
+                        className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
+                    >
+                        <span>Sign In / Register</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -202,10 +249,33 @@ const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result:
     );
 };
 
-const PartDetailModal: React.FC<{ entry: BOMEntry | null; onClose: () => void; onFabricate: (part: any) => void }> = ({ entry, onClose, onFabricate }) => {
+const PartDetailModal: React.FC<{ 
+    entry: BOMEntry | null; 
+    onClose: () => void; 
+    onFabricate: (part: any) => void;
+    onSource: (entry: BOMEntry) => void;
+    onManualSource: (instanceId: string, url: string) => void;
+}> = ({ entry, onClose, onFabricate, onSource, onManualSource }) => {
+    const [manualUrlInput, setManualUrlInput] = useState('');
+    
+    useEffect(() => {
+        if (entry?.sourcing?.manualUrl) {
+            setManualUrlInput(entry.sourcing.manualUrl);
+        } else {
+            setManualUrlInput('');
+        }
+    }, [entry]);
+
     if (!entry) return null;
     const { part, isCompatible, warnings } = entry;
     const isVirtual = part.sku.startsWith('DRAFT-');
+    const sourcing = entry.sourcing;
+
+    const handleSaveManualUrl = () => {
+        if (manualUrlInput.trim()) {
+            onManualSource(entry.instanceId, manualUrlInput.trim());
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -234,16 +304,64 @@ const PartDetailModal: React.FC<{ entry: BOMEntry | null; onClose: () => void; o
                         </div>
                     )}
 
+                    {/* Sourcing Section */}
+                    <div className="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
+                         <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-3 flex items-center justify-between">
+                            Sourcing & Procurement
+                            <button 
+                                onClick={() => onSource(entry)} 
+                                disabled={sourcing?.loading}
+                                className="text-[10px] bg-white border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50 text-indigo-600 transition-colors disabled:opacity-50"
+                            >
+                                {sourcing?.loading ? "Searching..." : "Refresh Search"}
+                            </button>
+                         </h4>
+
+                         {/* AI Results */}
+                         <div className="space-y-2 mb-4">
+                             {sourcing?.data?.options && sourcing.data.options.length > 0 ? (
+                                 sourcing.data.options.map((opt, i) => (
+                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block p-2 bg-white rounded border border-gray-100 hover:border-indigo-300 transition-all group">
+                                         <div className="font-bold text-xs text-slate-800 truncate group-hover:text-indigo-700">{opt.title}</div>
+                                         <div className="text-[10px] text-gray-400">{opt.source}</div>
+                                     </a>
+                                 ))
+                             ) : (
+                                 <div className="text-xs text-gray-400 italic text-center py-2">No automatic results found. Try refreshing search.</div>
+                             )}
+                         </div>
+
+                         {/* Manual Override */}
+                         <div className="pt-3 border-t border-indigo-100">
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Custom Vendor Link</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    value={manualUrlInput}
+                                    onChange={(e) => setManualUrlInput(e.target.value)}
+                                    placeholder="https://..."
+                                    className="flex-1 text-xs px-3 py-2 rounded border border-gray-200 focus:border-indigo-400 outline-none"
+                                />
+                                <button 
+                                    onClick={handleSaveManualUrl}
+                                    className="bg-indigo-600 text-white text-xs px-3 py-2 rounded font-bold hover:bg-indigo-700"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                         </div>
+                    </div>
+
                     {/* Overview */}
                     <div>
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Overview</h4>
                         <p className="text-sm text-slate-700 leading-relaxed">{part.description}</p>
                         
                         {isVirtual ? (
-                            <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-                                <h4 className="text-xs font-bold text-indigo-700 uppercase mb-2">Virtual Component</h4>
-                                <p className="text-xs text-indigo-600 mb-3">This part was architected by Gemini but does not exist in the parts registry. You can generate a fabrication spec for it.</p>
-                                <Button onClick={() => onFabricate(part)} className="w-full justify-center">
+                            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                                <h4 className="text-xs font-bold text-gray-600 uppercase mb-2">Virtual Component</h4>
+                                <p className="text-xs text-gray-500 mb-3">This part was architected by Gemini. You can generate a fabrication spec for it.</p>
+                                <Button onClick={() => onFabricate(part)} variant="secondary" className="w-full justify-center">
                                     Generate Manufacturing Brief
                                 </Button>
                             </div>
@@ -454,6 +572,109 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // Define handleSourcePart outside to be used by both processArchitectRequest and UI
+  const handleSourcePart = async (entry: BOMEntry) => {
+      // Helper to set loading state locally without persisting to engine (since sourcing status is ephemeral until success)
+      const setPartLoading = (loading: boolean) => {
+          setSession(prev => ({
+              ...prev,
+              bom: prev.bom.map(b => b.instanceId === entry.instanceId ? { ...b, sourcing: { ...b.sourcing, loading } } : b)
+          }));
+      };
+
+      setPartLoading(true);
+
+      try {
+          // Construct a smart query
+          const query = entry.part.sku.startsWith('DRAFT-') 
+             ? `${entry.part.name} ${entry.part.description} hardware` // Generic search for virtual parts
+             : `${entry.part.name} ${entry.part.sku}`; // Specific search for real parts
+
+          const result = await aiService.findPartSources?.(query);
+          if (result) {
+             draftingEngine.updatePartSourcing(entry.instanceId, result);
+             setSession(draftingEngine.getSession());
+          } else {
+             setPartLoading(false); // Clear if no result
+          }
+      } catch (e) {
+          console.error("Sourcing failed", e);
+          setPartLoading(false); // Clear on error
+      }
+  };
+
+  const processArchitectRequest = async (text: string, attachment?: string | null) => {
+      setIsThinking(true);
+      try {
+          const currentSession = draftingEngine.getSession();
+          // We need to pass history to the AI service. 
+          // The current user message is already in currentSession.messages (added by handleSend or existing for retry).
+          // However, GeminiService.askArchitect appends the current prompt to the history it receives.
+          // To avoid duplication, we should exclude the last message from the history passed to askArchitect,
+          // assuming the last message IS the current prompt.
+          
+          const allMessages = currentSession.messages;
+          const historyMessages = allMessages.slice(0, -1); // Exclude the last message (current user prompt)
+          
+          const history = historyMessages.filter(m => !m.content.startsWith('[SYSTEM ALERT]') && !m.content.startsWith('[SYSTEM ERROR]')).map(m => {
+            const parts: any[] = [{ text: m.content }];
+            if (m.attachment) {
+                const clean = cleanBase64ForAPI(m.attachment);
+                if (clean) {
+                    parts.push({ inlineData: { mimeType: clean.mimeType, data: clean.data }});
+                }
+            }
+            return {
+                role: m.role === 'user' ? 'user' as const : 'model' as const,
+                parts
+            };
+          });
+
+          const architectResponse = await aiService.askArchitect(text, history, attachment || undefined);
+          const parsed = aiService.parseArchitectResponse(architectResponse);
+
+          const addedParts: BOMEntry[] = [];
+
+          parsed.toolCalls.forEach(call => {
+            if (call.type === 'initializeDraft') {
+              draftingEngine.initialize(call.name, call.reqs);
+            } else if (call.type === 'addPart') {
+              const res = draftingEngine.addPart(call.partId, call.qty);
+              if (res.entry) addedParts.push(res.entry);
+            } else if (call.type === 'removePart') {
+              draftingEngine.removePart(call.instanceId);
+            }
+          });
+
+          draftingEngine.addMessage({ 
+            role: 'assistant', 
+            content: parsed.reasoning || architectResponse, 
+            timestamp: new Date() 
+          });
+
+          setSession(draftingEngine.getSession());
+          
+          // Auto-Trigger Sourcing for new parts
+          addedParts.forEach(partEntry => {
+              handleSourcePart(partEntry);
+          });
+          
+          // Trigger visual generation
+          handleGenerateVisual(parsed.reasoning, attachment || undefined);
+
+      } catch (error: any) {
+          console.error(error);
+          draftingEngine.addMessage({ 
+            role: 'assistant', 
+            content: `[SYSTEM ERROR] ${error.message || "Unknown error occurred during processing."}`, 
+            timestamp: new Date() 
+          });
+          setSession(draftingEngine.getSession());
+      } finally {
+          setIsThinking(false);
+      }
+  };
+
   const handleSend = async (overrideInput?: string) => {
     const textToSend = overrideInput || input;
     const attachmentToSend = pendingAttachment;
@@ -475,61 +696,31 @@ const AppContent: React.FC = () => {
     setPendingAttachment(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     
-    setIsThinking(true);
+    await processArchitectRequest(textToSend, attachmentToSend);
+  };
 
-    try {
-      // Reconstruct history for the API, handling past images
-      const history = session.messages.filter(m => !m.content.startsWith('[SYSTEM ALERT]')).map(m => {
-        const parts: any[] = [{ text: m.content }];
-        
-        if (m.attachment) {
-            const clean = cleanBase64ForAPI(m.attachment);
-            if (clean) {
-                parts.push({ inlineData: { mimeType: clean.mimeType, data: clean.data }});
-            }
-        }
-
-        return {
-            role: m.role === 'user' ? 'user' as const : 'model' as const,
-            parts
-        };
-      });
-
-      const architectResponse = await aiService.askArchitect(textToSend, history, attachmentToSend || undefined);
-      const parsed = aiService.parseArchitectResponse(architectResponse);
-
-      parsed.toolCalls.forEach(call => {
-        if (call.type === 'initializeDraft') {
-          draftingEngine.initialize(call.name, call.reqs);
-        } else if (call.type === 'addPart') {
-          draftingEngine.addPart(call.partId, call.qty);
-        } else if (call.type === 'removePart') {
-          draftingEngine.removePart(call.instanceId);
-        }
-      });
-
-      draftingEngine.addMessage({ 
-        role: 'assistant', 
-        content: parsed.reasoning || architectResponse, 
-        timestamp: new Date() 
-      });
-
-      setSession(draftingEngine.getSession());
+  const handleRetry = async () => {
+      const currentMsgs = draftingEngine.getSession().messages;
+      const lastMsg = currentMsgs[currentMsgs.length - 1];
       
-      // If the user uploaded an image, pass it to Nano Banana to guide the visual
-      handleGenerateVisual(parsed.reasoning, attachmentToSend || undefined);
-
-    } catch (error: any) {
-      console.error(error);
-      draftingEngine.addMessage({ 
-        role: 'assistant', 
-        content: `[SYSTEM ERROR] ${error.message || "Unknown error occurred during processing."}`, 
-        timestamp: new Date() 
-      });
-      setSession(draftingEngine.getSession());
-    } finally {
-      setIsThinking(false);
-    }
+      // Safety check: ensure last message is an error
+      if (lastMsg?.role === 'assistant' && lastMsg.content.includes('[SYSTEM ERROR]')) {
+          // Remove the error message
+          draftingEngine.removeLastMessage();
+          
+          // Get the preceding user message
+          // Need to fetch fresh session after removal
+          const freshSession = draftingEngine.getSession();
+          const userMsg = freshSession.messages[freshSession.messages.length - 1];
+          
+          // Update UI state to reflect removal immediately
+          setSession(freshSession);
+          
+          if (userMsg && userMsg.role === 'user') {
+              // Retry processing
+              await processArchitectRequest(userMsg.content, userMsg.attachment || null);
+          }
+      }
   };
 
   // Project Management Handlers
@@ -553,28 +744,9 @@ const AppContent: React.FC = () => {
       setSession(draftingEngine.getSession()); // Update in case active project was deleted
   };
 
-  const handleSourcePart = async (entry: any) => {
-      if (entry.part.sku.startsWith('DRAFT-')) return; // Can't source virtual parts yet
-      
-      // Optimistic update to show loading
-      const updatedBom = session.bom.map(b => {
-          if (b.instanceId === entry.instanceId) {
-              return { ...b, sourcing: { loading: true } };
-          }
-          return b;
-      });
-      // We don't save loading state to engine persistence, just local state for UI
-      setSession({ ...session, bom: updatedBom });
-
-      try {
-          const result = await aiService.findPartSources?.(entry.part.name + " " + entry.part.sku);
-          if (result) {
-             draftingEngine.updatePartSourcing(entry.instanceId, result);
-             setSession(draftingEngine.getSession());
-          }
-      } catch (e) {
-          console.error("Sourcing failed", e);
-      }
+  const handleRenameProject = (id: string, newName: string) => {
+      draftingEngine.renameProject(id, newName);
+      setSession(draftingEngine.getSession()); // Update in case active project was renamed
   };
 
   const handleVerifyDesign = async () => {
@@ -611,6 +783,11 @@ const AppContent: React.FC = () => {
      }
   };
 
+  const handleManualSource = (instanceId: string, url: string) => {
+      draftingEngine.setPartManualSource(instanceId, url);
+      setSession(draftingEngine.getSession());
+  };
+
   return (
     <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative flex-col md:flex-row">
       <AuditModal 
@@ -630,6 +807,8 @@ const AppContent: React.FC = () => {
         entry={selectedPart}
         onClose={() => setSelectedPart(null)}
         onFabricate={handleFabricate}
+        onSource={handleSourcePart}
+        onManualSource={handleManualSource}
       />
 
       {/* Sidebar Navigation - Hidden on Mobile */}
@@ -639,7 +818,7 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-6 flex-1 w-full px-4">
           <button 
             className="w-full aspect-square flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all cursor-default"
-            title="Drafting Mode"
+            title="Plan Mode"
           >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           </button>
@@ -684,8 +863,10 @@ const AppContent: React.FC = () => {
         onLoad={handleLoadProject}
         onNew={handleNewProject}
         onDelete={handleDeleteProject}
+        onRename={handleRenameProject}
         activeId={session.id}
         engine={draftingEngine}
+        currentUser={currentUser}
       />
 
       <main className="flex-1 flex overflow-hidden relative">
@@ -694,7 +875,7 @@ const AppContent: React.FC = () => {
           <header className="px-6 py-4 md:px-8 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-lg md:text-xl tracking-tight">BuildArchitect</h1>
+                <h1 className="font-bold text-lg md:text-xl tracking-tight">Plan</h1>
                 <Chip label={session.name || "Untitled"} color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
               </div>
               <div className="flex items-center gap-2 mt-1">
@@ -804,6 +985,19 @@ const AppContent: React.FC = () => {
                       </div>
                   )}
                   <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">{m.content}</div>
+                  
+                  {m.content.includes('[SYSTEM ERROR]') && (
+                    <div className="mt-2">
+                        <button 
+                            onClick={handleRetry}
+                            className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
+                        >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            Retry Request
+                        </button>
+                    </div>
+                  )}
+
                   <div className={`text-[8px] mt-2 font-mono uppercase tracking-widest opacity-40 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
                     {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
@@ -902,7 +1096,7 @@ const AppContent: React.FC = () => {
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-black text-xl tracking-tighter uppercase">Bill of Materials</h2>
+                <h2 className="font-bold text-xl tracking-tighter uppercase">Build</h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Live Updates</span>
@@ -979,13 +1173,12 @@ const AppContent: React.FC = () => {
                             {isVirtual ? 'TBD' : `$${(entry.part.price * entry.quantity).toLocaleString()}`}
                           </div>
                           
-                          {/* Sourcing Button - Only for Real Parts */}
-                          {!isVirtual && (
+                          {/* Sourcing Button - Now always visible */}
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }}
                                 disabled={sourcing?.loading}
-                                className="mt-2 p-1.5 bg-gray-50 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded-lg transition-all"
-                                title="Find Purchase Options"
+                                className={`mt-2 p-1.5 rounded-lg transition-all ${sourcing?.manualUrl ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-50 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600'}`}
+                                title={sourcing?.manualUrl ? "Custom Source Set" : "Find Purchase Options"}
                               >
                                 {sourcing?.loading ? (
                                     <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -993,19 +1186,28 @@ const AppContent: React.FC = () => {
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                                 )}
                               </button>
-                          )}
                         </div>
                       </div>
                       
                       {/* Sourcing Result */}
-                      {sourcing?.data && (
+                      {(sourcing?.data || sourcing?.manualUrl) && (
                           <div className="mt-3 bg-gray-50 rounded border border-gray-100 p-2">
-                             <div className="text-[10px] font-bold text-slate-700 uppercase mb-1">Available at:</div>
-                             {sourcing.data.options.map((opt: any, i: number) => (
-                                 <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline">
-                                     {opt.title || opt.source}
+                             <div className="text-[10px] font-bold text-slate-700 uppercase mb-1 flex justify-between">
+                                 <span>Available at:</span>
+                                 {sourcing.manualUrl && <span className="text-indigo-600">Custom Link Active</span>}
+                             </div>
+                             
+                             {sourcing.manualUrl ? (
+                                 <a href={sourcing.manualUrl} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline font-bold">
+                                     {sourcing.manualUrl}
                                  </a>
-                             ))}
+                             ) : (
+                                 sourcing.data?.options.map((opt: any, i: number) => (
+                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline">
+                                         {opt.title || opt.source}
+                                     </a>
+                                 ))
+                             )}
                           </div>
                       )}
                       
@@ -1074,7 +1276,7 @@ const AppContent: React.FC = () => {
             className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'chat' ? 'text-indigo-600' : 'text-gray-400'}`}
         >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
-            <span className="text-[10px] font-bold uppercase">Architect</span>
+            <span className="text-[10px] font-bold uppercase">Plan</span>
             {mobileView === 'chat' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
         </button>
 
@@ -1085,7 +1287,7 @@ const AppContent: React.FC = () => {
             className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'visuals' ? 'text-indigo-600' : 'text-gray-400'}`}
         >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-            <span className="text-[10px] font-bold uppercase">Blueprint</span>
+            <span className="text-[10px] font-bold uppercase">Build</span>
             {mobileView === 'visuals' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
         </button>
       </div>

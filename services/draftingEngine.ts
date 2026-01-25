@@ -1,5 +1,3 @@
-
-
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
@@ -188,6 +186,28 @@ export class DraftingEngine {
       return false;
   }
 
+  public renameProject(id: string, newName: string) {
+      // If renaming active session
+      if (this.session.id === id) {
+          this.session.name = newName;
+          this.saveSession();
+          return;
+      }
+      
+      // If renaming inactive session
+      try {
+          const raw = localStorage.getItem(this.SESSION_PREFIX + id);
+          if (raw) {
+              const session = JSON.parse(raw);
+              session.name = newName;
+              session.lastModified = new Date(); // Update timestamp
+              this.saveSessionToStorage(session);
+          }
+      } catch (e) {
+          console.error("Failed to rename project", e);
+      }
+  }
+
   public deleteProject(id: string) {
       localStorage.removeItem(this.SESSION_PREFIX + id);
       const index = this.getProjectList().filter((p: any) => p.id !== id);
@@ -211,6 +231,13 @@ export class DraftingEngine {
   public addMessage(message: UserMessage) {
       this.session.messages.push(message);
       this.saveSession();
+  }
+
+  public removeLastMessage() {
+      if (this.session.messages.length > 0) {
+          this.session.messages.pop();
+          this.saveSession();
+      }
   }
 
   public setVisualManifest(manifest: VisualManifest) {
@@ -245,7 +272,7 @@ export class DraftingEngine {
     this.saveSession();
   }
 
-  public addPart(partId: string, quantity: number = 1): { success: boolean; message: string } {
+  public addPart(partId: string, quantity: number = 1): { success: boolean; message: string; entry?: BOMEntry } {
     let part = HARDWARE_REGISTRY.find(p => p.id === partId);
     let isVirtual = false;
 
@@ -279,7 +306,8 @@ export class DraftingEngine {
 
     return { 
       success: true, 
-      message: isVirtual ? `Drafted: ${part.name}` : `Added: ${part.name}`
+      message: isVirtual ? `Drafted: ${part.name}` : `Added: ${part.name}`,
+      entry
     };
   }
 
@@ -298,6 +326,15 @@ export class DraftingEngine {
         entry.sourcing.data = sourcingData;
         this.saveSession();
     }
+  }
+
+  public setPartManualSource(instanceId: string, url: string) {
+      const entry = this.session.bom.find(b => b.instanceId === instanceId);
+      if (entry) {
+          if (!entry.sourcing) entry.sourcing = {};
+          entry.sourcing.manualUrl = url;
+          this.saveSession();
+      }
   }
 
   private validateCompatibility(newPart: Part): { isCompatible: boolean; warnings: string[] } {

@@ -54,7 +54,8 @@ export interface BOMEntry {
   warnings?: string[];
   sourcing?: {
     loading?: boolean;
-    data?: any;
+    data?: { options: { title: string; url: string; source: string }[] };
+    manualUrl?: string;
   };
 }
 
