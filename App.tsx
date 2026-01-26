@@ -456,7 +456,7 @@ const AppContent: React.FC = () => {
   const [isVisualizing, setIsVisualizing] = useState(false);
   
   // Resizable Visualizer State
-  const [visualizerHeight, setVisualizerHeight] = useState(45); // Start at 45%
+  const [visualizerHeight, setVisualizerHeight] = useState(33); // Start at 33% (approx 2:1 ratio)
   const leftPaneRef = useRef<HTMLElement>(null);
   const isResizingRef = useRef(false);
 
@@ -961,8 +961,8 @@ const AppContent: React.FC = () => {
                   <button onClick={() => handleSend("Let's build an LED votive light with wireless Qi charging.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
                     "Assemble an LED votive with wireless charging."
                   </button>
-                  <button onClick={() => handleSend("Draft a custom 65% keyboard with silent linear switches.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
-                    "Configure a silent mechanical keyboard."
+                  <button onClick={() => handleSend("Design a high-performance gaming PC with liquid cooling.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
+                    "Design a high-performance gaming PC."
                   </button>
                 </div>
               </div>
