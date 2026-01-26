@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Chip } from './Material3UI.tsx';
 import { GeneratedImage } from '../types.ts';
 
@@ -12,6 +12,7 @@ interface ChiltonVisualizerProps {
 
 export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, onGenerate, isGenerating, hasItems }) => {
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const { t, i18n } = useTranslation();
 
   // Automatically select the latest image when the image list changes
   useEffect(() => {
@@ -52,6 +53,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                         variant="secondary" 
                         onClick={handleDownload}
                         className="text-[10px] uppercase font-bold shadow-lg bg-white/90 backdrop-blur"
+                        aria-label="Save Image"
                     >
                         Save Image
                     </Button>
@@ -70,7 +72,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
             </div>
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-widest mb-2">Nano Banana Visualizer</h3>
             <p className="text-xs text-gray-400 leading-relaxed mb-6">
-                Generate a photorealistic concept of your assembly using the Gemini Nano Banana model.
+                {t('vis.empty')}
             </p>
             {!hasItems && (
                 <p className="text-[9px] text-red-400 mt-2 font-medium uppercase">Add components to draft first</p>
@@ -80,7 +82,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
         
         {/* Model Badge */}
         <div className="absolute top-4 left-4">
-            <Chip label={isGenerating ? "Generating..." : "Nano Banana"} color={isGenerating ? "bg-indigo-100 text-indigo-700 animate-pulse" : "bg-yellow-100 text-yellow-800 border border-yellow-200"} />
+            <Chip label={isGenerating ? t('vis.generating') : "Nano Banana"} color={isGenerating ? "bg-indigo-100 text-indigo-700 animate-pulse" : "bg-yellow-100 text-yellow-800 border border-yellow-200"} />
         </div>
         </div>
 
@@ -90,6 +92,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                 onClick={onGenerate}
                 disabled={isGenerating || !hasItems}
                 className="flex-shrink-0 w-20 h-full md:w-full md:h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={t('vis.new')}
              >
                 <div className={`w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center ${isGenerating ? 'animate-spin' : ''}`}>
                     {isGenerating ? (
@@ -98,7 +101,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                         <span className="text-lg leading-none">+</span>
                     )}
                 </div>
-                <span className="text-[9px] font-bold uppercase">New</span>
+                <span className="text-[9px] font-bold uppercase">{t('vis.new')}</span>
              </button>
 
             {images.slice().reverse().map((img) => (
@@ -111,7 +114,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                 >
                     <img src={img.url} alt="thumbnail" className="w-full h-full object-cover" />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] font-mono py-0.5 px-1 truncate">
-                        {img.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {img.timestamp.toLocaleTimeString(i18n.language, {hour: '2-digit', minute:'2-digit'})}
                     </div>
                 </button>
             ))}

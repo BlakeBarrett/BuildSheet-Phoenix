@@ -30,16 +30,16 @@ export class UserService {
   }
 
   static async login() {
-    // Simulate Auth0 Universal Login Redirect/Popup delay
+    // Simulate Google Login Redirect/Popup delay
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // Create a mock Auth0 profile
+    // Create a mock Google User profile
     const mockUser: User = {
-      id: 'auth0|' + Math.random().toString(36).substr(2, 9),
-      username: 'engineering_lead',
+      id: 'google-oauth2|' + Math.random().toString(36).substr(2, 20),
+      username: 'engineering.lead',
       name: 'Demo Architect',
-      email: 'architect@buildsheet.demo',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=engineering'
+      email: 'architect@googlemail.com',
+      avatar: 'https://lh3.googleusercontent.com/a-/AOh14Gj-cdODC1Zc4o2w2w1_3g3-3g3-3g3-3g3=s96-c' // Generic Google-like Avatar URL
     };
 
     this.currentUser = mockUser;

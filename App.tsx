@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, Component, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useTranslation } from 'react-i18next';
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
@@ -48,6 +49,7 @@ const ProjectManager: React.FC<{
     currentUser: User | null;
 }> = ({ isOpen, onClose, onLoad, onNew, onDelete, onRename, activeId, engine, currentUser }) => {
     const [projects, setProjects] = useState<any[]>([]);
+    const { t, i18n } = useTranslation();
 
     useEffect(() => {
         if (isOpen) {
@@ -57,7 +59,7 @@ const ProjectManager: React.FC<{
 
     const handleRenameClick = (e: React.MouseEvent, id: string, currentName: string) => {
         e.stopPropagation();
-        const newName = window.prompt("Rename Project:", currentName);
+        const newName = window.prompt(t('app.rename') + ":", currentName);
         if (newName && newName.trim() !== "") {
             onRename(id, newName.trim());
             setProjects(engine.getProjectList()); // Refresh list
@@ -69,16 +71,17 @@ const ProjectManager: React.FC<{
     return (
         <div className="absolute left-0 md:left-20 top-0 bottom-0 w-full md:w-80 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h2 className="font-bold text-slate-800 text-lg">Your Projects</h2>
-                <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1">&times;</button>
+                <h2 className="font-bold text-slate-800 text-lg">{t('app.projects')}</h2>
+                <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1" aria-label="Close Projects">&times;</button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 <button 
                     onClick={onNew}
                     className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 font-bold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+                    aria-label={t('app.newProject')}
                 >
-                    <span className="text-xl leading-none">+</span> New Project
+                    <span className="text-xl leading-none">+</span> {t('app.newProject')}
                 </button>
 
                 {projects.map(p => (
@@ -90,10 +93,10 @@ const ProjectManager: React.FC<{
                             : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-md'
                         }`}
                     >
-                        <div onClick={() => onLoad(p.id)} className="cursor-pointer pr-8">
+                        <div onClick={() => onLoad(p.id)} className="cursor-pointer pr-8" role="button" tabIndex={0}>
                             <div className="font-bold text-sm text-slate-800 truncate">{p.name || 'Untitled'}</div>
                             <div className="text-[10px] text-gray-400 font-mono mt-1 flex justify-between items-center">
-                                <span>{new Date(p.lastModified).toLocaleDateString()}</span>
+                                <span>{new Date(p.lastModified).toLocaleDateString(i18n.language)}</span>
                                 <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">{p.preview}</span>
                             </div>
                         </div>
@@ -102,7 +105,8 @@ const ProjectManager: React.FC<{
                              <button 
                                 onClick={(e) => handleRenameClick(e, p.id, p.name)}
                                 className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                                title="Rename"
+                                title={t('app.rename')}
+                                aria-label={t('app.rename')}
                              >
                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                              </button>
@@ -110,7 +114,8 @@ const ProjectManager: React.FC<{
                                  <button 
                                     onClick={(e) => { e.stopPropagation(); onDelete(p.id); setProjects(engine.getProjectList()); }}
                                     className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded"
-                                    title="Delete"
+                                    title={t('app.delete')}
+                                    aria-label={t('app.delete')}
                                  >
                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                  </button>
@@ -132,7 +137,8 @@ const ProjectManager: React.FC<{
                         <button 
                             onClick={() => UserService.logout()}
                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Log Out"
+                            title={t('app.logOut')}
+                            aria-label={t('app.logOut')}
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
                         </button>
@@ -140,22 +146,46 @@ const ProjectManager: React.FC<{
                 ) : (
                     <button 
                         onClick={() => UserService.login()}
-                        className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-white border border-gray-200 text-slate-700 rounded-lg font-medium text-sm shadow-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                        aria-label={t('app.signInGoogle')}
                     >
-                        <span>Sign In / Register</span>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+                         <svg className="w-4 h-4" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                            <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
+                            <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z"/>
+                            <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z"/>
+                            <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.734 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z"/>
+                            <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z"/>
+                            </g>
+                        </svg>
+                        <span>{t('app.signInGoogle')}</span>
                     </button>
                 )}
+            </div>
+            {/* Language Selector in Drawer */}
+            <div className="p-4 bg-white border-t border-gray-200">
+               <label className="text-[10px] uppercase font-bold text-gray-400 mb-2 block">{t('lang.select')}</label>
+               <div className="flex gap-2 flex-wrap">
+                   {['en', 'es', 'pt', 'de', 'fr', 'hi'].map(lang => (
+                       <button
+                           key={lang}
+                           onClick={() => i18n.changeLanguage(lang)}
+                           className={`px-2 py-1 text-xs rounded border ${i18n.language.startsWith(lang) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                       >
+                           {lang.toUpperCase()}
+                       </button>
+                   ))}
+               </div>
             </div>
         </div>
     );
 };
 
 const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: string | null; isRunning: boolean }> = ({ isOpen, onClose, result, isRunning }) => {
+    const { t } = useTranslation();
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="audit-title">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
                     <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-green-100 text-green-600'}`}>
@@ -166,11 +196,11 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
                            )}
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800">System Integrity Verification</h3>
-                            <p className="text-xs text-gray-500">{isRunning ? "Gemini 3.0 Pro Thinking..." : "Audit Complete"}</p>
+                            <h3 id="audit-title" className="text-lg font-bold text-slate-800">{t('audit.title')}</h3>
+                            <p className="text-xs text-gray-500">{isRunning ? "Gemini 3.0 Pro..." : "Audit Complete"}</p>
                         </div>
                     </div>
-                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>}
+                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>}
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 bg-white">
                     {isRunning ? (
@@ -178,7 +208,7 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
                             <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
                             <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse"></div>
                             <div className="h-4 bg-gray-100 rounded w-5/6 animate-pulse"></div>
-                            <p className="text-center text-xs text-gray-400 mt-8">Analyzing voltage rails, mechanical constraints, and logical compatibility...</p>
+                            <p className="text-center text-xs text-gray-400 mt-8">{t('status.thinking')}</p>
                         </div>
                     ) : (
                         <div className="prose prose-sm prose-slate max-w-none">
@@ -188,7 +218,7 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
                 </div>
                 <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                     <Button onClick={onClose} variant="primary" className={isRunning ? 'opacity-50 pointer-events-none' : ''}>
-                        {isRunning ? 'Auditing...' : 'Close Report'}
+                        {isRunning ? t('audit.running') : 'Close Report'}
                     </Button>
                 </div>
             </div>
@@ -197,10 +227,11 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
 };
 
 const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result: string | null; isRunning: boolean; partName: string }> = ({ isOpen, onClose, result, isRunning, partName }) => {
+    const { t } = useTranslation();
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="fab-title">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
                     <div className="flex items-center gap-3">
                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-blue-100 text-blue-600'}`}>
@@ -211,11 +242,11 @@ const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result:
                            )}
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800">Manufacturing Brief</h3>
-                            <p className="text-xs text-gray-500">Drafting fabrication spec for: <strong>{partName}</strong></p>
+                            <h3 id="fab-title" className="text-lg font-bold text-slate-800">{t('fab.title')}</h3>
+                            <p className="text-xs text-gray-500">Drafting spec for: <strong>{partName}</strong></p>
                         </div>
                     </div>
-                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>}
+                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>}
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 bg-white">
                     {isRunning ? (
@@ -223,7 +254,7 @@ const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result:
                             <div className="h-4 bg-gray-100 rounded w-2/3 animate-pulse"></div>
                             <div className="h-4 bg-gray-100 rounded w-full animate-pulse"></div>
                             <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
-                             <p className="text-center text-xs text-gray-400 mt-8">Inferring layer count, surface finish, and tolerances based on system context...</p>
+                             <p className="text-center text-xs text-gray-400 mt-8">{t('status.thinking')}</p>
                         </div>
                     ) : (
                          <div className="prose prose-sm prose-slate max-w-none">
@@ -235,10 +266,10 @@ const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result:
                     {!isRunning && (
                         <>
                              <Button onClick={() => window.open('https://www.pcbway.com/', '_blank')} variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100">
-                                Quote on PCBWay
+                                {t('fab.pcbway')}
                             </Button>
                             <Button onClick={() => window.open('https://sendcutsend.com/', '_blank')} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
-                                Quote on SendCutSend
+                                {t('fab.scs')}
                             </Button>
                         </>
                     )}
@@ -256,6 +287,7 @@ const PartDetailModal: React.FC<{
     onSource: (entry: BOMEntry) => void;
     onManualSource: (instanceId: string, url: string) => void;
 }> = ({ entry, onClose, onFabricate, onSource, onManualSource }) => {
+    const { t } = useTranslation();
     const [manualUrlInput, setManualUrlInput] = useState('');
     
     useEffect(() => {
@@ -279,17 +311,17 @@ const PartDetailModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="detail-title">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-slate-50">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <Chip label={part.category} color={isVirtual ? "bg-indigo-100 text-indigo-700" : "bg-gray-200 text-gray-700"} />
-                            {!isCompatible && <Chip label="Incompatible" color="bg-red-100 text-red-700" />}
+                            {!isCompatible && <Chip label={t('bom.incompatible')} color="bg-red-100 text-red-700" />}
                         </div>
-                        <h3 className="text-xl font-bold text-slate-900 leading-tight">{part.name}</h3>
+                        <h3 id="detail-title" className="text-xl font-bold text-slate-900 leading-tight">{part.name}</h3>
                         <p className="text-xs font-mono text-gray-400 mt-1">{part.sku}</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1">&times;</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1" aria-label="Close">&times;</button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -307,7 +339,7 @@ const PartDetailModal: React.FC<{
                     {/* Sourcing Section */}
                     <div className="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
                          <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-3 flex items-center justify-between">
-                            Sourcing & Procurement
+                            {t('bom.sourcing')}
                             <button 
                                 onClick={() => onSource(entry)} 
                                 disabled={sourcing?.loading}
@@ -362,7 +394,7 @@ const PartDetailModal: React.FC<{
                                 <h4 className="text-xs font-bold text-gray-600 uppercase mb-2">Virtual Component</h4>
                                 <p className="text-xs text-gray-500 mb-3">This part was architected by Gemini. You can generate a fabrication spec for it.</p>
                                 <Button onClick={() => onFabricate(part)} variant="secondary" className="w-full justify-center">
-                                    Generate Manufacturing Brief
+                                    {t('fab.button')}
                                 </Button>
                             </div>
                         ) : (
@@ -420,10 +452,10 @@ const PartDetailModal: React.FC<{
 };
 
 const AppContent: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { service: aiService, status: aiStatus, error: serviceError } = useService();
   const [draftingEngine] = useState(() => getDraftingEngine());
   
-  // NOTE: We initialize messages from the session now, not empty array
   const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
   const [input, setInput] = useState('');
   const [pendingAttachment, setPendingAttachment] = useState<string | null>(null);
@@ -460,6 +492,11 @@ const AppContent: React.FC = () => {
   const leftPaneRef = useRef<HTMLElement>(null);
   const isResizingRef = useRef(false);
 
+  // Update HTML lang attribute
+  useEffect(() => {
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
+
   const startResizing = (e: React.MouseEvent) => {
       e.preventDefault();
       isResizingRef.current = true;
@@ -473,14 +510,10 @@ const AppContent: React.FC = () => {
       if (!isResizingRef.current || !leftPaneRef.current) return;
       
       const paneRect = leftPaneRef.current.getBoundingClientRect();
-      // Assume header is ~76px
       const headerOffset = 76;
       const relativeY = e.clientY - paneRect.top - headerOffset;
       
-      // Calculate percentage relative to the full pane height
       let percentage = (relativeY / (paneRect.height - headerOffset)) * 100;
-
-      // Constraints: Min 33% (2:1 split), Max 50% (1:1 split)
       if (percentage < 33) percentage = 33;
       if (percentage > 50) percentage = 50;
       
@@ -506,13 +539,11 @@ const AppContent: React.FC = () => {
   }, [draftingEngine]);
 
   useEffect(() => { 
-      // Only scroll if we are in chat mode (on mobile) or desktop
       if (mobileView === 'chat') {
           chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
       }
   }, [session.messages, mobileView]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -548,7 +579,6 @@ const AppContent: React.FC = () => {
 
     setIsVisualizing(true);
     
-    // Auto-switch to visual tab on mobile if a new visual is generated
     if (window.innerWidth < 768) {
         setMobileView('visuals');
     }
@@ -574,7 +604,6 @@ const AppContent: React.FC = () => {
 
   // Define handleSourcePart outside to be used by both processArchitectRequest and UI
   const handleSourcePart = async (entry: BOMEntry) => {
-      // Helper to set loading state locally without persisting to engine (since sourcing status is ephemeral until success)
       const setPartLoading = (loading: boolean) => {
           setSession(prev => ({
               ...prev,
@@ -585,21 +614,20 @@ const AppContent: React.FC = () => {
       setPartLoading(true);
 
       try {
-          // Construct a smart query
           const query = entry.part.sku.startsWith('DRAFT-') 
-             ? `${entry.part.name} ${entry.part.description} hardware` // Generic search for virtual parts
-             : `${entry.part.name} ${entry.part.sku}`; // Specific search for real parts
+             ? `${entry.part.name} ${entry.part.description} hardware` 
+             : `${entry.part.name} ${entry.part.sku}`; 
 
           const result = await aiService.findPartSources?.(query);
           if (result) {
              draftingEngine.updatePartSourcing(entry.instanceId, result);
              setSession(draftingEngine.getSession());
           } else {
-             setPartLoading(false); // Clear if no result
+             setPartLoading(false); 
           }
       } catch (e) {
           console.error("Sourcing failed", e);
-          setPartLoading(false); // Clear on error
+          setPartLoading(false); 
       }
   };
 
@@ -607,14 +635,8 @@ const AppContent: React.FC = () => {
       setIsThinking(true);
       try {
           const currentSession = draftingEngine.getSession();
-          // We need to pass history to the AI service. 
-          // The current user message is already in currentSession.messages (added by handleSend or existing for retry).
-          // However, GeminiService.askArchitect appends the current prompt to the history it receives.
-          // To avoid duplication, we should exclude the last message from the history passed to askArchitect,
-          // assuming the last message IS the current prompt.
-          
           const allMessages = currentSession.messages;
-          const historyMessages = allMessages.slice(0, -1); // Exclude the last message (current user prompt)
+          const historyMessages = allMessages.slice(0, -1); 
           
           const history = historyMessages.filter(m => !m.content.startsWith('[SYSTEM ALERT]') && !m.content.startsWith('[SYSTEM ERROR]')).map(m => {
             const parts: any[] = [{ text: m.content }];
@@ -654,12 +676,10 @@ const AppContent: React.FC = () => {
 
           setSession(draftingEngine.getSession());
           
-          // Auto-Trigger Sourcing for new parts
           addedParts.forEach(partEntry => {
               handleSourcePart(partEntry);
           });
           
-          // Trigger visual generation
           handleGenerateVisual(parsed.reasoning, attachment || undefined);
 
       } catch (error: any) {
@@ -688,9 +708,8 @@ const AppContent: React.FC = () => {
         timestamp: new Date() 
     };
     
-    // Update Engine Persistence
     draftingEngine.addMessage(userMsg);
-    setSession(draftingEngine.getSession()); // Refresh local state
+    setSession(draftingEngine.getSession());
     
     setInput('');
     setPendingAttachment(null);
@@ -703,27 +722,17 @@ const AppContent: React.FC = () => {
       const currentMsgs = draftingEngine.getSession().messages;
       const lastMsg = currentMsgs[currentMsgs.length - 1];
       
-      // Safety check: ensure last message is an error
       if (lastMsg?.role === 'assistant' && lastMsg.content.includes('[SYSTEM ERROR]')) {
-          // Remove the error message
           draftingEngine.removeLastMessage();
-          
-          // Get the preceding user message
-          // Need to fetch fresh session after removal
           const freshSession = draftingEngine.getSession();
           const userMsg = freshSession.messages[freshSession.messages.length - 1];
-          
-          // Update UI state to reflect removal immediately
           setSession(freshSession);
-          
           if (userMsg && userMsg.role === 'user') {
-              // Retry processing
               await processArchitectRequest(userMsg.content, userMsg.attachment || null);
           }
       }
   };
 
-  // Project Management Handlers
   const handleLoadProject = (id: string) => {
       if (draftingEngine.loadProject(id)) {
           setSession(draftingEngine.getSession());
@@ -741,12 +750,12 @@ const AppContent: React.FC = () => {
 
   const handleDeleteProject = (id: string) => {
       draftingEngine.deleteProject(id);
-      setSession(draftingEngine.getSession()); // Update in case active project was deleted
+      setSession(draftingEngine.getSession());
   };
 
   const handleRenameProject = (id: string, newName: string) => {
       draftingEngine.renameProject(id, newName);
-      setSession(draftingEngine.getSession()); // Update in case active project was renamed
+      setSession(draftingEngine.getSession());
   };
 
   const handleVerifyDesign = async () => {
@@ -813,12 +822,13 @@ const AppContent: React.FC = () => {
 
       {/* Sidebar Navigation - Hidden on Mobile */}
       <nav className="hidden md:flex w-20 border-r border-gray-200 bg-white flex-col items-center py-8 gap-6 flex-shrink-0 shadow-sm z-20 relative">
-        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-4">B</div>
+        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-4" aria-label="BuildSheet Logo">B</div>
         
         <div className="flex flex-col gap-6 flex-1 w-full px-4">
           <button 
             className="w-full aspect-square flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all cursor-default"
-            title="Plan Mode"
+            title={t('app.title')}
+            aria-label={t('app.title')}
           >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           </button>
@@ -826,7 +836,8 @@ const AppContent: React.FC = () => {
           <button 
             onClick={() => setShowProjects(!showProjects)}
             className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all ${showProjects ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
-            title="Projects"
+            title={t('app.projects')}
+            aria-label={t('app.projects')}
           >
              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
           </button>
@@ -835,20 +846,36 @@ const AppContent: React.FC = () => {
             onClick={() => setShowLogs(!showLogs)} 
             className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
             title="System Logs"
+            aria-label="System Logs"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </button>
+
+          {/* Language Switcher Desktop */}
+          <div className="group relative flex items-center justify-center">
+             <button className="text-[10px] font-bold text-gray-400 hover:text-indigo-600 uppercase border border-gray-200 rounded px-1.5 py-1" aria-label="Change Language">
+                 {i18n.language.slice(0,2)}
+             </button>
+             <div className="absolute left-14 bottom-0 bg-white border border-gray-200 shadow-xl rounded-lg p-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
+                 {['en', 'es', 'pt', 'de', 'fr', 'hi'].map(lang => (
+                     <button key={lang} onClick={() => i18n.changeLanguage(lang)} className="text-xs px-2 py-1 hover:bg-indigo-50 rounded text-left uppercase">
+                         {lang}
+                     </button>
+                 ))}
+             </div>
+          </div>
         </div>
 
         <div className="mt-auto flex flex-col items-center gap-4">
           {currentUser ? (
-             <button onClick={() => UserService.logout()} className="relative group">
+             <button onClick={() => UserService.logout()} className="relative group" aria-label={t('app.logOut')}>
                 <img src={currentUser.avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100 group-hover:border-red-400 transition-colors" />
              </button>
           ) : (
             <button 
               onClick={() => UserService.login()}
               className="w-10 h-10 rounded-full bg-white border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+              aria-label={t('app.signInGoogle')}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
             </button>
@@ -875,17 +902,17 @@ const AppContent: React.FC = () => {
           <header className="px-6 py-4 md:px-8 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-lg md:text-xl tracking-tight">Plan</h1>
+                <h1 className="font-bold text-lg md:text-xl tracking-tight">{t('app.title')}</h1>
                 <Chip label={session.name || "Untitled"} color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
                 <div 
                     className={`flex items-center gap-1.5 transition-all`}
-                    title={aiStatus === 'offline' ? 'Offline Mode' : 'Connected'}
+                    title={aiStatus === 'offline' ? t('status.offline') : t('status.online')}
                 >
                     <div className={`w-1.5 h-1.5 rounded-full ${aiStatus === 'online' ? 'bg-green-500' : aiStatus === 'offline' ? 'bg-amber-500' : 'bg-gray-300 animate-pulse'}`}></div>
-                    {aiStatus === 'offline' && <span className="text-[9px] font-bold text-amber-600 uppercase">SIMULATION</span>}
+                    {aiStatus === 'offline' && <span className="text-[9px] font-bold text-amber-600 uppercase">{t('status.offline')}</span>}
                 </div>
               </div>
             </div>
@@ -898,6 +925,7 @@ const AppContent: React.FC = () => {
                   onClick={() => setIsBomOpen(!isBomOpen)}
                   className="hidden md:flex p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all ml-2 border border-transparent hover:border-indigo-100"
                   title={isBomOpen ? "Close BOM Panel" : "Open BOM Panel"}
+                  aria-label="Toggle BOM Panel"
                 >
                     <svg className={`w-5 h-5 transform transition-transform ${isBomOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
@@ -908,6 +936,7 @@ const AppContent: React.FC = () => {
                 <button 
                     onClick={() => setShowProjects(true)}
                     className="md:hidden p-2 -mr-2 text-gray-400 hover:text-indigo-600"
+                    aria-label={t('app.projects')}
                 >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                 </button>
@@ -937,6 +966,7 @@ const AppContent: React.FC = () => {
           <div 
             className="hidden md:flex h-3 w-full cursor-row-resize items-center justify-center hover:bg-indigo-50 group -mt-1.5 z-30 relative"
             onMouseDown={startResizing}
+            aria-label="Resize Visualizer"
           >
              <div className="w-16 h-1 rounded-full bg-gray-300 group-hover:bg-indigo-300 transition-colors shadow-sm"></div>
           </div>
@@ -948,8 +978,8 @@ const AppContent: React.FC = () => {
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">Hardware System Assembly</h3>
-                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">Describe the product you want to build. I will select the correct kit of parts, validate connections, and generate a system visual.</p>
+                  <h3 className="text-xl font-bold text-slate-800">{t('welcome.title')}</h3>
+                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">{t('welcome.subtitle')}</p>
                 </div>
                 {aiStatus === 'offline' && (
                      <div className="bg-amber-50 text-amber-800 text-xs px-4 py-2 rounded-lg border border-amber-200 text-left">
@@ -958,11 +988,11 @@ const AppContent: React.FC = () => {
                     </div>
                 )}
                 <div className="flex flex-col gap-2 w-full">
-                  <button onClick={() => handleSend("Let's build an LED votive light with wireless Qi charging.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
-                    "Assemble an LED votive with wireless charging."
+                  <button onClick={() => handleSend(t('prompt.votive'))} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
+                    "{t('prompt.votive')}"
                   </button>
-                  <button onClick={() => handleSend("Design a high-performance gaming PC with liquid cooling.")} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
-                    "Design a high-performance gaming PC."
+                  <button onClick={() => handleSend(t('prompt.gaming'))} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
+                    "{t('prompt.gaming')}"
                   </button>
                 </div>
               </div>
@@ -999,7 +1029,7 @@ const AppContent: React.FC = () => {
                   )}
 
                   <div className={`text-[8px] mt-2 font-mono uppercase tracking-widest opacity-40 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    {m.timestamp.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
                 </div>
               </div>
@@ -1013,7 +1043,7 @@ const AppContent: React.FC = () => {
                     <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
                   </div>
                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">
-                    {aiService.name} Thinking...
+                    {t('status.thinking')}
                   </span>
                 </div>
               </div>
@@ -1031,6 +1061,7 @@ const AppContent: React.FC = () => {
                       <button 
                         onClick={() => { setPendingAttachment(null); if(fileInputRef.current) fileInputRef.current.value=''; }}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-red-600 shadow-sm"
+                        aria-label="Remove Attachment"
                       >
                           &times;
                       </button>
@@ -1048,8 +1079,9 @@ const AppContent: React.FC = () => {
                             handleSend();
                         }
                     }}
-                    placeholder="Instruct the Lead Architect..."
+                    placeholder={t('input.placeholder')}
                     rows={1}
+                    aria-label="Chat Input"
                     className="w-full pl-5 pr-24 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all text-sm font-medium resize-none min-h-[54px] max-h-[200px] overflow-y-auto"
                   />
                   
@@ -1060,11 +1092,13 @@ const AppContent: React.FC = () => {
                         ref={fileInputRef} 
                         onChange={handleFileUpload} 
                         className="hidden" 
+                        aria-hidden="true"
                       />
                       <button 
                         onClick={() => fileInputRef.current?.click()}
                         className="w-12 h-12 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg flex items-center justify-center transition-all"
                         title="Attach Image for Visual Context"
+                        aria-label="Attach Image"
                       >
                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                       </button>
@@ -1073,6 +1107,7 @@ const AppContent: React.FC = () => {
                         onClick={() => handleSend()}
                         disabled={isThinking || (!input.trim() && !pendingAttachment)}
                         className="w-12 h-12 bg-slate-800 text-white rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-slate-900 transition-all active:scale-95 shadow-md"
+                        aria-label="Send Message"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                       </button>
@@ -1096,10 +1131,10 @@ const AppContent: React.FC = () => {
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-bold text-xl tracking-tighter uppercase">Build</h2>
+                <h2 className="font-bold text-xl tracking-tighter uppercase">{t('app.build')}</h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Live Updates</span>
+                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{t('status.online')}</span>
                 </div>
               </div>
               <div className="text-right flex items-center gap-4">
@@ -1110,6 +1145,7 @@ const AppContent: React.FC = () => {
                  <button 
                     onClick={() => setShowProjects(true)}
                     className="md:hidden p-2 -mr-2 text-gray-400 hover:text-indigo-600"
+                    aria-label={t('app.projects')}
                 >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
                 </button>
@@ -1120,7 +1156,7 @@ const AppContent: React.FC = () => {
           {/* VISUALIZER - Mobile Position (Only visible in Blueprint Tab on Mobile) */}
           <div className="md:hidden h-[300px] bg-gray-50 border-b border-gray-100 shadow-inner p-4 relative">
              <div className="absolute top-4 left-4 z-10">
-                 <Chip label={isVisualizing ? "Generating..." : "Nano Banana"} color={isVisualizing ? "bg-indigo-100 text-indigo-700 animate-pulse" : "bg-yellow-100 text-yellow-800 border border-yellow-200"} />
+                 <Chip label={isVisualizing ? t('vis.generating') : "Nano Banana"} color={isVisualizing ? "bg-indigo-100 text-indigo-700 animate-pulse" : "bg-yellow-100 text-yellow-800 border border-yellow-200"} />
              </div>
              <ChiltonVisualizer 
                 images={session.generatedImages}
@@ -1135,7 +1171,7 @@ const AppContent: React.FC = () => {
             {session.bom.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-20 grayscale pointer-events-none">
                 <svg className="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Awaiting Build Sheet Ingestion</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{t('bom.empty')}</p>
               </div>
             ) : (
               session.bom.map((entry) => {
@@ -1149,7 +1185,7 @@ const AppContent: React.FC = () => {
                     !entry.isCompatible ? 'border-amber-400 bg-amber-50/20' : 'border-gray-200'
                   }`}>
                       <div className="flex justify-between items-start">
-                        <div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)}>
+                        <div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)} role="button" tabIndex={0}>
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
                               isVirtual ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
@@ -1158,7 +1194,7 @@ const AppContent: React.FC = () => {
                             </span>
                             {!entry.isCompatible && (
                                 <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase bg-red-100 text-red-500 animate-pulse">
-                                    Incompatible
+                                    {t('bom.incompatible')}
                                 </span>
                             )}
                           </div>
@@ -1178,7 +1214,8 @@ const AppContent: React.FC = () => {
                                 onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }}
                                 disabled={sourcing?.loading}
                                 className={`mt-2 p-1.5 rounded-lg transition-all ${sourcing?.manualUrl ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-50 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600'}`}
-                                title={sourcing?.manualUrl ? "Custom Source Set" : "Find Purchase Options"}
+                                title={sourcing?.manualUrl ? "Custom Source Set" : t('bom.sourcing')}
+                                aria-label={t('bom.sourcing')}
                               >
                                 {sourcing?.loading ? (
                                     <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -1225,9 +1262,9 @@ const AppContent: React.FC = () => {
 
                       <div className="mt-4 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-all">
                          <div className="flex items-center gap-3">
-                            <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors">−</button>
+                            <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors" aria-label="Decrease Quantity">−</button>
                             <span className="text-[10px] font-bold w-4 text-center">{entry.quantity}</span>
-                            <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors">+</button>
+                            <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors" aria-label="Increase Quantity">+</button>
                          </div>
                          <button 
                           onClick={(e) => {
@@ -1236,8 +1273,9 @@ const AppContent: React.FC = () => {
                             setSession(draftingEngine.getSession());
                           }}
                           className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                          aria-label={t('bom.remove')}
                          >
-                           Remove
+                           {t('bom.remove')}
                          </button>
                       </div>
                   </div>
@@ -1255,12 +1293,12 @@ const AppContent: React.FC = () => {
                 {isAuditing ? (
                     <>
                         <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span>Running Deep Audit...</span>
+                        <span>{t('audit.running')}</span>
                     </>
                 ) : (
                     <>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span>Verify System Integrity</span>
+                        <span>{t('audit.button')}</span>
                     </>
                 )}
             </Button>
@@ -1274,9 +1312,11 @@ const AppContent: React.FC = () => {
         <button 
             onClick={() => setMobileView('chat')} 
             className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'chat' ? 'text-indigo-600' : 'text-gray-400'}`}
+            aria-label={t('app.title')}
+            aria-selected={mobileView === 'chat'}
         >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
-            <span className="text-[10px] font-bold uppercase">Plan</span>
+            <span className="text-[10px] font-bold uppercase">{t('app.title')}</span>
             {mobileView === 'chat' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
         </button>
 
@@ -1285,9 +1325,11 @@ const AppContent: React.FC = () => {
         <button 
             onClick={() => setMobileView('visuals')} 
             className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'visuals' ? 'text-indigo-600' : 'text-gray-400'}`}
+            aria-label={t('app.build')}
+            aria-selected={mobileView === 'visuals'}
         >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-            <span className="text-[10px] font-bold uppercase">Build</span>
+            <span className="text-[10px] font-bold uppercase">{t('app.build')}</span>
             {mobileView === 'visuals' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
         </button>
       </div>

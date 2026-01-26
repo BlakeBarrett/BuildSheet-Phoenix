@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { ServiceProvider } from './contexts/ServiceContext.tsx';
+import './services/i18n.ts'; // Import i18n configuration
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
