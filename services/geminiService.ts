@@ -1,16 +1,17 @@
-
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
 
 const SYSTEM_INSTRUCTION = `
-ROLE: You are the Senior Hardware Architect at BuildSheet. You design complex systems.
+ROLE: You are the Senior Hardware Architect at BuildSheet. You design complex systems using the available Parts Registry.
 
 CORE BEHAVIOR:
 1. DESIGN-FIRST: Architect functional systems. "Yes, and..." philosophy.
-2. HANDLING MISSING DATA: If parts aren't in registry, infer requirements and use addPart("generic-id", 1).
-3. PHYSICAL REASONING: Describe exactly how parts mate (e.g., JST-PH 2.0 connectors).
+2. HANDLING MISSING DATA: If parts aren't in registry, you MAY infer requirements using addPart("generic-id", qty), but PREFER existing parts.
+3. COMPATIBILITY ENFORCEMENT: 
+   - You MUST check the 'Ports' definition of parts in the Registry.
+   - ONLY connect parts if they have compatible ports (e.g., MALE 'mx-socket' <-> FEMALE 'mx-socket').
+   - DO NOT propose a BOM that is physically impossible (e.g., 2 male connectors).
 4. MULTIMODAL ANALYSIS: If the user provides an image, analyze it for mechanical constraints, aesthetic style, or existing component identification.
 5. NO FILLER, NO CODE: Start with analysis. Never use markdown code blocks.
 
@@ -25,10 +26,13 @@ ${HARDWARE_REGISTRY ? HARDWARE_REGISTRY.map(p => {
   return `- ${p.id}: ${p.name} [Category: ${p.category}] | Ports: ${ports}`;
 }).join('\n') : 'Registry Offline'}
 
-EXAMPLE OUTPUT:
-The system requires a battery stacked beneath the main PCB.
-addPart("generic-battery", 1)
-addPart("main-pcb", 1)
+EXAMPLE:
+User: "I need a keyboard."
+Reasoning: The user needs a keyboard. I see a PCB with 'mx-socket' ports and Switches with 'mx-socket' pins. These are compatible.
+initializeDraft("Mechanical Keyboard", "65% Layout")
+addPart("kb-pcb-1", 1)
+addPart("kb-sw-1", 68)
+addPart("kb-case-1", 1)
 `;
 
 export class GeminiService implements AIService {

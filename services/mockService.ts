@@ -1,5 +1,3 @@
-
-
 import { AIService, ArchitectResponse } from './aiTypes.ts';
 
 export class MockService implements AIService {
@@ -20,6 +18,10 @@ export class MockService implements AIService {
 
     if (lower.includes('gaming') || lower.includes('pc') || lower.includes('computer')) {
          return `[SIMULATION MODE] Analyzing Compute Requirements...\n\nI have drafted a high-performance gaming configuration.\n\ninitializeDraft("Gaming Rig", "High Performance, Liquid Cooled")\naddPart("cpu-flagship", 1)\naddPart("gpu-rtx-4090", 1)\naddPart("case-atx-tower", 1)`;
+    }
+
+    if (lower.includes('flashlight') || lower.includes('torch') || lower.includes('led')) {
+         return `[SIMULATION MODE] Analyzing Optoelectronics...\n\nI have drafted a handheld LED flashlight using standard components found in the registry.\n\ninitializeDraft("C8 LED Flashlight", "High-Throw Handheld")\naddPart("flashlight-body", 1)\naddPart("led-emitter", 1)\naddPart("led-driver-ic", 1)\naddPart("batt-18650", 1)`;
     }
     
     return `[SIMULATION MODE] Analyzing Input Device Requirements...\n\nI have drafted a standard 65% mechanical keyboard layout based on your request.\n\ninitializeDraft("Custom Keyboard", "65% Layout, Linear Switches")\naddPart("kb-pcb-1", 1)\naddPart("kb-sw-1", 68)\naddPart("kb-case-1", 1)`;
@@ -78,6 +80,23 @@ export class MockService implements AIService {
 
   async verifyDesign(bom: any[], requirements: string): Promise<string> {
     await new Promise(r => setTimeout(r, 2000));
+    
+    // Simple check for simulation mode consistency
+    const hasBattery = bom.some(b => b.part.category === 'Power');
+    const hasLoad = bom.some(b => b.part.category === 'Light Engine' || b.part.category === 'Keyboard PCB');
+    
+    if (hasBattery && hasLoad) {
+         return `### ✅ Simulation Audit Report
+    
+**Status: Pass**
+
+1.  **Power:** ✅ Power source detected and matches load requirements.
+2.  **Mechanical:** ✅ Components fit within standard host tolerances.
+3.  **Connectivity:** ✅ Logical connections appear valid.
+
+*System looks good for prototyping.*`;
+    }
+
     return `### ⚠️ Simulation Audit Report
     
 **Status: Provisional Pass**
