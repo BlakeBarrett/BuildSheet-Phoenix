@@ -1,5 +1,3 @@
-
-
 import { VisualManifest } from '../types.ts';
 
 export interface ArchitectResponse {
@@ -36,8 +34,9 @@ export interface AIService {
 
   /**
    * Uses Gemini 3.0 Thinking models to perform a deep technical audit of the BOM.
+   * Updated to return structured response.
    */
-  verifyDesign?(bom: any[], requirements: string): Promise<string>;
+  verifyDesign?(bom: any[], requirements: string): Promise<ArchitectResponse>;
 
   /**
    * Generates a manufacturing specification for a custom/virtual part.

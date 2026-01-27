@@ -98,6 +98,6 @@ export interface User {
 export interface UserActivityLog {
   id: string;
   timestamp: Date;
-  action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED' | 'IMAGE_GENERATED';
+  action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED' | 'IMAGE_GENERATED' | 'PART_UPDATED';
   metadata: any;
 }

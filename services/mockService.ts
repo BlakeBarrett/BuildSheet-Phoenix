@@ -78,15 +78,16 @@ export class MockService implements AIService {
       };
   }
 
-  async verifyDesign(bom: any[], requirements: string): Promise<string> {
+  async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
     await new Promise(r => setTimeout(r, 2000));
     
     // Simple check for simulation mode consistency
     const hasBattery = bom.some(b => b.part.category === 'Power');
     const hasLoad = bom.some(b => b.part.category === 'Light Engine' || b.part.category === 'Keyboard PCB');
     
+    let reasoning = "";
     if (hasBattery && hasLoad) {
-         return `### ✅ Simulation Audit Report
+         reasoning = `### ✅ Simulation Audit Report
     
 **Status: Pass**
 
@@ -95,9 +96,8 @@ export class MockService implements AIService {
 3.  **Connectivity:** ✅ Logical connections appear valid.
 
 *System looks good for prototyping.*`;
-    }
-
-    return `### ⚠️ Simulation Audit Report
+    } else {
+        reasoning = `### ⚠️ Simulation Audit Report
     
 **Status: Provisional Pass**
 
@@ -106,26 +106,35 @@ export class MockService implements AIService {
 3.  **Missing:** ❌ No USB-C Cable detected in BOM. User cannot charge device.
 
 *Recommendation: Add a standard USB-C cable and check z-height constraints.*`;
+    }
+
+    return {
+        reasoning,
+        toolCalls: []
+    };
   }
 
   async generateFabricationBrief(partName: string, context: string): Promise<string> {
     await new Promise(r => setTimeout(r, 2000));
-    return `### 🏭 Manufacturing Specification: ${partName}
+    // SVG Placeholder: A blue rectangle with technical lines
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300"><rect width="600" height="300" fill="#003366"/><rect x="20" y="20" width="560" height="260" fill="none" stroke="white" stroke-width="2"/><line x1="50" y1="50" x2="550" y2="50" stroke="white" stroke-width="1" stroke-dasharray="5,5"/><line x1="50" y1="250" x2="550" y2="250" stroke="white" stroke-width="1" stroke-dasharray="5,5"/><rect x="150" y="75" width="300" height="150" fill="none" stroke="white" stroke-width="3"/><text x="300" y="150" font-family="monospace" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">BLUEPRINT: ${partName}</text><text x="300" y="180" font-family="monospace" font-size="14" fill="#88ccff" text-anchor="middle">ORTHOGRAPHIC PROJECTION // SCALE 1:1</text></svg>`;
+    const base64 = `data:image/svg+xml;base64,${btoa(svg)}`;
+
+    return `![Blueprint Simulation](${base64})
+
+### 🏭 Manufacturing Specification: ${partName}
 
 **Fabrication Partner:** [PCBWay](https://pcbway.com) (Recommended)
 
 #### Technical Details
-*   **Dimensions:** 295mm x 105mm (Estimated for 65% Layout)
-*   **Layers:** 2-Layer FR4
-*   **Thickness:** 1.6mm
-*   **Copper Weight:** 1oz
-*   **Surface Finish:** ENIG (Electroless Nickel Immersion Gold) - Recommended for hot-swap sockets.
-*   **Solder Mask:** Matte Black
-*   **Silkscreen:** White
+*   **Dimensions:** 295mm x 105mm (Estimated based on context)
+*   **Material:** High-grade Aluminum / FR4 Composite
+*   **Finish:** Matte Black Anodized
+*   **Tolerance:** ±0.05mm
 
 #### Critical Notes
 1.  **Mounting:** Ensure USB-C connector (J2) is flush with edge cut.
 2.  **Routing:** Keep traces away from screw hole mounting points (M2.5) by at least 0.5mm.
-3.  **Assembly:** Pick-and-place required for Kailh Hot-swap sockets.`;
+3.  **Assembly:** Pick-and-place required for components.`;
   }
 }

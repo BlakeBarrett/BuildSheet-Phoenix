@@ -290,6 +290,17 @@ export class DraftingEngine {
       };
     }
 
+    // Check if part already exists, if so, just increment quantity
+    const existingEntry = this.session.bom.find(b => b.part.id === part!.id);
+    if (existingEntry) {
+        this.updatePartQuantity(existingEntry.instanceId, existingEntry.quantity + quantity);
+        return {
+            success: true,
+            message: `Updated: ${part.name} quantity to ${existingEntry.quantity}`,
+            entry: existingEntry
+        };
+    }
+
     const { isCompatible, warnings } = this.validateCompatibility(part);
 
     const entry: BOMEntry = {
@@ -311,11 +322,30 @@ export class DraftingEngine {
     };
   }
 
+  public updatePartQuantity(instanceId: string, quantity: number) {
+    const entry = this.session.bom.find(b => b.instanceId === instanceId);
+    if (entry) {
+        entry.quantity = Math.max(1, quantity);
+        // Re-validate cost or compatibility if dependent (not complex logic yet)
+        this.saveSession();
+        ActivityLogService.log('PART_UPDATED', { instanceId, newQuantity: quantity });
+    }
+  }
+
   public removePart(instanceId: string) {
     const part = this.session.bom.find(b => b.instanceId === instanceId);
     this.session.bom = this.session.bom.filter(entry => entry.instanceId !== instanceId);
     ActivityLogService.log('PART_REMOVED', { instanceId, partId: part?.part.id });
     this.saveSession();
+  }
+
+  public searchRegistry(query: string): Part[] {
+      const q = query.toLowerCase();
+      return HARDWARE_REGISTRY.filter(p => 
+          p.name.toLowerCase().includes(q) || 
+          p.category.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q)
+      );
   }
 
   public updatePartSourcing(instanceId: string, sourcingData: any) {

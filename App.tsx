@@ -5,7 +5,7 @@ import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { DraftingSession, UserMessage, User, BOMEntry } from './types.ts';
-import { Button, Chip, Card } from './components/Material3UI.tsx';
+import { Button, Chip, Card, GoogleSignInButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
 
@@ -13,8 +13,8 @@ import { useService } from './contexts/ServiceContext.tsx';
 interface ErrorBoundaryProps { children?: React.ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
   
@@ -23,12 +23,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen w-full flex items-center justify-center bg-slate-900 text-white p-8">
+        <div className="h-screen w-full flex items-center justify-center bg-[#1E1E1E] text-white p-8">
             <div className="max-w-lg">
-                <h1 className="text-2xl font-bold text-red-500 mb-4">System Critical Failure</h1>
-                <p className="mb-4 text-slate-300">The application encountered an unrecoverable error.</p>
-                <pre className="bg-black/50 p-4 rounded text-xs font-mono overflow-auto border border-red-900/50">{this.state.error?.message}</pre>
-                <button onClick={() => window.location.reload()} className="mt-6 px-4 py-2 bg-slate-700 rounded hover:bg-slate-600">Reboot System</button>
+                <h1 className="text-2xl font-bold text-[#FFB4AB] mb-4">System Critical Failure</h1>
+                <p className="mb-4 text-[#E2E2E2]">The application encountered an unrecoverable error.</p>
+                <pre className="bg-black/30 p-4 rounded-xl text-xs font-mono overflow-auto border border-[#FFB4AB]/30">{this.state.error?.message}</pre>
+                <Button onClick={() => window.location.reload()} variant="tonal" className="mt-6">Reboot System</Button>
             </div>
         </div>
       );
@@ -69,31 +69,32 @@ const ProjectManager: React.FC<{
     if (!isOpen) return null;
 
     return (
-        <div className="absolute left-0 md:left-20 top-0 bottom-0 w-full md:w-80 bg-white border-r border-gray-200 z-50 shadow-2xl animate-in slide-in-from-left duration-200 flex flex-col">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h2 className="font-bold text-slate-800 text-lg">{t('app.projects')}</h2>
-                <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1" aria-label="Close Projects">&times;</button>
+        <div className="absolute left-0 md:left-[88px] top-4 bottom-4 w-full md:w-80 bg-white border border-gray-200 z-50 shadow-2xl rounded-r-2xl md:rounded-2xl animate-in slide-in-from-left duration-200 flex flex-col overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                <h2 className="font-medium text-slate-800 text-lg tracking-tight">{t('app.projects')}</h2>
+                <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2 rounded-full hover:bg-gray-100 transition-colors" aria-label="Close Projects">&times;</button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 <button 
                     onClick={onNew}
-                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 font-bold text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
                     aria-label={t('app.newProject')}
                 >
-                    <span className="text-xl leading-none">+</span> {t('app.newProject')}
+                    <span className="text-xl leading-none font-light">+</span> {t('app.newProject')}
                 </button>
 
                 {projects.map(p => (
                     <div 
                         key={p.id} 
-                        className={`group relative p-4 rounded-xl text-left border transition-all ${
+                        className={`group relative p-4 rounded-xl text-left border transition-all cursor-pointer ${
                             p.id === activeId 
                             ? 'bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-100' 
                             : 'bg-white border-gray-100 hover:border-indigo-200 hover:shadow-md'
                         }`}
+                        onClick={() => onLoad(p.id)}
                     >
-                        <div onClick={() => onLoad(p.id)} className="cursor-pointer pr-8" role="button" tabIndex={0}>
+                        <div className="pr-8">
                             <div className="font-bold text-sm text-slate-800 truncate">{p.name || 'Untitled'}</div>
                             <div className="text-[10px] text-gray-400 font-mono mt-1 flex justify-between items-center">
                                 <span>{new Date(p.lastModified).toLocaleDateString(i18n.language)}</span>
@@ -144,21 +145,7 @@ const ProjectManager: React.FC<{
                         </button>
                     </div>
                 ) : (
-                    <button 
-                        onClick={() => UserService.login()}
-                        className="w-full py-2.5 bg-white border border-gray-200 text-slate-700 rounded-lg font-medium text-sm shadow-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
-                        aria-label={t('app.signInGoogle')}
-                    >
-                         <svg className="w-4 h-4" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-                            <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
-                            <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z"/>
-                            <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z"/>
-                            <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.734 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z"/>
-                            <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z"/>
-                            </g>
-                        </svg>
-                        <span>{t('app.signInGoogle')}</span>
-                    </button>
+                    <GoogleSignInButton onClick={() => UserService.login()} label={t('app.signInGoogle')} />
                 )}
             </div>
             {/* Language Selector in Drawer */}
@@ -169,7 +156,7 @@ const ProjectManager: React.FC<{
                        <button
                            key={lang}
                            onClick={() => i18n.changeLanguage(lang)}
-                           className={`px-2 py-1 text-xs rounded border ${i18n.language.startsWith(lang) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                           className={`px-2 py-1 text-xs rounded border transition-colors ${i18n.language.startsWith(lang) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                        >
                            {lang.toUpperCase()}
                        </button>
@@ -180,27 +167,65 @@ const ProjectManager: React.FC<{
     );
 };
 
-const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: string | null; isRunning: boolean }> = ({ isOpen, onClose, result, isRunning }) => {
+const AuditModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    result: string | null; 
+    isRunning: boolean;
+    pendingFixes: any[];
+    onApply: () => void;
+    onDecline: () => void;
+}> = ({ isOpen, onClose, result, isRunning, pendingFixes, onApply, onDecline }) => {
     const { t } = useTranslation();
+    const [countdown, setCountdown] = useState(5);
+    const timerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (isOpen && pendingFixes.length > 0 && !isRunning) {
+            setCountdown(5);
+            timerRef.current = window.setInterval(() => {
+                setCountdown((prev) => {
+                    if (prev <= 1) {
+                        if (timerRef.current) clearInterval(timerRef.current);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else {
+            if (timerRef.current) clearInterval(timerRef.current);
+        }
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [isOpen, pendingFixes, isRunning]);
+
+    useEffect(() => {
+        if (countdown === 0 && pendingFixes.length > 0 && isOpen) {
+            onApply();
+        }
+    }, [countdown, pendingFixes, isOpen, onApply]);
+
     if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="audit-title">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="audit-title">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
                     <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-green-100 text-green-600'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-green-100 text-green-700'}`}>
                            {isRunning ? (
-                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                               <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                            ) : (
-                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                            )}
                         </div>
                         <div>
-                            <h3 id="audit-title" className="text-lg font-bold text-slate-800">{t('audit.title')}</h3>
-                            <p className="text-xs text-gray-500">{isRunning ? "Gemini 3.0 Pro..." : "Audit Complete"}</p>
+                            <h3 id="audit-title" className="text-xl font-medium text-slate-800">{t('audit.title')}</h3>
+                            <p className="text-sm text-gray-500">{isRunning ? "Gemini 3.0 Pro..." : "Audit Complete"}</p>
                         </div>
                     </div>
-                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>}
+                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2 rounded-full hover:bg-gray-100" aria-label="Close">&times;</button>}
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 bg-white">
                     {isRunning ? (
@@ -211,16 +236,57 @@ const AuditModal: React.FC<{ isOpen: boolean; onClose: () => void; result: strin
                             <p className="text-center text-xs text-gray-400 mt-8">{t('status.thinking')}</p>
                         </div>
                     ) : (
-                        <div className="prose prose-sm prose-slate max-w-none">
-                            <ReactMarkdown>{result || ''}</ReactMarkdown>
+                        <div className="space-y-6">
+                            <div className="prose prose-sm prose-slate max-w-none">
+                                <ReactMarkdown>{result || ''}</ReactMarkdown>
+                            </div>
+                            
+                            {pendingFixes.length > 0 && (
+                                <div className="bg-indigo-50 border border-indigo-100 rounded-[20px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <h4 className="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                                        <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                        Proposed System Patches
+                                    </h4>
+                                    <div className="space-y-2 mb-4">
+                                        {pendingFixes.map((fix, i) => (
+                                            <div key={i} className="flex items-center gap-3 text-sm bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+                                                {fix.type === 'removePart' && <span className="text-red-700 font-bold px-2 py-0.5 bg-red-100 rounded text-xs">DEL</span>}
+                                                {fix.type === 'addPart' && <span className="text-green-700 font-bold px-2 py-0.5 bg-green-100 rounded text-xs">ADD</span>}
+                                                <span className="font-mono text-slate-600 truncate flex-1">
+                                                    {fix.type === 'removePart' ? `Instance: ${fix.instanceId?.split('-')[0]}...` : `Part: ${fix.partId} (x${fix.qty})`}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center justify-between bg-white/60 rounded-xl p-3">
+                                        <div className="text-xs font-bold text-indigo-800">
+                                            Auto-applying in <span className="text-lg font-mono text-indigo-600 w-4 inline-block text-center">{countdown}</span>s
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                onClick={onDecline}
+                                                variant="ghost"
+                                                className="text-xs h-8 px-3"
+                                            >
+                                                Decline
+                                            </Button>
+                                            <Button onClick={onApply} variant="primary" className="text-xs h-8 px-3">
+                                                Apply Now
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                    <Button onClick={onClose} variant="primary" className={isRunning ? 'opacity-50 pointer-events-none' : ''}>
-                        {isRunning ? t('audit.running') : 'Close Report'}
-                    </Button>
-                </div>
+                {!pendingFixes.length && (
+                    <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
+                        <Button onClick={onClose} variant="primary" disabled={isRunning}>
+                            {isRunning ? t('audit.running') : 'Close Report'}
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -230,11 +296,11 @@ const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result:
     const { t } = useTranslation();
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="fab-title">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="fab-title">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
                     <div className="flex items-center gap-3">
-                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-blue-100 text-blue-600'}`}>
+                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-blue-100 text-blue-700'}`}>
                            {isRunning ? (
                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                            ) : (
@@ -262,19 +328,88 @@ const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result:
                         </div>
                     )}
                 </div>
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
+                <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end gap-2">
                     {!isRunning && (
                         <>
-                             <Button onClick={() => window.open('https://www.pcbway.com/', '_blank')} variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100">
+                             <Button onClick={() => window.open('https://www.pcbway.com/', '_blank')} variant="secondary">
                                 {t('fab.pcbway')}
                             </Button>
-                            <Button onClick={() => window.open('https://sendcutsend.com/', '_blank')} variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+                            <Button onClick={() => window.open('https://sendcutsend.com/', '_blank')} variant="secondary">
                                 {t('fab.scs')}
                             </Button>
                         </>
                     )}
                     <Button onClick={onClose} variant="primary">Close Brief</Button>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+const PartPickerModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onAdd: (partId: string) => void;
+    engine: any;
+}> = ({ isOpen, onClose, onAdd, engine }) => {
+    const { t } = useTranslation();
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<any[]>([]);
+    
+    useEffect(() => {
+        if (isOpen) {
+            setResults(engine.searchRegistry(''));
+            setQuery('');
+        }
+    }, [isOpen, engine]);
+
+    const handleSearch = (val: string) => {
+        setQuery(val);
+        setResults(engine.searchRegistry(val));
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                     <h3 className="font-medium text-gray-800 text-lg">{t('bom.add')}</h3>
+                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100">&times;</button>
+                 </div>
+                 <div className="p-4 border-b border-gray-100">
+                     <input
+                        autoFocus
+                        type="text"
+                        placeholder={t('bom.search')}
+                        value={query}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-gray-50"
+                     />
+                 </div>
+                 <div className="flex-1 overflow-y-auto p-2">
+                     {results.length === 0 ? (
+                         <div className="text-center p-8 text-gray-400 text-sm">{t('bom.no_results')}</div>
+                     ) : (
+                         <div className="space-y-1">
+                             {results.map(part => (
+                                 <div key={part.id} className="flex justify-between items-center p-3 hover:bg-indigo-50 rounded-xl group transition-colors cursor-default">
+                                     <div className="overflow-hidden">
+                                         <div className="font-medium text-sm text-gray-900 truncate">{part.name}</div>
+                                         <div className="text-xs text-gray-500 font-mono truncate">{part.sku} • {part.category}</div>
+                                     </div>
+                                     <Button 
+                                        onClick={() => { onAdd(part.id); onClose(); }}
+                                        variant="tonal"
+                                        className="h-8 px-3 text-xs"
+                                     >
+                                         {t('bom.add')}
+                                     </Button>
+                                 </div>
+                             ))}
+                         </div>
+                     )}
+                 </div>
             </div>
         </div>
     );
@@ -287,6 +422,7 @@ const PartDetailModal: React.FC<{
     onSource: (entry: BOMEntry) => void;
     onManualSource: (instanceId: string, url: string) => void;
 }> = ({ entry, onClose, onFabricate, onSource, onManualSource }) => {
+    // ... logic remains same ...
     const { t } = useTranslation();
     const [manualUrlInput, setManualUrlInput] = useState('');
     
@@ -310,26 +446,26 @@ const PartDetailModal: React.FC<{
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="detail-title">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-slate-50">
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-[#FDFDFD]">
                     <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <Chip label={part.category} color={isVirtual ? "bg-indigo-100 text-indigo-700" : "bg-gray-200 text-gray-700"} />
+                        <div className="flex items-center gap-2 mb-2">
+                            <Chip label={part.category} color={isVirtual ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-700"} />
                             {!isCompatible && <Chip label={t('bom.incompatible')} color="bg-red-100 text-red-700" />}
                         </div>
-                        <h3 id="detail-title" className="text-xl font-bold text-slate-900 leading-tight">{part.name}</h3>
+                        <h3 id="detail-title" className="text-xl font-medium text-slate-900 leading-tight">{part.name}</h3>
                         <p className="text-xs font-mono text-gray-400 mt-1">{part.sku}</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-1" aria-label="Close">&times;</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2 rounded-full hover:bg-gray-100" aria-label="Close">&times;</button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Status Banner */}
                     {(!isCompatible || (warnings && warnings.length > 0)) && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <h4 className="text-xs font-bold text-amber-800 uppercase mb-1">Compatibility Warnings</h4>
-                            <ul className="list-disc list-inside text-xs text-amber-700 space-y-1">
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                            <h4 className="text-xs font-bold text-amber-800 uppercase mb-2">Compatibility Warnings</h4>
+                            <ul className="list-disc list-inside text-xs text-amber-900 space-y-1">
                                 {warnings?.map((w, i) => <li key={i}>{w}</li>)}
                                 {!isCompatible && <li>Interfaces do not match existing system ports.</li>}
                             </ul>
@@ -338,24 +474,27 @@ const PartDetailModal: React.FC<{
 
                     {/* Sourcing Section */}
                     <div className="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
-                         <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-3 flex items-center justify-between">
-                            {t('bom.sourcing')}
-                            <button 
+                         <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider">
+                                {t('bom.sourcing')}
+                            </h4>
+                            <Button 
                                 onClick={() => onSource(entry)} 
                                 disabled={sourcing?.loading}
-                                className="text-[10px] bg-white border border-indigo-200 px-2 py-1 rounded hover:bg-indigo-50 text-indigo-600 transition-colors disabled:opacity-50"
+                                variant="tonal"
+                                className="h-7 text-[10px] px-2"
                             >
                                 {sourcing?.loading ? "Searching..." : "Refresh Search"}
-                            </button>
-                         </h4>
+                            </Button>
+                         </div>
 
                          {/* AI Results */}
                          <div className="space-y-2 mb-4">
                              {sourcing?.data?.options && sourcing.data.options.length > 0 ? (
                                  sourcing.data.options.map((opt, i) => (
-                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block p-2 bg-white rounded border border-gray-100 hover:border-indigo-300 transition-all group">
-                                         <div className="font-bold text-xs text-slate-800 truncate group-hover:text-indigo-700">{opt.title}</div>
-                                         <div className="text-[10px] text-gray-400">{opt.source}</div>
+                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-all group shadow-sm">
+                                         <div className="font-medium text-xs text-slate-800 truncate group-hover:text-indigo-700">{opt.title}</div>
+                                         <div className="text-[10px] text-gray-400 mt-0.5">{opt.source}</div>
                                      </a>
                                  ))
                              ) : (
@@ -372,24 +511,25 @@ const PartDetailModal: React.FC<{
                                     value={manualUrlInput}
                                     onChange={(e) => setManualUrlInput(e.target.value)}
                                     placeholder="https://..."
-                                    className="flex-1 text-xs px-3 py-2 rounded border border-gray-200 focus:border-indigo-400 outline-none"
+                                    className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:border-indigo-400 outline-none"
                                 />
-                                <button 
+                                <Button 
                                     onClick={handleSaveManualUrl}
-                                    className="bg-indigo-600 text-white text-xs px-3 py-2 rounded font-bold hover:bg-indigo-700"
+                                    variant="primary"
+                                    className="h-auto py-1 px-3 text-xs"
                                 >
                                     Save
-                                </button>
+                                </Button>
                             </div>
                          </div>
                     </div>
 
-                    {/* Overview */}
+                    {/* Overview & Ports Sections - Simplified for brevity but assume standard rendering */}
                     <div>
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Overview</h4>
                         <p className="text-sm text-slate-700 leading-relaxed">{part.description}</p>
                         
-                        {isVirtual ? (
+                        {isVirtual && (
                             <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
                                 <h4 className="text-xs font-bold text-gray-600 uppercase mb-2">Virtual Component</h4>
                                 <p className="text-xs text-gray-500 mb-3">This part was architected by Gemini. You can generate a fabrication spec for it.</p>
@@ -397,25 +537,25 @@ const PartDetailModal: React.FC<{
                                     {t('fab.button')}
                                 </Button>
                             </div>
-                        ) : (
+                        )}
+                        {!isVirtual && (
                             <div className="mt-3 grid grid-cols-2 gap-4">
-                                <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="p-3 bg-gray-50 rounded-xl">
                                     <span className="block text-[10px] text-gray-400 uppercase">Brand</span>
                                     <span className="text-sm font-medium text-slate-800">{part.brand}</span>
                                 </div>
-                                <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="p-3 bg-gray-50 rounded-xl">
                                     <span className="block text-[10px] text-gray-400 uppercase">Unit Price</span>
                                     <span className="text-sm font-medium text-slate-800">${part.price.toLocaleString()}</span>
                                 </div>
                             </div>
                         )}
                     </div>
-
-                    {/* Ports */}
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Ports</h4>
-                        {part.ports.length > 0 ? (
-                            <div className="border border-gray-100 rounded-lg overflow-hidden">
+                    {/* Ports Table */}
+                    {part.ports.length > 0 && (
+                        <div>
+                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Ports</h4>
+                            <div className="border border-gray-100 rounded-xl overflow-hidden">
                                 <table className="w-full text-xs text-left">
                                     <thead className="bg-gray-50 text-gray-500 font-medium">
                                         <tr>
@@ -437,13 +577,11 @@ const PartDetailModal: React.FC<{
                                     </tbody>
                                 </table>
                             </div>
-                        ) : (
-                            <p className="text-sm italic text-gray-400">No explicit ports defined for this component.</p>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
 
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
                     <Button onClick={onClose} variant="primary">Close</Button>
                 </div>
             </div>
@@ -473,6 +611,7 @@ const AppContent: React.FC = () => {
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditResult, setAuditResult] = useState<string | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [pendingFixes, setPendingFixes] = useState<any[]>([]);
   
   // Part Detail & Fabrication
   const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
@@ -480,6 +619,9 @@ const AppContent: React.FC = () => {
   const [fabResult, setFabResult] = useState<string | null>(null);
   const [isFabricating, setIsFabricating] = useState(false);
   const [fabPartName, setFabPartName] = useState('');
+
+  // Part Picker
+  const [partPickerOpen, setPartPickerOpen] = useState(false);
   
   // Mobile UI State
   const [mobileView, setMobileView] = useState<'chat' | 'visuals'>('chat');
@@ -763,15 +905,60 @@ const AppContent: React.FC = () => {
       setAuditOpen(true);
       setIsAuditing(true);
       setAuditResult(null);
+      setPendingFixes([]); // Clear previous pending
 
       try {
-          const report = await aiService.verifyDesign(session.bom, session.designRequirements);
-          setAuditResult(report);
+          const response: any = await aiService.verifyDesign(session.bom, session.designRequirements);
+          setAuditResult(response.reasoning);
+          if (response.toolCalls && response.toolCalls.length > 0) {
+              setPendingFixes(response.toolCalls);
+          }
       } catch (e) {
           setAuditResult("Audit failed due to connection error.");
       } finally {
           setIsAuditing(false);
       }
+  };
+
+  const applyPendingFixes = () => {
+      if (pendingFixes.length === 0) {
+          setAuditOpen(false);
+          return;
+      }
+
+      const addedParts: BOMEntry[] = [];
+      let designChanged = false;
+
+      pendingFixes.forEach(call => {
+          if (call.type === 'addPart') {
+              const res = draftingEngine.addPart(call.partId, call.qty);
+              if (res.entry) addedParts.push(res.entry);
+              designChanged = true;
+          } else if (call.type === 'removePart') {
+              draftingEngine.removePart(call.instanceId);
+              designChanged = true;
+          }
+      });
+
+      setSession(draftingEngine.getSession());
+      
+      // Auto source new parts
+      addedParts.forEach(partEntry => {
+          handleSourcePart(partEntry);
+      });
+
+      // Update Visuals if design changed
+      if (designChanged) {
+         handleGenerateVisual("Applied system integrity patches automatically.", undefined);
+      }
+
+      setPendingFixes([]);
+      setAuditOpen(false);
+  };
+
+  const declineFixes = () => {
+      setPendingFixes([]);
+      // Don't close modal, let user read report
   };
 
   const handleFabricate = async (part: any) => {
@@ -797,13 +984,28 @@ const AppContent: React.FC = () => {
       setSession(draftingEngine.getSession());
   };
 
+  const handleAddPart = (partId: string) => {
+      const res = draftingEngine.addPart(partId, 1);
+      setSession(draftingEngine.getSession());
+      if (res.entry) handleSourcePart(res.entry);
+  };
+
+  const handleQuantityChange = (instanceId: string, newQty: number) => {
+      draftingEngine.updatePartQuantity(instanceId, newQty);
+      setSession(draftingEngine.getSession());
+  };
+
   return (
-    <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-slate-900 overflow-hidden font-sans relative flex-col md:flex-row">
+    <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row">
+      {/* Modals */}
       <AuditModal 
           isOpen={auditOpen} 
           onClose={() => setAuditOpen(false)} 
           result={auditResult}
           isRunning={isAuditing}
+          pendingFixes={pendingFixes}
+          onApply={applyPendingFixes}
+          onDecline={declineFixes}
       />
       <FabricationModal
          isOpen={fabModalOpen}
@@ -819,14 +1021,20 @@ const AppContent: React.FC = () => {
         onSource={handleSourcePart}
         onManualSource={handleManualSource}
       />
+      <PartPickerModal 
+        isOpen={partPickerOpen}
+        onClose={() => setPartPickerOpen(false)}
+        onAdd={handleAddPart}
+        engine={draftingEngine}
+      />
 
       {/* Sidebar Navigation - Hidden on Mobile */}
-      <nav className="hidden md:flex w-20 border-r border-gray-200 bg-white flex-col items-center py-8 gap-6 flex-shrink-0 shadow-sm z-20 relative">
-        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-4" aria-label="BuildSheet Logo">B</div>
+      <nav className="hidden md:flex w-[88px] border-r border-gray-200 bg-white flex-col items-center py-6 gap-6 flex-shrink-0 shadow-sm z-20 relative">
+        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-2" aria-label="BuildSheet Logo">B</div>
         
-        <div className="flex flex-col gap-6 flex-1 w-full px-4">
+        <div className="flex flex-col gap-4 flex-1 w-full items-center">
           <button 
-            className="w-full aspect-square flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all cursor-default"
+            className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all cursor-default"
             title={t('app.title')}
             aria-label={t('app.title')}
           >
@@ -835,7 +1043,7 @@ const AppContent: React.FC = () => {
 
           <button 
             onClick={() => setShowProjects(!showProjects)}
-            className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all ${showProjects ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
+            className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${showProjects ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
             title={t('app.projects')}
             aria-label={t('app.projects')}
           >
@@ -844,7 +1052,7 @@ const AppContent: React.FC = () => {
 
           <button 
             onClick={() => setShowLogs(!showLogs)} 
-            className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
+            className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
             title="System Logs"
             aria-label="System Logs"
           >
@@ -852,11 +1060,11 @@ const AppContent: React.FC = () => {
           </button>
 
           {/* Language Switcher Desktop */}
-          <div className="group relative flex items-center justify-center">
+          <div className="group relative flex items-center justify-center mt-auto">
              <button className="text-[10px] font-bold text-gray-400 hover:text-indigo-600 uppercase border border-gray-200 rounded px-1.5 py-1" aria-label="Change Language">
                  {i18n.language.slice(0,2)}
              </button>
-             <div className="absolute left-14 bottom-0 bg-white border border-gray-200 shadow-xl rounded-lg p-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
+             <div className="absolute left-10 bottom-0 bg-white border border-gray-200 shadow-xl rounded-lg p-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
                  {['en', 'es', 'pt', 'de', 'fr', 'hi'].map(lang => (
                      <button key={lang} onClick={() => i18n.changeLanguage(lang)} className="text-xs px-2 py-1 hover:bg-indigo-50 rounded text-left uppercase">
                          {lang}
@@ -866,7 +1074,7 @@ const AppContent: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-auto flex flex-col items-center gap-4">
+        <div className="mt-4 flex flex-col items-center gap-4">
           {currentUser ? (
              <button onClick={() => UserService.logout()} className="relative group" aria-label={t('app.logOut')}>
                 <img src={currentUser.avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100 group-hover:border-red-400 transition-colors" />
@@ -874,10 +1082,18 @@ const AppContent: React.FC = () => {
           ) : (
             <button 
               onClick={() => UserService.login()}
-              className="w-10 h-10 rounded-full bg-white border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+              className="w-10 h-10 rounded-full bg-white border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-all p-2"
               aria-label={t('app.signInGoogle')}
+              title={t('app.signInGoogle')}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
+              <svg className="w-full h-full" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <g transform="matrix(1, 0, 0, 1, 0, 0)">
+                    <path fill="#4285F4" d="M23.49,12.27c0-0.79-0.07-1.54-0.19-2.27H12v4.51h6.47c-0.29,1.48-1.14,2.73-2.4,3.58v3h3.86 c2.26-2.09,3.56-5.17,3.56-8.82z"/>
+                    <path fill="#34A853" d="M12,24c3.24,0,5.95-1.08,7.92-2.91l-3.86-3c-1.08,0.72-2.45,1.16-4.06,1.16c-3.13,0-5.78-2.11-6.73-4.96 H1.29v3.09C3.3,21.3,7.31,24,12,24z"/>
+                    <path fill="#FBBC05" d="M5.27,14.29c-0.25-0.72-0.38-1.49-0.38-2.29s0.14-1.57,0.38-2.29V6.62H1.29C0.47,8.24,0,10.06,0,12 s0.47,3.76,1.29,5.38L5.27,14.29z"/>
+                    <path fill="#EA4335" d="M12,4.75c1.77,0,3.35,0.61,4.6,1.8l3.42-3.42C17.95,1.19,15.24,0,12,0C7.31,0,3.3,2.7,1.29,6.62l3.98,3.09 C6.22,6.86,8.87,4.75,12,4.75z"/>
+                </g>
+              </svg>
             </button>
           )}
         </div>
@@ -902,11 +1118,13 @@ const AppContent: React.FC = () => {
           <header className="px-6 py-4 md:px-8 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-lg md:text-xl tracking-tight">{t('app.title')}</h1>
-                <Chip label={session.name || "Untitled"} color="bg-indigo-50 text-indigo-700 border border-indigo-100" />
+                <h1 className="font-medium text-lg md:text-xl tracking-tight text-slate-900">{t('app.title')}</h1>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-medium truncate max-w-[150px]">
+                    {session.name || "Untitled"}
+                </span>
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
                 <div 
                     className={`flex items-center gap-1.5 transition-all`}
                     title={aiStatus === 'offline' ? t('status.offline') : t('status.online')}
@@ -923,7 +1141,7 @@ const AppContent: React.FC = () => {
                 {/* Desktop/Tablet Toggle for BOM */}
                 <button 
                   onClick={() => setIsBomOpen(!isBomOpen)}
-                  className="hidden md:flex p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all ml-2 border border-transparent hover:border-indigo-100"
+                  className="hidden md:flex p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all ml-2 border border-transparent hover:border-indigo-100"
                   title={isBomOpen ? "Close BOM Panel" : "Open BOM Panel"}
                   aria-label="Toggle BOM Panel"
                 >
@@ -945,13 +1163,13 @@ const AppContent: React.FC = () => {
 
           {/* VISUALIZER - Desktop Position (Top of Chat Column) */}
           <div 
-            className="hidden md:block bg-gray-50 border-b border-gray-200 shadow-inner p-4 relative"
+            className="hidden md:block bg-[#F8FAFC] border-b border-gray-200 shadow-inner p-4 relative"
             style={{ height: `${visualizerHeight}%`, minHeight: '200px' }}
           >
              <div className="absolute top-4 left-4 z-10">
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5 px-2 py-1 bg-white/50 backdrop-blur rounded-full border border-white/50">
                    <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
-                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Nano Banana Active</span>
+                   <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Nano Banana</span>
                 </div>
              </div>
              <ChiltonVisualizer 
@@ -971,27 +1189,27 @@ const AppContent: React.FC = () => {
              <div className="w-16 h-1 rounded-full bg-gray-300 group-hover:bg-indigo-300 transition-colors shadow-sm"></div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-[#FAFAFA]">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-white">
             {session.messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-6">
-                <div className="w-16 h-16 bg-white border border-gray-200 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                <div className="w-16 h-16 bg-white border border-gray-200 rounded-[24px] flex items-center justify-center text-indigo-600 shadow-sm">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">{t('welcome.title')}</h3>
+                  <h3 className="text-xl font-medium text-slate-800">{t('welcome.title')}</h3>
                   <p className="text-gray-500 mt-2 text-sm leading-relaxed">{t('welcome.subtitle')}</p>
                 </div>
                 {aiStatus === 'offline' && (
-                     <div className="bg-amber-50 text-amber-800 text-xs px-4 py-2 rounded-lg border border-amber-200 text-left">
+                     <div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-xl border border-amber-200 text-left">
                         <strong>Running in Offline Simulation Mode.</strong><br/>
                         {serviceError ? `System: ${serviceError}` : "Check API Key or Network Connection."}
                     </div>
                 )}
-                <div className="flex flex-col gap-2 w-full">
-                  <button onClick={() => handleSend(t('prompt.votive'))} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
+                <div className="flex flex-col gap-3 w-full">
+                  <button onClick={() => handleSend(t('prompt.votive'))} className="p-4 bg-[#F8FAFC] border border-gray-200 rounded-[20px] hover:border-indigo-300 text-left text-sm transition-all font-medium text-gray-700 hover:shadow-sm">
                     "{t('prompt.votive')}"
                   </button>
-                  <button onClick={() => handleSend(t('prompt.gaming'))} className="p-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 text-left text-xs transition-all font-medium text-gray-600">
+                  <button onClick={() => handleSend(t('prompt.gaming'))} className="p-4 bg-[#F8FAFC] border border-gray-200 rounded-[20px] hover:border-indigo-300 text-left text-sm transition-all font-medium text-gray-700 hover:shadow-sm">
                     "{t('prompt.gaming')}"
                   </button>
                 </div>
@@ -1000,27 +1218,27 @@ const AppContent: React.FC = () => {
             
             {session.messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
-                <div className={`max-w-[90%] rounded-xl px-4 py-3 border ${
+                <div className={`max-w-[90%] rounded-[20px] px-5 py-3.5 border ${
                   m.role === 'user' 
-                  ? 'bg-slate-800 text-white border-slate-900 shadow-lg' 
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-md rounded-br-sm' 
                   : m.content.includes('[SYSTEM ALERT]') 
                     ? 'bg-amber-50 text-amber-900 border-amber-200 shadow-sm'
                     : m.content.includes('[SYSTEM ERROR]')
                     ? 'bg-red-50 text-red-900 border-red-200 shadow-sm' 
-                    : 'bg-white text-slate-800 border-gray-200 shadow-sm'
+                    : 'bg-[#F0F4F9] text-slate-800 border-transparent shadow-sm rounded-bl-sm'
                 }`}>
                   {m.attachment && (
-                      <div className="mb-3 rounded-lg overflow-hidden border border-white/20 shadow-sm">
+                      <div className="mb-3 rounded-xl overflow-hidden border border-white/20 shadow-sm">
                           <img src={m.attachment} alt="User attachment" className="max-w-full max-h-64 object-contain" />
                       </div>
                   )}
                   <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">{m.content}</div>
                   
                   {m.content.includes('[SYSTEM ERROR]') && (
-                    <div className="mt-2">
+                    <div className="mt-3">
                         <button 
                             onClick={handleRetry}
-                            className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
+                            className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-full font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
                         >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             Retry Request
@@ -1028,21 +1246,21 @@ const AppContent: React.FC = () => {
                     </div>
                   )}
 
-                  <div className={`text-[8px] mt-2 font-mono uppercase tracking-widest opacity-40 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    {m.timestamp.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  <div className={`text-[10px] mt-2 font-medium opacity-40 ${m.role === 'user' ? 'text-right text-white/70' : 'text-left text-slate-400'}`}>
+                    {m.timestamp.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               </div>
             ))}
             {isThinking && (
               <div className="flex justify-start">
-                <div className="bg-white border border-gray-200 shadow-sm rounded-lg px-4 py-2 flex gap-3 items-center">
+                <div className="bg-white border border-gray-100 shadow-sm rounded-full px-4 py-2 flex gap-3 items-center">
                   <div className="flex gap-1">
-                    <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse"></div>
-                    <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
-                    <div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
                   </div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest italic">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                     {t('status.thinking')}
                   </span>
                 </div>
@@ -1051,16 +1269,16 @@ const AppContent: React.FC = () => {
             <div ref={chatEndRef} />
           </div>
 
-          <footer className="p-4 md:p-6 border-t border-gray-100 bg-white shadow-inner">
+          <footer className="p-4 md:p-6 border-t border-gray-100 bg-white shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.02)]">
             <div className="relative flex flex-col gap-2">
               {pendingAttachment && (
-                  <div className="relative inline-block self-start">
-                      <div className="h-16 w-16 rounded-lg border border-gray-300 overflow-hidden relative">
+                  <div className="relative inline-block self-start animate-in fade-in zoom-in duration-200">
+                      <div className="h-16 w-16 rounded-xl border border-gray-200 overflow-hidden relative shadow-sm">
                           <img src={pendingAttachment} className="w-full h-full object-cover" alt="Preview" />
                       </div>
                       <button 
                         onClick={() => { setPendingAttachment(null); if(fileInputRef.current) fileInputRef.current.value=''; }}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-red-600 shadow-sm"
+                        className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-900 shadow-md ring-2 ring-white"
                         aria-label="Remove Attachment"
                       >
                           &times;
@@ -1068,7 +1286,7 @@ const AppContent: React.FC = () => {
                   </div>
               )}
               
-              <div className="relative w-full">
+              <div className="relative w-full group">
                   <textarea 
                     ref={textareaRef}
                     value={input}
@@ -1082,10 +1300,10 @@ const AppContent: React.FC = () => {
                     placeholder={t('input.placeholder')}
                     rows={1}
                     aria-label="Chat Input"
-                    className="w-full pl-5 pr-24 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all text-sm font-medium resize-none min-h-[54px] max-h-[200px] overflow-y-auto"
+                    className="w-full pl-6 pr-28 py-4 bg-[#F0F4F9] border-none rounded-[28px] focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all text-sm font-medium resize-none min-h-[56px] max-h-[200px] overflow-y-auto text-slate-800 placeholder-slate-500"
                   />
                   
-                  <div className="absolute right-2 top-2 flex gap-1">
+                  <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
                       <input 
                         type="file" 
                         accept="image/*" 
@@ -1096,8 +1314,8 @@ const AppContent: React.FC = () => {
                       />
                       <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-12 h-12 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg flex items-center justify-center transition-all"
-                        title="Attach Image for Visual Context"
+                        className="w-10 h-10 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full flex items-center justify-center transition-all"
+                        title="Attach Image"
                         aria-label="Attach Image"
                       >
                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
@@ -1106,7 +1324,7 @@ const AppContent: React.FC = () => {
                       <button 
                         onClick={() => handleSend()}
                         disabled={isThinking || (!input.trim() && !pendingAttachment)}
-                        className="w-12 h-12 bg-slate-800 text-white rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-slate-900 transition-all active:scale-95 shadow-md"
+                        className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-indigo-600 transition-all active:scale-95 shadow-sm"
                         aria-label="Send Message"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
@@ -1131,14 +1349,14 @@ const AppContent: React.FC = () => {
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-bold text-xl tracking-tighter uppercase">{t('app.build')}</h2>
+                <h2 className="font-medium text-lg tracking-tight uppercase text-slate-800">{t('app.build')}</h2>
                 <div className="flex items-center gap-1.5 mt-0.5">
                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{t('status.online')}</span>
                 </div>
               </div>
               <div className="text-right flex items-center gap-4">
-                <div className="text-[18px] font-mono font-black text-slate-900 tabular-nums">
+                <div className="text-[18px] font-mono font-bold text-slate-900 tabular-nums">
                   ${draftingEngine.getTotalCost().toLocaleString()}
                 </div>
                  {/* Mobile Project Trigger */}
@@ -1167,11 +1385,18 @@ const AppContent: React.FC = () => {
           </div>
 
           {/* BOM Section */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-[#FBFBFB]">
+          <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-[#F8FAFC]">
+             <button 
+                onClick={() => setPartPickerOpen(true)}
+                className="w-full py-3 border border-dashed border-indigo-200 bg-indigo-50/50 rounded-xl text-indigo-600 font-medium text-xs uppercase tracking-wider hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 mb-2"
+             >
+                <span className="text-lg leading-none">+</span> {t('bom.add')}
+             </button>
+
             {session.bom.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-20 grayscale pointer-events-none">
-                <svg className="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{t('bom.empty')}</p>
+              <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40 grayscale pointer-events-none">
+                <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('bom.empty')}</p>
               </div>
             ) : (
               session.bom.map((entry) => {
@@ -1180,36 +1405,35 @@ const AppContent: React.FC = () => {
                 return (
                   <div 
                     key={entry.instanceId} 
-                    className={`bg-white border p-4 rounded-xl shadow-sm transition-all hover:border-indigo-300 group cursor-default ${
-                    isVirtual ? 'border-dashed border-indigo-400 bg-indigo-50/10' : 
-                    !entry.isCompatible ? 'border-amber-400 bg-amber-50/20' : 'border-gray-200'
+                    className={`bg-white border p-4 rounded-[20px] shadow-sm transition-all hover:shadow-md group cursor-default ${
+                    isVirtual ? 'border-dashed border-indigo-300 bg-indigo-50/30' : 
+                    !entry.isCompatible ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
                   }`}>
                       <div className="flex justify-between items-start">
                         <div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)} role="button" tabIndex={0}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                              isVirtual ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
+                              isVirtual ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
                             }`}>
                               {isVirtual ? 'Design Placeholder' : entry.part.category}
                             </span>
                             {!entry.isCompatible && (
-                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase bg-red-100 text-red-500 animate-pulse">
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-md uppercase bg-red-100 text-red-600 animate-pulse">
                                     {t('bom.incompatible')}
                                 </span>
                             )}
                           </div>
-                          <h4 className="font-bold text-sm text-slate-900 leading-tight hover:text-indigo-600 transition-colors">{entry.part.name}</h4>
-                          <div className="text-[9px] text-gray-400 font-mono mt-1 flex items-center gap-1">
+                          <h4 className="font-semibold text-sm text-slate-900 leading-snug hover:text-indigo-600 transition-colors">{entry.part.name}</h4>
+                          <div className="text-[10px] text-gray-400 font-mono mt-1 flex items-center gap-1">
                             {entry.part.sku}
-                            <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col items-end">
                           <div className="text-xs font-mono font-bold text-slate-900">
                             {isVirtual ? 'TBD' : `$${(entry.part.price * entry.quantity).toLocaleString()}`}
                           </div>
                           
-                          {/* Sourcing Button - Now always visible */}
+                          {/* Sourcing Button */}
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }}
                                 disabled={sourcing?.loading}
@@ -1228,19 +1452,19 @@ const AppContent: React.FC = () => {
                       
                       {/* Sourcing Result */}
                       {(sourcing?.data || sourcing?.manualUrl) && (
-                          <div className="mt-3 bg-gray-50 rounded border border-gray-100 p-2">
-                             <div className="text-[10px] font-bold text-slate-700 uppercase mb-1 flex justify-between">
+                          <div className="mt-3 bg-[#F8FAFC] rounded-xl border border-gray-100 p-2.5">
+                             <div className="text-[9px] font-bold text-slate-500 uppercase mb-1 flex justify-between">
                                  <span>Available at:</span>
                                  {sourcing.manualUrl && <span className="text-indigo-600">Custom Link Active</span>}
                              </div>
                              
                              {sourcing.manualUrl ? (
-                                 <a href={sourcing.manualUrl} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline font-bold">
+                                 <a href={sourcing.manualUrl} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline font-medium">
                                      {sourcing.manualUrl}
                                  </a>
                              ) : (
                                  sourcing.data?.options.map((opt: any, i: number) => (
-                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline">
+                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline font-medium">
                                          {opt.title || opt.source}
                                      </a>
                                  ))
@@ -1251,7 +1475,7 @@ const AppContent: React.FC = () => {
                       {/* Port Display */}
                       <div className="flex flex-wrap gap-1 mt-3">
                         {entry.part.ports.length > 0 ? entry.part.ports.map((port, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-50 border border-gray-100 rounded text-[8px] text-gray-500 font-bold uppercase">
+                          <div key={idx} className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-50 border border-gray-100 rounded-md text-[8px] text-gray-500 font-bold uppercase">
                             <div className={`w-1.5 h-1.5 rounded-full ${port.gender === 'MALE' ? 'bg-indigo-400' : 'bg-white border border-indigo-300'}`}></div>
                             {port.spec}
                           </div>
@@ -1260,11 +1484,19 @@ const AppContent: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-all">
-                         <div className="flex items-center gap-3">
-                            <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors" aria-label="Decrease Quantity">−</button>
-                            <span className="text-[10px] font-bold w-4 text-center">{entry.quantity}</span>
-                            <button className="text-xs font-black text-gray-300 hover:text-indigo-600 transition-colors" aria-label="Increase Quantity">+</button>
+                      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
+                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-0.5">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleQuantityChange(entry.instanceId, entry.quantity - 1); }}
+                                className="w-6 h-6 rounded-md bg-white text-gray-600 hover:text-indigo-600 flex items-center justify-center font-bold shadow-sm"
+                                aria-label="Decrease Quantity"
+                            >−</button>
+                            <span className="text-xs font-mono font-medium w-6 text-center">{entry.quantity}</span>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleQuantityChange(entry.instanceId, entry.quantity + 1); }}
+                                className="w-6 h-6 rounded-md bg-white text-gray-600 hover:text-indigo-600 flex items-center justify-center font-bold shadow-sm"
+                                aria-label="Increase Quantity"
+                            >+</button>
                          </div>
                          <button 
                           onClick={(e) => {
@@ -1272,7 +1504,7 @@ const AppContent: React.FC = () => {
                             draftingEngine.removePart(entry.instanceId);
                             setSession(draftingEngine.getSession());
                           }}
-                          className="text-[9px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                          className="text-[10px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded transition-colors"
                           aria-label={t('bom.remove')}
                          >
                            {t('bom.remove')}
@@ -1288,7 +1520,7 @@ const AppContent: React.FC = () => {
             <Button 
                 onClick={handleVerifyDesign}
                 disabled={session.bom.length === 0}
-                className="w-full py-4 text-xs font-bold uppercase tracking-[0.2em] bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
+                className="w-full py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-200 flex items-center justify-center gap-2"
             >
                 {isAuditing ? (
                     <>
@@ -1328,7 +1560,7 @@ const AppContent: React.FC = () => {
             aria-label={t('app.build')}
             aria-selected={mobileView === 'visuals'}
         >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
             <span className="text-[10px] font-bold uppercase">{t('app.build')}</span>
             {mobileView === 'visuals' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
         </button>

@@ -128,11 +128,9 @@ export class GeminiService implements AIService {
     return { reasoning: reasoning.trim(), toolCalls };
   }
 
-  async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
+  private async generateImage(prompt: string, referenceImage?: string): Promise<string | null> {
     try {
-        const parts: any[] = [
-            { text: `Generate a high-quality product design concept sketch for: ${description}` }
-        ];
+        const parts: any[] = [{ text: prompt }];
 
         if (referenceImage) {
             const imageData = this.cleanBase64(referenceImage);
@@ -157,6 +155,10 @@ export class GeminiService implements AIService {
         console.warn("Image generation failed", e);
         return null;
     }
+  }
+
+  async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
+    return this.generateImage(`Generate a high-quality product design concept sketch for: ${description}`, referenceImage);
   }
 
   async findPartSources(query: string): Promise<{ options: { title: string; url: string; source: string }[] } | null> {
@@ -188,10 +190,10 @@ export class GeminiService implements AIService {
     }
   }
 
-  async verifyDesign(bom: any[], requirements: string): Promise<string> {
+  async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
     try {
-        // Simplified BOM for the model to digest
-        const digest = bom.map(b => `${b.quantity}x ${b.part.name} (${b.part.sku}) - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
+        // Includes instanceId to allow specific removal commands
+        const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.sku}) - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
         
         const prompt = `
         PERFORM A DEEP TECHNICAL AUDIT ON THIS HARDWARE SYSTEM.
@@ -202,14 +204,12 @@ export class GeminiService implements AIService {
         ${digest}
         
         TASK:
-        1. Identify voltage mismatches (e.g. 3.3v vs 5v logic).
-        2. Identify physical connector mismatches (Male/Male, etc).
-        3. Identify missing critical components (Power supplies, cables, controllers).
-        4. Validate against Design Goals.
+        1. Identify voltage mismatches, connector mismatches, or missing parts.
+        2. AUTO-CORRECT: If you find incompatible parts, you MUST output \`removePart("instance_id")\` AND \`addPart("correct_part_id", qty)\`.
+        3. BE AGGRESSIVE: Do not just delete incompatible parts. You MUST suggest a valid replacement from your internal knowledge of standard hardware (e.g., if a battery is wrong, add the correct one).
         
         OUTPUT FORMAT:
-        Return a clean Markdown report with emojis for status (✅, ⚠️, ❌). 
-        Be extremely critical. If something will smoke/fire, say so.
+        Provide a Markdown report (Action Taken, Status) followed by any necessary tool calls.
         `;
 
         const response = await this.ai.models.generateContent({
@@ -220,41 +220,52 @@ export class GeminiService implements AIService {
             }
         });
 
-        return response.text || "Verification inconclusive.";
+        // Use the same parser as chat to extract tool calls from the verification report
+        return this.parseArchitectResponse(response.text || "");
     } catch (e: any) {
         console.error("Verification failed", e);
-        return `Verification failed: ${e.message}`;
+        return { 
+          reasoning: `Verification failed: ${e.message}`, 
+          toolCalls: [] 
+        };
     }
   }
 
   async generateFabricationBrief(partName: string, context: string): Promise<string> {
     try {
-        const prompt = `
+        const textPrompt = `
         GENERATE A MANUFACTURING SPECIFICATION BRIEF for a custom custom component.
         
         COMPONENT: ${partName}
         CONTEXT: ${context}
         
         TASK:
-        You are a Manufacturing Engineer. Infer the likely physical properties of this custom part based on its context (e.g. if it's a PCB, infer layer count and key ICs. If it's a plate, infer material and finish).
+        You are a Manufacturing Engineer. Infer the likely physical properties of this custom part based on its context.
         
         OUTPUT FORMAT:
-        Markdown.
-        If it's a PCB, format for PCBWay. Include: Dimensions, Layers, Material (FR4), Solder Mask, Silkscreen.
-        If it's Mechanical, format for SendCutSend. Include: Material (Alu/Steel/Acrylic), Thickness, Finish, Operations (Tapping, Countersinking).
-        
-        Be specific and technical.
+        Markdown. Be specific and technical.
         `;
 
-        const response = await this.ai.models.generateContent({
+        const textPromise = this.ai.models.generateContent({
             model: 'gemini-3-pro-preview',
-            contents: prompt,
+            contents: textPrompt,
             config: {
                 thinkingConfig: { thinkingBudget: 2048 }
             }
         });
 
-        return response.text || "Brief generation failed.";
+        const imagePrompt = `Technical engineering blueprint diagram of ${partName}. Context: ${context}. Classic blueprint style: white lines on dark blue paper background. Orthographic projection with dimension lines.`;
+        const imagePromise = this.generateImage(imagePrompt);
+
+        const [textResponse, base64Image] = await Promise.all([textPromise, imagePromise]);
+
+        let markdown = textResponse.text || "Brief generation failed.";
+        
+        if (base64Image) {
+            markdown = `![Technical Blueprint](${base64Image})\n\n` + markdown;
+        }
+
+        return markdown;
     } catch (e: any) {
         console.error("Fab brief failed", e);
         return `Generation failed: ${e.message}`;
