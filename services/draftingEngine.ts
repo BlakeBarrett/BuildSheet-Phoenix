@@ -431,6 +431,22 @@ export class DraftingEngine {
         entry.sourcing.loading = false;
         entry.sourcing.online = onlineData;
         entry.sourcing.lastUpdated = new Date();
+
+        // Calculate and apply lowest price if component is currently unset (price 0)
+        if (Array.isArray(onlineData) && onlineData.length > 0) {
+            const prices = onlineData
+                .map((opt: any) => parseFloat(opt.price?.replace(/[^0-9.]/g, '') || '0'))
+                .filter((p: number) => !isNaN(p) && p > 0);
+            
+            if (prices.length > 0) {
+                const estimatedCost = Math.min(...prices);
+                // Update the part price if it's currently 0 (placeholder/virtual)
+                if (entry.part.price === 0) {
+                    entry.part.price = estimatedCost;
+                }
+            }
+        }
+
         this.saveSession();
     }
   }
@@ -451,6 +467,14 @@ export class DraftingEngine {
           if (!entry.sourcing) entry.sourcing = {};
           entry.sourcing.loading = false;
           entry.qaProtocol = protocol;
+          this.saveSession();
+      }
+  }
+
+  public updatePartFabricationBrief(instanceId: string, brief: string) {
+      const entry = this.session.bom.find(b => b.instanceId === instanceId);
+      if (entry) {
+          entry.fabricationBrief = brief;
           this.saveSession();
       }
   }

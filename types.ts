@@ -89,6 +89,7 @@ export interface BOMEntry {
     lastUpdated?: Date;
   };
   qaProtocol?: InspectionProtocol; // Added for MDE Integration
+  fabricationBrief?: string; // Markdown content for manufacturing brief
 }
 
 export interface GeneratedImage {

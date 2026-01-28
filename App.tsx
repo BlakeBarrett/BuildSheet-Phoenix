@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect, ErrorInfo, Component } from 'react';
+import React, { useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
-import { DraftingSession, UserMessage, User, BOMEntry } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -13,7 +13,7 @@ import { useService } from './contexts/ServiceContext.tsx';
 interface ErrorBoundaryProps { children?: React.ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
@@ -38,6 +38,89 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 // --- MODAL COMPONENTS ---
+
+const PartDetailModal: React.FC<{
+  entry: BOMEntry | null;
+  onClose: () => void;
+  onFabricate: (part: any) => void;
+  onSource: (entry: BOMEntry) => void;
+  onManualSource: (id: string, url: string) => void;
+  onLocate: (entry: BOMEntry) => void;
+}> = ({ entry, onClose, onFabricate, onSource, onManualSource, onLocate }) => {
+  const [manualUrl, setManualUrl] = useState('');
+
+  if (!entry) return null;
+  const { part } = entry;
+
+  return (
+    <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">{part.name}</h3>
+            <div className="text-xs text-gray-500 font-mono">{part.sku}</div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto space-y-6">
+           <div>
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Specifications</h4>
+              <div className="bg-gray-50 rounded-xl p-4 text-sm text-slate-700">
+                  <p>{part.description}</p>
+                  <div className="mt-3 flex gap-2 flex-wrap">
+                      <Chip label={part.category} />
+                      <Chip label={part.brand} color="bg-indigo-50 text-indigo-700" />
+                  </div>
+              </div>
+           </div>
+
+           <div>
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ports & Interfaces</h4>
+              {part.ports.length > 0 ? (
+                  <div className="space-y-2">
+                      {part.ports.map(p => (
+                          <div key={p.id} className="flex justify-between items-center text-sm p-2 border border-gray-100 rounded-lg">
+                              <span className="font-medium text-slate-700">{p.name}</span>
+                              <div className="flex gap-2">
+                                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">{p.type}</span>
+                                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">{p.gender}</span>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <p className="text-sm text-gray-400 italic">No ports defined.</p>
+              )}
+           </div>
+
+           <div>
+               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Actions</h4>
+               <div className="grid grid-cols-2 gap-3">
+                   <Button variant="secondary" onClick={() => onSource(entry)}>Find Online</Button>
+                   <Button variant="secondary" onClick={() => onLocate(entry)}>Find Local</Button>
+                   <Button variant="tonal" onClick={() => onFabricate(part)}>Fabrication Brief</Button>
+               </div>
+           </div>
+           
+           <div className="pt-4 border-t border-gray-100">
+                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Manual Source URL</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="text" 
+                        value={manualUrl} 
+                        onChange={e => setManualUrl(e.target.value)} 
+                        placeholder="https://..."
+                        className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-100 outline-none"
+                    />
+                    <Button onClick={() => onManualSource(entry.instanceId, manualUrl)} className="h-auto py-2">Save</Button>
+                </div>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const PartPickerModal: React.FC<{ 
     isOpen: boolean; 
@@ -147,9 +230,9 @@ const AuditModal: React.FC<{
                             <p className="text-gray-400 font-medium animate-pulse">{t('audit.running')}</p>
                         </div>
                     ) : (
-                        <ReactMarkdown className="prose prose-sm max-w-none prose-indigo prose-headings:font-bold prose-headings:text-slate-800">
-                            {result || "No issues found."}
-                        </ReactMarkdown>
+                        <div className="prose prose-sm max-w-none prose-indigo prose-headings:font-bold prose-headings:text-slate-800">
+                            <ReactMarkdown>{result || "No issues found."}</ReactMarkdown>
+                        </div>
                     )}
                 </div>
 
@@ -522,265 +605,6 @@ const ProjectManager: React.FC<{
     );
 };
 
-const PartDetailModal: React.FC<{ 
-    entry: BOMEntry | null; 
-    onClose: () => void; 
-    onFabricate: (part: any) => void;
-    onSource: (entry: BOMEntry) => void;
-    onManualSource: (instanceId: string, url: string) => void;
-    onLocate: (entry: BOMEntry) => void;
-    onGenerateQAProtocol?: (entry: BOMEntry) => void;
-}> = ({ entry, onClose, onFabricate, onSource, onManualSource, onLocate, onGenerateQAProtocol }) => {
-    const { t } = useTranslation();
-    const [manualUrlInput, setManualUrlInput] = useState('');
-    const [activeTab, setActiveTab] = useState<'online' | 'local' | 'quality'>('online');
-    const { service: aiService } = useService();
-    const [isGeneratingQA, setIsGeneratingQA] = useState(false);
-    const [draftingEngine] = useState(() => getDraftingEngine());
-
-    useEffect(() => {
-        if (entry?.sourcing?.manualUrl) {
-            setManualUrlInput(entry.sourcing.manualUrl);
-        } else {
-            setManualUrlInput('');
-        }
-    }, [entry]);
-
-    if (!entry) return null;
-    const { part, isCompatible, warnings, qaProtocol } = entry;
-    const isVirtual = part.sku.startsWith('DRAFT-');
-    const sourcing = entry.sourcing;
-
-    const handleSaveManualUrl = () => {
-        if (manualUrlInput.trim()) {
-            onManualSource(entry.instanceId, manualUrlInput.trim());
-        }
-    };
-
-    const handleGenQA = async () => {
-        if (!aiService.generateQAProtocol) return;
-        setIsGeneratingQA(true);
-        try {
-            const protocol = await aiService.generateQAProtocol(part.name, part.category);
-            if (protocol) {
-                draftingEngine.updatePartQAProtocol(entry.instanceId, protocol);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsGeneratingQA(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="detail-title">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-start bg-[#FDFDFD]">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Chip label={part.category} color={isVirtual ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-700"} />
-                            {!isCompatible && <Chip label={t('bom.incompatible')} color="bg-red-100 text-red-700" />}
-                        </div>
-                        <h3 id="detail-title" className="text-xl font-medium text-slate-900 leading-tight">{part.name}</h3>
-                        <p className="text-xs font-mono text-gray-400 mt-1">{part.sku}</p>
-                    </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2 rounded-full hover:bg-gray-100" aria-label="Close">&times;</button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* Status Banner */}
-                    {(!isCompatible || (warnings && warnings.length > 0)) && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                            <h4 className="text-xs font-bold text-amber-800 uppercase">Compatibility Warnings</h4>
-                            <ul className="list-disc list-inside text-xs text-amber-900 space-y-1 mt-2">
-                                {warnings?.map((w, i) => <li key={i}>{w}</li>)}
-                                {!isCompatible && <li>Interfaces do not match existing system ports.</li>}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Tabs */}
-                    <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 overflow-hidden">
-                         <div className="flex border-b border-indigo-100">
-                             <button 
-                                onClick={() => setActiveTab('online')}
-                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'online' ? 'bg-white text-indigo-600 border-b-2 border-indigo-500' : 'text-gray-500 hover:bg-indigo-50'}`}
-                             >
-                                 Global
-                             </button>
-                             <button 
-                                onClick={() => setActiveTab('local')}
-                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'local' ? 'bg-white text-green-600 border-b-2 border-green-500' : 'text-gray-500 hover:bg-indigo-50'}`}
-                             >
-                                 Nearby
-                             </button>
-                             <button 
-                                onClick={() => setActiveTab('quality')}
-                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'quality' ? 'bg-white text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:bg-indigo-50'}`}
-                             >
-                                 Quality
-                             </button>
-                         </div>
-
-                         <div className="p-4">
-                             {activeTab === 'online' && (
-                                <>
-                                    <div className="flex justify-end mb-3">
-                                        <Button 
-                                            onClick={() => onSource(entry)} 
-                                            disabled={sourcing?.loading}
-                                            variant="tonal"
-                                            className="h-7 text-[10px] px-2"
-                                        >
-                                            {sourcing?.loading ? "Searching Graph..." : "Refresh Prices"}
-                                        </Button>
-                                    </div>
-                                    <div className="space-y-2 mb-4">
-                                        {sourcing?.online && sourcing.online.length > 0 ? (
-                                            sourcing.online.map((opt, i) => (
-                                                <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-all group shadow-sm">
-                                                    <div className="flex-1 overflow-hidden">
-                                                        <div className="font-medium text-xs text-slate-800 truncate group-hover:text-indigo-700">{opt.title}</div>
-                                                        <div className="text-[10px] text-gray-400 mt-0.5">{opt.source}</div>
-                                                    </div>
-                                                    {opt.price && <div className="text-sm font-bold text-slate-900 ml-3">{opt.price}</div>}
-                                                </a>
-                                            ))
-                                        ) : (
-                                            <div className="text-xs text-gray-400 italic text-center py-2">No online listings found.</div>
-                                        )}
-                                    </div>
-                                    <div className="pt-3 border-t border-indigo-100">
-                                        <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Manual Link</label>
-                                        <div className="flex gap-2">
-                                            <input 
-                                                type="text" 
-                                                value={manualUrlInput}
-                                                onChange={(e) => setManualUrlInput(e.target.value)}
-                                                placeholder="https://..."
-                                                className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:border-indigo-400 outline-none"
-                                            />
-                                            <Button onClick={handleSaveManualUrl} variant="primary" className="h-auto py-1 px-3 text-xs">Save</Button>
-                                        </div>
-                                    </div>
-                                </>
-                             )}
-
-                             {activeTab === 'local' && (
-                                <>
-                                    <div className="flex justify-end mb-3">
-                                        <Button 
-                                            onClick={() => onLocate(entry)} 
-                                            disabled={sourcing?.loading}
-                                            variant="tonal"
-                                            className="h-7 text-[10px] px-2 bg-green-50 text-green-700 hover:bg-green-100"
-                                        >
-                                            {sourcing?.loading ? "Locating..." : "Find Nearby"}
-                                        </Button>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {sourcing?.local && sourcing.local.length > 0 ? (
-                                            sourcing.local.map((loc, i) => (
-                                                <a key={i} href={loc.url || '#'} target="_blank" rel="noopener noreferrer" className="block p-3 bg-white rounded-lg border border-gray-200 hover:border-green-300 transition-all group shadow-sm">
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="font-medium text-xs text-slate-800">{loc.name}</div>
-                                                        {loc.openNow && <span className="text-[9px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">Open Now</span>}
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                                                        <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                                        {loc.address}
-                                                    </div>
-                                                </a>
-                                            ))
-                                        ) : (
-                                            <div className="text-xs text-gray-400 italic text-center py-2">
-                                                Click 'Find Nearby' to search local inventory via Maps.
-                                            </div>
-                                        )}
-                                    </div>
-                                </>
-                             )}
-
-                             {activeTab === 'quality' && (
-                                <div className="space-y-4">
-                                    {!qaProtocol ? (
-                                        <div className="text-center py-6">
-                                            <div className="text-xs text-gray-500 mb-4">
-                                                Use Gemini to generate a defect detection model for Google Visual Inspection AI.
-                                            </div>
-                                            <Button 
-                                                onClick={handleGenQA}
-                                                disabled={isGeneratingQA}
-                                                variant="primary"
-                                                className="w-full justify-center bg-blue-600 hover:bg-blue-700"
-                                            >
-                                                {isGeneratingQA ? "Analyzing Geometry..." : "Generate Inspection Model"}
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                                                <div className="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-1">MDE Configuration</div>
-                                                <div className="text-xs text-blue-900 font-mono">
-                                                    {qaProtocol.recommendedSensors.join(" + ")}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="space-y-2">
-                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Target Defects</div>
-                                                {qaProtocol.defects.map((defect, i) => (
-                                                    <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-                                                        <div className="flex justify-between items-center mb-1">
-                                                            <span className="font-bold text-xs text-slate-800">{defect.name}</span>
-                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                                                defect.severity === 'Critical' ? 'bg-red-100 text-red-700' :
-                                                                defect.severity === 'Major' ? 'bg-amber-100 text-amber-700' :
-                                                                'bg-gray-100 text-gray-600'
-                                                            }`}>{defect.severity}</span>
-                                                        </div>
-                                                        <div className="text-[10px] text-gray-500 leading-tight">{defect.description}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end">
-                                                <button className="text-[10px] text-blue-600 font-medium flex items-center gap-1 hover:underline">
-                                                    Export to Visual Inspection AI 
-                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                             )}
-                         </div>
-                    </div>
-
-                    {/* Overview & Ports Sections */}
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Overview</h4>
-                        <p className="text-sm text-slate-700 leading-relaxed">{part.description}</p>
-                        
-                        {isVirtual && (
-                            <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-                                <h4 className="text-xs font-bold text-gray-600 uppercase mb-2">Virtual Component</h4>
-                                <p className="text-xs text-gray-500 mb-3">This part was architected by Gemini. You can generate a fabrication spec for it.</p>
-                                <Button onClick={() => onFabricate(part)} variant="secondary" className="w-full justify-center">
-                                    {t('fab.button')}
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
-                    <Button onClick={onClose} variant="primary">Close</Button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const AppContent: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { service: aiService, status: aiStatus, error: serviceError } = useService();
@@ -877,9 +701,7 @@ const AppContent: React.FC = () => {
       const relativeY = e.clientY - paneRect.top - headerOffset;
       
       let percentage = (relativeY / (paneRect.height - headerOffset)) * 100;
-      if (percentage < 33) percentage = 33;
-      if (percentage > 50) percentage = 50;
-      
+      percentage = Math.min(80, Math.max(20, percentage)); // Clamp between 20% and 80%
       setVisualizerHeight(percentage);
   };
 
@@ -936,7 +758,7 @@ const AppContent: React.FC = () => {
       if (mobileView === 'chat') {
           chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
       }
-  }, [session.messages, mobileView]);
+  }, [session.messages.length, mobileView, isThinking]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -1107,6 +929,11 @@ const AppContent: React.FC = () => {
           const architectResponse = await aiService.askArchitect(text, history, attachment || undefined);
           const parsed = aiService.parseArchitectResponse(architectResponse);
 
+          // FALLBACK ERROR CHECK: If response mentions adding parts but no tools were parsed
+          if (parsed.toolCalls.length === 0 && (architectResponse.includes('addPart') || architectResponse.includes('initializeDraft'))) {
+              throw new Error("Failed to parse commands. Please retry.");
+          }
+
           const addedParts: BOMEntry[] = [];
 
           parsed.toolCalls.forEach(call => {
@@ -1174,7 +1001,13 @@ const AppContent: React.FC = () => {
       const currentMsgs = draftingEngine.getSession().messages;
       const lastMsg = currentMsgs[currentMsgs.length - 1];
       
-      if (lastMsg?.role === 'assistant' && lastMsg.content.includes('[SYSTEM ERROR]')) {
+      const isError = lastMsg?.role === 'assistant' && (
+          lastMsg.content.includes('[SYSTEM ALERT]') || 
+          lastMsg.content === "Gemini provided no output." ||
+          lastMsg.content.startsWith("Error:")
+      );
+
+      if (isError) {
           draftingEngine.removeLastMessage();
           const freshSession = draftingEngine.getSession();
           const userMsg = freshSession.messages[freshSession.messages.length - 1];
@@ -1273,6 +1106,15 @@ const AppContent: React.FC = () => {
 
   const handleFabricate = async (part: any) => {
      if (!aiService.generateFabricationBrief) return;
+     
+     // 1. Check if we have a selected entry and if it already has a brief
+     if (selectedPart?.fabricationBrief) {
+         setFabPartName(part.name);
+         setFabResult(selectedPart.fabricationBrief);
+         setFabModalOpen(true);
+         return;
+     }
+
      setFabPartName(part.name);
      setFabModalOpen(true);
      setIsFabricating(true);
@@ -1282,6 +1124,15 @@ const AppContent: React.FC = () => {
          const context = `Design Requirements: ${session.designRequirements}. \nFull BOM Context: ${session.bom.map(b => b.part.name).join(', ')}`;
          const brief = await aiService.generateFabricationBrief(part.name, context);
          setFabResult(brief);
+         
+         // 2. Save if we have a selected part instance
+         if (selectedPart) {
+             draftingEngine.updatePartFabricationBrief(selectedPart.instanceId, brief);
+             // Update local session state to reflect change immediately
+             setSession(draftingEngine.getSession());
+             // Update the selectedPart state so if they close/open logic holds
+             setSelectedPart(prev => prev ? ({...prev, fabricationBrief: brief}) : null);
+         }
      } catch(e) {
          setFabResult("Failed to generate brief.");
      } finally {
@@ -1332,7 +1183,6 @@ const AppContent: React.FC = () => {
         onManualSource={handleManualSource}
         onLocate={handleLocatePart}
       />
-      {/* ... Rest of App.tsx structure remains identical ... */}
       <PartPickerModal 
         isOpen={partPickerOpen}
         onClose={() => setPartPickerOpen(false)}
@@ -1543,14 +1393,20 @@ const AppContent: React.FC = () => {
               </div>
             )}
             
-            {session.messages.map((m, i) => (
+            {session.messages.map((m, i) => {
+              const isError = m.role === 'assistant' && (
+                  m.content.includes('[SYSTEM ALERT]') || 
+                  m.content.includes('[SYSTEM ERROR]') || 
+                  m.content.startsWith('Error:') || 
+                  m.content === "Gemini provided no output."
+              );
+
+              return (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
                 <div className={`max-w-[90%] rounded-[20px] px-5 py-3.5 border ${
                   m.role === 'user' 
                   ? 'bg-slate-900 text-white border-slate-900 shadow-md rounded-br-sm' 
-                  : m.content.includes('[SYSTEM ALERT]') 
-                    ? 'bg-amber-50 text-amber-900 border-amber-200 shadow-sm'
-                    : m.content.includes('[SYSTEM ERROR]')
+                  : isError
                     ? 'bg-red-50 text-red-900 border-red-200 shadow-sm' 
                     : 'bg-[#F0F4F9] text-slate-800 border-transparent shadow-sm rounded-bl-sm'
                 }`}>
@@ -1559,9 +1415,11 @@ const AppContent: React.FC = () => {
                           <img src={m.attachment} alt="User attachment" className="max-w-full max-h-64 object-contain" />
                       </div>
                   )}
-                  <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">{m.content}</div>
+                  <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">
+                      <ReactMarkdown>{m.content}</ReactMarkdown>
+                  </div>
                   
-                  {m.content.includes('[SYSTEM ERROR]') && (
+                  {isError && (
                     <div className="mt-3">
                         <button 
                             onClick={handleRetry}
@@ -1578,7 +1436,7 @@ const AppContent: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
             {isThinking && (
               <div className="flex justify-start">
                 <div className="bg-white border border-gray-100 shadow-sm rounded-full px-4 py-2 flex gap-3 items-center">
@@ -1779,7 +1637,7 @@ const AppContent: React.FC = () => {
                         </div>
                         <div className="text-right flex flex-col items-end">
                           <div className="text-xs font-mono font-bold text-slate-900">
-                            {isVirtual ? 'TBD' : `$${(entry.part.price * entry.quantity).toLocaleString()}`}
+                            {entry.part.price > 0 ? `$${(entry.part.price * entry.quantity).toLocaleString()}` : 'TBD'}
                           </div>
                           
                           {/* Sourcing Button */}
@@ -1800,129 +1658,54 @@ const AppContent: React.FC = () => {
                       </div>
                       
                       {/* Sourcing Result */}
-                      {(sourcing?.online || sourcing?.manualUrl) && (
-                          <div className="mt-3 bg-[#F8FAFC] rounded-xl border border-gray-100 p-2.5">
-                             <div className="text-[9px] font-bold text-slate-500 uppercase mb-1 flex justify-between">
-                                 <span>Available at:</span>
-                                 {sourcing.manualUrl && <span className="text-indigo-600">Custom Link Active</span>}
-                             </div>
-                             
-                             {sourcing.manualUrl ? (
-                                 <a href={sourcing.manualUrl} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline font-medium">
-                                     {sourcing.manualUrl}
-                                 </a>
-                             ) : (
-                                 sourcing.online?.slice(0,2).map((opt: any, i: number) => (
-                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center text-[10px] text-indigo-600 truncate hover:underline font-medium">
-                                         <span>{opt.source}</span>
-                                         {opt.price && <span className="text-slate-500">{opt.price}</span>}
-                                     </a>
-                                 ))
-                             )}
+                      {sourcing?.online && sourcing.online.length > 0 && (
+                          <div className="mt-3 bg-indigo-50 rounded-xl p-3 text-xs space-y-2 animate-in slide-in-from-top-2">
+                              <div className="font-bold text-indigo-800 uppercase tracking-wider text-[10px]">Online Options</div>
+                              {sourcing.online.slice(0, 2).map((opt: any, idx: number) => (
+                                  <a key={idx} href={opt.url} target="_blank" rel="noreferrer" className="block p-2 bg-white rounded-lg border border-indigo-100 hover:border-indigo-300 transition-colors flex justify-between group">
+                                      <span className="font-medium text-slate-700 group-hover:text-indigo-700 truncate">{opt.source}</span>
+                                      <span className="font-bold text-slate-900">{opt.price}</span>
+                                  </a>
+                              ))}
                           </div>
                       )}
                       
-                      {/* Port Display */}
-                      <div className="flex flex-wrap gap-1 mt-3">
-                        {entry.part.ports.length > 0 ? entry.part.ports.map((port, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-50 border border-gray-100 rounded-md text-[8px] text-gray-500 font-bold uppercase">
-                            <div className={`w-1.5 h-1.5 rounded-full ${port.gender === 'MALE' ? 'bg-indigo-400' : 'bg-white border border-indigo-300'}`}></div>
-                            {port.spec}
+                      {sourcing?.local && sourcing.local.length > 0 && (
+                          <div className="mt-3 bg-green-50 rounded-xl p-3 text-xs space-y-2 animate-in slide-in-from-top-2">
+                               <div className="font-bold text-green-800 uppercase tracking-wider text-[10px]">Local Suppliers</div>
+                               {sourcing.local.map((loc: any, idx: number) => (
+                                   <div key={idx} className="p-2 bg-white rounded-lg border border-green-100 flex justify-between items-center">
+                                       <div>
+                                           <div className="font-medium text-slate-700">{loc.name}</div>
+                                           <div className="text-[10px] text-gray-500">{loc.address}</div>
+                                       </div>
+                                   </div>
+                               ))}
                           </div>
-                        )) : (
-                          <div className="text-[8px] italic text-gray-400 font-bold uppercase tracking-tighter">Ports Inferred from Design Goals</div>
-                        )}
-                      </div>
+                      )}
 
-                      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
-                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-0.5">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); handleQuantityChange(entry.instanceId, entry.quantity - 1); }}
-                                className="w-6 h-6 rounded-md bg-white text-gray-600 hover:text-indigo-600 flex items-center justify-center font-bold shadow-sm"
-                                aria-label="Decrease Quantity"
-                            >−</button>
-                            <span className="text-xs font-mono font-medium w-6 text-center">{entry.quantity}</span>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); handleQuantityChange(entry.instanceId, entry.quantity + 1); }}
-                                className="w-6 h-6 rounded-md bg-white text-gray-600 hover:text-indigo-600 flex items-center justify-center font-bold shadow-sm"
-                                aria-label="Increase Quantity"
-                            >+</button>
-                         </div>
-                         <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            draftingEngine.removePart(entry.instanceId);
-                            setSession(draftingEngine.getSession());
-                          }}
-                          className="text-[10px] text-red-500 font-bold uppercase hover:bg-red-50 px-2 py-1 rounded transition-colors"
-                          aria-label={t('bom.remove')}
-                         >
-                           {t('bom.remove')}
-                         </button>
-                      </div>
+                      {sourcing?.manualUrl && (
+                          <div className="mt-3 p-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-gray-500 uppercase">Manual Source</span>
+                              <a href={sourcing.manualUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline truncate max-w-[150px]">{sourcing.manualUrl}</a>
+                          </div>
+                      )}
                   </div>
                 );
               })
             )}
           </div>
-
-          <footer className="p-6 bg-white border-t border-gray-200">
-            <Button 
-                onClick={handleVerifyDesign}
-                disabled={session.bom.length === 0}
-                className="w-full py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-200 flex items-center justify-center gap-2"
-            >
-                {isAuditing ? (
-                    <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span>{t('audit.running')}</span>
-                    </>
-                ) : (
-                    <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span>{t('audit.button')}</span>
-                    </>
-                )}
-            </Button>
-          </footer>
           </div>
         </section>
       </main>
-
-      {/* Mobile Bottom Navigation - Strict Two Tab Experience */}
-      <div className="md:hidden h-16 bg-white border-t border-gray-200 flex items-center justify-around shrink-0 z-30 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <button 
-            onClick={() => setMobileView('chat')} 
-            className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'chat' ? 'text-indigo-600' : 'text-gray-400'}`}
-            aria-label={t('app.title')}
-            aria-selected={mobileView === 'chat'}
-        >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
-            <span className="text-[10px] font-bold uppercase">{t('app.title')}</span>
-            {mobileView === 'chat' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
-        </button>
-
-        <div className="w-px h-8 bg-gray-200"></div>
-
-        <button 
-            onClick={() => setMobileView('visuals')} 
-            className={`flex flex-col items-center gap-1 p-2 w-1/2 relative ${mobileView === 'visuals' ? 'text-indigo-600' : 'text-gray-400'}`}
-            aria-label={t('app.build')}
-            aria-selected={mobileView === 'visuals'}
-        >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2-2z"></path></svg>
-            <span className="text-[10px] font-bold uppercase">{t('app.build')}</span>
-            {mobileView === 'visuals' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
-        </button>
-      </div>
     </div>
   );
 };
 
 const App: React.FC = () => (
-  <ErrorBoundary>
-    <AppContent />
-  </ErrorBoundary>
+    <ErrorBoundary>
+        <AppContent />
+    </ErrorBoundary>
 );
 
 export default App;

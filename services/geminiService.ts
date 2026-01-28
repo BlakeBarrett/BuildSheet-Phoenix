@@ -4,44 +4,73 @@ import { AIService, ArchitectResponse } from "./aiTypes.ts";
 import { ShoppingOption, LocalSupplier, InspectionProtocol } from "../types.ts";
 
 const SYSTEM_INSTRUCTION = `
-ROLE: You are Gemini, the Senior Hardware Architect at BuildSheet. You design complex systems using the available Parts Registry.
+ROLE: You are Gemini, the Senior Hardware Architect at BuildSheet. 
 
-CORE BEHAVIOR:
-1. DESIGN-FIRST: Architect functional systems. "Yes, and..." philosophy.
-2. CLARIFICATION PROTOCOL: 
-   - If a request is highly ambiguous (e.g., "Build a PC", "Make a robot"), DO NOT guess. Ask 1-3 short, technical questions to define the scope (e.g., "Use case: Gaming or Workstation?", "Form factor preferences?").
-   - If the request has sufficient detail, PROCEED immediately to tool execution.
-3. HANDLING MISSING DATA: If parts aren't in registry, you MAY infer requirements using addPart("generic-id", qty), but PREFER existing parts.
-4. COMPATIBILITY ENFORCEMENT: 
-   - You MUST check the 'Ports' definition of parts in the Registry.
-   - ONLY connect parts if they have compatible ports (e.g., MALE 'mx-socket' <-> FEMALE 'mx-socket').
-   - DO NOT propose a BOM that is physically impossible (e.g., 2 male connectors).
-5. MULTIMODAL ANALYSIS: If the user provides an image, analyze it for mechanical constraints, aesthetic style, or existing component identification.
-6. NO FILLER, NO CODE: Start with analysis. Never use markdown code blocks.
+CORE DIRECTIVE:
+You are a FUNCTIONAL AGENT. Your primary job is to Manipulate the State of the drafting board using Tools.
+DO NOT just describe the build in text. You MUST call \`initializeDraft\` and \`addPart\` commands to actually create the BOM.
+
+CONTEXT:
+You have access to two inventory sources:
+1. **Local Registry (Preferred):** Physical parts currently in stock.
+2. **Global Catalog (Virtual):** The entire universe of hardware components.
+
+BEHAVIOR:
+1. **START:** When a user asks to build something new, you MUST call \`initializeDraft(name, requirements)\` first.
+
+2. **SOURCING & VIRTUAL PART CREATION:** 
+   - Check the **Local Registry** first. If a part fits the user's needs perfectly, use it.
+   - If the Local Registry is insufficient or irrelevant (e.g., user wants a "Gaming PC" but registry only has "Truck Parts"), you **MUST** ignore the registry and architect the system using **Virtual Parts**.
+   - To add a part from the Global Catalog, simply generate a new \`partId\` that describes the item.
+   - **ID Convention:** Use kebab-case that is descriptive. 
+     - BAD: \`part-1\`, \`gpu\`, \`thing\`
+     - GOOD: \`gpu-nvidia-rtx4090\`, \`mcu-esp32-wroom\`, \`servo-mg996r-metal\`
+   - The system will automatically create a placeholder for these IDs.
+   - **NEVER** say "I can't find parts". You are an Architect; invent the specification using Virtual Parts.
+
+3. **COMPATIBILITY:** 
+   - For Local Registry parts, respect the declared 'Ports'.
+   - For Virtual Parts, assume standard industry interfaces (e.g., PCIe, USB, GPIO) apply implicitly.
+
+4. **CLARIFICATION:**
+   - If the request is vague ("Build a thing"), ask clarifying questions.
+   - If specific ("Build a drone"), immediately generate the BOM using Virtual Parts if Local ones don't exist.
+
+5. **OUTPUT FORMAT:**
+   - You can provide a brief reasoning summary.
+   - You **MUST** append the Tool Calls at the end or embedded in your response.
+   - Syntax: \`addPart("id", quantity)\`
 
 TOOLS:
-- initializeDraft(name: string, requirements: string)
-- addPart(partId: string, quantity: number)
-- removePart(instanceId: string)
+- \`initializeDraft(name: string, requirements: string)\`
+- \`addPart(partId: string, quantity: number)\`
+- \`removePart(instanceId: string)\`
 
-REGISTRY CONTEXT:
+---
+LOCAL REGISTRY (Use these IDs if they match):
 ${HARDWARE_REGISTRY ? HARDWARE_REGISTRY.map(p => {
   const ports = p.ports.map(pt => `${pt.name} (${pt.gender} ${pt.spec})`).join(', ');
-  return `- ${p.id}: ${p.name} [Category: ${p.category}] | Ports: ${ports}`;
+  return `- ID: "${p.id}" | Name: "${p.name}" | Cat: "${p.category}"`;
 }).join('\n') : 'Registry Offline'}
+---
 
-EXAMPLE 1 (Ambiguous Request):
-User: "I want to build a computer."
-Reasoning: The request lacks critical details regarding performance targets and form factor.
-Response: What is the primary workload for this computer (e.g., 4K Video Editing, High-Refresh Gaming, Home Server)? Do you have a specific size constraint (ATX, ITX)?
+EXAMPLE 1 (Using Virtual Parts):
+User: "Design a Raspberry Pi home server."
+Reasoning: Local registry has no Raspberry Pi. I will use Virtual Parts from the Global Catalog.
+Tool Calls:
+initializeDraft("Home Media Server", "RPi 4 based, low power")
+addPart("sbc-rpi-4-8gb", 1)
+addPart("case-flirc-alu", 1)
+addPart("psu-usb-c-5v-3a", 1)
+addPart("ssd-samsung-t7-1tb", 1)
 
-EXAMPLE 2 (Actionable Request):
-User: "I need a gaming keyboard."
-Reasoning: The user needs a keyboard. I see a PCB with 'mx-socket' ports and Switches with 'mx-socket' pins. These are compatible.
-initializeDraft("Mechanical Keyboard", "65% Layout")
-addPart("kb-pcb-1", 1)
-addPart("kb-sw-1", 68)
-addPart("kb-case-1", 1)
+EXAMPLE 2 (Hybrid):
+User: "I need a flashlight."
+Reasoning: Local registry contains "flashlight-body", "led-emitter", etc. I will use those.
+Tool Calls:
+initializeDraft("C8 LED Torch", "High lumens")
+addPart("flashlight-body", 1)
+addPart("led-emitter", 1)
 `;
 
 export class GeminiService implements AIService {
@@ -87,12 +116,23 @@ export class GeminiService implements AIService {
         contents: contents,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.2,
-          topP: 0.8,
+          temperature: 0.7, // Increased to allow creative Virtual Part generation
+          topP: 0.9,
         }
       });
 
-      return response.text || "";
+      // Robust error handling for empty responses
+      if (!response.text) {
+          if (response.candidates && response.candidates.length > 0) {
+              const candidate = response.candidates[0];
+              if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+                  return `Error: Model stopped due to ${candidate.finishReason}. Please try rephrasing.`;
+              }
+          }
+          return "Gemini provided no output.";
+      }
+
+      return response.text;
     } catch (error: any) {
       console.error("Gemini SDK Error:", error);
       throw new Error(`Gemini Service Error: ${error.message}`);
@@ -105,23 +145,23 @@ export class GeminiService implements AIService {
 
     let reasoning = text;
 
-    // Parse initializeDraft
-    const initMatch = text.match(/initializeDraft\s*\(\s*['"](.+?)['"]\s*,\s*['"](.+?)['"]\s*\)/);
+    // Parse initializeDraft - Robust Regex with optional semicolon
+    const initMatch = text.match(/initializeDraft\s*\(\s*["'](.+?)["']\s*,\s*["'](.+?)["']\s*\)\s*;?/);
     if (initMatch) {
       toolCalls.push({ type: 'initializeDraft', name: initMatch[1], reqs: initMatch[2] });
       reasoning = reasoning.replace(initMatch[0], '');
     }
 
     try {
-      // Parse addPart
-      const addMatches = [...text.matchAll(/addPart\s*\(\s*['"](.+?)['"]\s*,\s*(\d+)\s*\)/g)];
+      // Parse addPart - More flexible quotes/spacing, optional semicolon
+      const addMatches = [...text.matchAll(/addPart\s*\(\s*["']?([^"',\s]+)["']?\s*,\s*(\d+)\s*\)\s*;?/g)];
       addMatches.forEach(m => {
           toolCalls.push({ type: 'addPart', partId: m[1], qty: parseInt(m[2]) });
           reasoning = reasoning.replace(m[0], '');
       });
 
-      // Parse removePart
-      const removeMatches = [...text.matchAll(/removePart\s*\(\s*['"](.+?)['"]\s*\)/g)];
+      // Parse removePart - Optional semicolon
+      const removeMatches = [...text.matchAll(/removePart\s*\(\s*["']?([^"',\s]+)["']?\s*\)\s*;?/g)];
       removeMatches.forEach(m => {
           toolCalls.push({ type: 'removePart', instanceId: m[1] });
           reasoning = reasoning.replace(m[0], '');
@@ -131,6 +171,10 @@ export class GeminiService implements AIService {
     }
 
     // Cleanup whitespace artifacts from removed tool calls
+    // Remove lines that are now just comments (leftovers from removed code lines)
+    reasoning = reasoning.replace(/^\s*\/\/.*$/gm, '');
+    // Remove lines that are just semicolons or empty
+    reasoning = reasoning.replace(/^\s*;\s*$/gm, '');
     reasoning = reasoning.replace(/[ \t]+$/gm, '');
     reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
 
@@ -156,7 +200,9 @@ export class GeminiService implements AIService {
         
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
-                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                // Ensure mimeType is present, fallback to png if missing
+                const mime = part.inlineData.mimeType || 'image/png';
+                return `data:${mime};base64,${part.inlineData.data}`;
             }
         }
         return null;
@@ -281,7 +327,7 @@ export class GeminiService implements AIService {
         TASK:
         1. Identify voltage mismatches, connector mismatches, or missing parts.
         2. AUTO-CORRECT: If you find incompatible parts, you MUST output \`removePart("instance_id")\` AND \`addPart("correct_part_id", qty)\`.
-        3. BE AGGRESSIVE: Do not just delete incompatible parts. You MUST suggest a valid replacement from your internal knowledge of standard hardware (e.g., if a battery is wrong, add the correct one).
+        3. BE AGGRESSIVE: Do not just delete incompatible parts. You MUST suggest a valid replacement from your internal knowledge OR the Global Catalog.
         
         OUTPUT FORMAT:
         Provide a Markdown report (Action Taken, Status) followed by any necessary tool calls.
