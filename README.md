@@ -1,20 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# BuildSheet Phoenix
 
-# Run and deploy your AI Studio app
+BuildSheet Phoenix is an AI-assisted hardware drafting tool that allows engineers to design systems, validate compatibility, and generate fabrication briefs. It uses a **Local-First** architecture, storing all project data in the browser's `localStorage`.
 
-This contains everything you need to run your app locally.
+## Deployment
 
-View your app in AI Studio: https://ai.studio/apps/drive/1nO80y-SR7tGVX-H2qxzItNX2c8ZdQhPl
+This application is configured for deployment on Google App Engine.
 
-## Run Locally
+### Routing Configuration
+The `app.yaml` file contains specific handlers to support Single Page Application (SPA) routing and the custom sharing feature.
 
-**Prerequisites:**  Node.js
+*   **`/sheet/*`**: Routes all custom project short-links (e.g., `/sheet/my-custom-pc`) to `index.html`. The client-side React router then parses the URL and loads the corresponding project ID from local storage.
+*   **Static Assets**: Any request ending in a file extension (e.g., `.js`, `.css`, `.png`) is served directly.
+*   **Catch-all**: All other routes fallback to `index.html`.
 
+## Simulation Mode
+If no valid API Key is provided, the application defaults to **Simulation Mode**. This mode uses a deterministic Mock Service to demonstrate UI capabilities without consuming AI tokens.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Project Sharing
+Users can reserve custom slugs (e.g., `gaming-pc-v1`) for their projects via the "Share" button in the header.
+*   Because this is a local-first demo, sharing links will **only work on the device where they were created**.
+*   In a full production environment, this would map the slug to a backend database ID.

@@ -146,6 +146,7 @@ export class DraftingEngine {
           index.unshift({
               id: session.id,
               name: session.name,
+              shareSlug: session.shareSlug,
               lastModified: session.lastModified,
               preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft'
           });
@@ -184,6 +185,81 @@ export class DraftingEngine {
           }
       }
       return false;
+  }
+
+  public findProjectBySlug(slug: string): string | null {
+      // 1. Check current session
+      if (this.session.shareSlug === slug) return this.session.id;
+
+      // 2. Check index
+      const list = this.getProjectList();
+      const match = list.find((p: any) => p.shareSlug === slug);
+      if (match) return match.id;
+
+      return null;
+  }
+
+  public setShareSlug(slug: string): { success: boolean, message?: string } {
+      const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '');
+      if (cleanSlug.length < 3) return { success: false, message: "Slug too short (min 3 chars)" };
+
+      // Check for collision
+      const list = this.getProjectList();
+      const conflict = list.find((p: any) => p.shareSlug === cleanSlug && p.id !== this.session.id);
+      
+      if (conflict) return { success: false, message: "Slug already taken" };
+
+      this.session.shareSlug = cleanSlug;
+      this.saveSession();
+      return { success: true };
+  }
+
+  public exportProject(id: string): string | null {
+      const raw = localStorage.getItem(this.SESSION_PREFIX + id);
+      if (raw) {
+          try {
+              // Beautify JSON for export
+              return JSON.stringify(JSON.parse(raw), null, 2);
+          } catch (e) {
+              console.error("Export failed parsing", e);
+          }
+      }
+      return null;
+  }
+
+  public importProject(jsonString: string): string | null {
+      try {
+          const data = JSON.parse(jsonString);
+          
+          // Basic validation (check for required fields)
+          if (!data.messages || !Array.isArray(data.bom)) {
+              throw new Error("Invalid project file format");
+          }
+
+          // Generate new ID to act as a copy/import
+          const newId = Math.random().toString(36).substr(2, 9);
+          const user = UserService.getCurrentUser();
+          
+          const newSession: DraftingSession = {
+              ...data,
+              id: newId,
+              slug: `build-${newId.substr(0,4)}`,
+              shareSlug: undefined, // Clear slug on import to avoid conflicts
+              ownerId: user?.id || 'anonymous',
+              name: `${data.name} (Imported)`,
+              createdAt: new Date(),
+              lastModified: new Date()
+          };
+
+          // Save and set active
+          this.session = this.hydrateSession(newSession);
+          this.saveSession();
+          
+          return newId;
+      } catch (e) {
+          console.error("Import failed", e);
+          return null;
+      }
   }
 
   public renameProject(id: string, newName: string) {

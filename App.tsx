@@ -37,6 +37,101 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+const ShareModal: React.FC<{ isOpen: boolean; onClose: () => void; session: DraftingSession; engine: any }> = ({ isOpen, onClose, session, engine }) => {
+    const [slugInput, setSlugInput] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && session.shareSlug) {
+            setSlugInput(session.shareSlug);
+        } else {
+            setSlugInput('');
+        }
+        setCopied(false);
+        setError(null);
+    }, [isOpen, session]);
+
+    const handleSaveSlug = () => {
+        if (!slugInput.trim()) return;
+        
+        const result = engine.setShareSlug(slugInput.trim());
+        if (result.success) {
+            setSlugInput(engine.getSession().shareSlug || slugInput); // Update with standardized slug
+            setError(null);
+        } else {
+            setError(result.message || "Failed to set slug");
+        }
+    };
+
+    const handleCopy = () => {
+        const url = `${window.location.origin}/sheet/${session.shareSlug || slugInput}`;
+        navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    if (!isOpen) return null;
+
+    const fullUrl = `${window.location.origin}/sheet/${session.shareSlug || slugInput || '...'}`;
+    const hasActiveSlug = !!session.shareSlug;
+
+    return (
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+             <div className="bg-white rounded-[28px] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                    <h3 className="text-lg font-bold text-slate-800">Share Project</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-sm text-gray-500">Create a custom short-link for your build sheet.</p>
+                    
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Custom Slug</label>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={slugInput}
+                                onChange={(e) => { setSlugInput(e.target.value); setError(null); }}
+                                placeholder="e.g. gaming-pc-v1"
+                                className={`flex-1 text-sm px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 transition-all ${error ? 'border-red-300 focus:ring-red-100' : 'border-gray-200 focus:border-indigo-400 focus:ring-indigo-100'}`}
+                                disabled={hasActiveSlug && slugInput === session.shareSlug}
+                            />
+                            {!hasActiveSlug && (
+                                <Button onClick={handleSaveSlug} variant="primary" className="h-auto">Reserve</Button>
+                            )}
+                        </div>
+                        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+                    </div>
+
+                    {hasActiveSlug && (
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                            <label className="block text-[10px] font-bold text-indigo-400 uppercase mb-1">Your Link</label>
+                            <div className="flex items-center justify-between gap-2">
+                                <code className="text-xs font-mono text-indigo-900 truncate">{fullUrl}</code>
+                                <button 
+                                    onClick={handleCopy}
+                                    className="text-indigo-600 hover:text-indigo-800 p-1.5 hover:bg-indigo-100 rounded-lg transition-colors"
+                                    title="Copy to Clipboard"
+                                >
+                                    {copied ? (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
+                    <Button onClick={onClose} variant="secondary">Done</Button>
+                </div>
+             </div>
+        </div>
+    );
+};
+
 const ProjectManager: React.FC<{ 
     isOpen: boolean; 
     onClose: () => void; 
@@ -50,6 +145,7 @@ const ProjectManager: React.FC<{
 }> = ({ isOpen, onClose, onLoad, onNew, onDelete, onRename, activeId, engine, currentUser }) => {
     const [projects, setProjects] = useState<any[]>([]);
     const { t, i18n } = useTranslation();
+    const importInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -66,6 +162,47 @@ const ProjectManager: React.FC<{
         }
     };
 
+    const handleExport = (e: React.MouseEvent, id: string, name: string) => {
+        e.stopPropagation();
+        const json = engine.exportProject(id);
+        if (json) {
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `buildsheet-${name.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
+    const handleImportClick = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            if (content) {
+                const newId = engine.importProject(content);
+                if (newId) {
+                    setProjects(engine.getProjectList());
+                    onLoad(newId); // Load the imported project
+                } else {
+                    alert("Import failed. Invalid file format.");
+                }
+            }
+        };
+        reader.readAsText(file);
+        // Reset input value to allow re-importing same file if needed
+        e.target.value = '';
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -76,13 +213,32 @@ const ProjectManager: React.FC<{
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                <button 
-                    onClick={onNew}
-                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
-                    aria-label={t('app.newProject')}
-                >
-                    <span className="text-xl leading-none font-light">+</span> {t('app.newProject')}
-                </button>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                    <button 
+                        onClick={onNew}
+                        className="col-span-1 py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex flex-col items-center justify-center gap-1"
+                        aria-label={t('app.newProject')}
+                    >
+                        <span className="text-xl leading-none font-light">+</span> 
+                        <span className="text-xs">{t('app.newProject')}</span>
+                    </button>
+                    
+                    <button 
+                        onClick={handleImportClick}
+                        className="col-span-1 py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-medium text-sm hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex flex-col items-center justify-center gap-1"
+                        aria-label={t('app.import')}
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span className="text-xs">{t('app.import')}</span>
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={importInputRef} 
+                        onChange={handleFileChange} 
+                        accept=".json" 
+                        className="hidden" 
+                    />
+                </div>
 
                 {projects.map(p => (
                     <div 
@@ -94,7 +250,7 @@ const ProjectManager: React.FC<{
                         }`}
                         onClick={() => onLoad(p.id)}
                     >
-                        <div className="pr-8">
+                        <div className="pr-16">
                             <div className="font-bold text-sm text-slate-800 truncate">{p.name || 'Untitled'}</div>
                             <div className="text-[10px] text-gray-400 font-mono mt-1 flex justify-between items-center">
                                 <span>{new Date(p.lastModified).toLocaleDateString(i18n.language)}</span>
@@ -102,10 +258,18 @@ const ProjectManager: React.FC<{
                             </div>
                         </div>
                         
-                        <div className="absolute top-3 right-2 flex flex-col gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-3 right-2 flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur rounded p-0.5 shadow-sm md:shadow-none md:bg-transparent">
+                             <button 
+                                onClick={(e) => handleExport(e, p.id, p.name)}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                title={t('app.export')}
+                                aria-label={t('app.export')}
+                             >
+                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                             </button>
                              <button 
                                 onClick={(e) => handleRenameClick(e, p.id, p.name)}
-                                className="p-1.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
                                 title={t('app.rename')}
                                 aria-label={t('app.rename')}
                              >
@@ -114,7 +278,7 @@ const ProjectManager: React.FC<{
                              {p.id !== activeId && (
                                  <button 
                                     onClick={(e) => { e.stopPropagation(); onDelete(p.id); setProjects(engine.getProjectList()); }}
-                                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded"
+                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
                                     title={t('app.delete')}
                                     aria-label={t('app.delete')}
                                  >
@@ -464,7 +628,7 @@ const PartDetailModal: React.FC<{
                     {/* Status Banner */}
                     {(!isCompatible || (warnings && warnings.length > 0)) && (
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                            <h4 className="text-xs font-bold text-amber-800 uppercase mb-2">Compatibility Warnings</h4>
+                            <h4 className="text-xs font-bold text-amber-800 uppercase">Compatibility Warnings</h4>
                             <ul className="list-disc list-inside text-xs text-amber-900 space-y-1">
                                 {warnings?.map((w, i) => <li key={i}>{w}</li>)}
                                 {!isCompatible && <li>Interfaces do not match existing system ports.</li>}
@@ -607,21 +771,20 @@ const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isBomOpen, setIsBomOpen] = useState(true);
   
-  // Audit Modal
+  // Modals
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditResult, setAuditResult] = useState<string | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
   const [pendingFixes, setPendingFixes] = useState<any[]>([]);
   
-  // Part Detail & Fabrication
   const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
   const [fabModalOpen, setFabModalOpen] = useState(false);
   const [fabResult, setFabResult] = useState<string | null>(null);
   const [isFabricating, setIsFabricating] = useState(false);
   const [fabPartName, setFabPartName] = useState('');
 
-  // Part Picker
   const [partPickerOpen, setPartPickerOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   
   // Mobile UI State
   const [mobileView, setMobileView] = useState<'chat' | 'visuals'>('chat');
@@ -634,10 +797,40 @@ const AppContent: React.FC = () => {
   const leftPaneRef = useRef<HTMLElement>(null);
   const isResizingRef = useRef(false);
 
+  // Resizable Right Pane State
+  const [rightPaneWidth, setRightPaneWidth] = useState(450);
+  const isResizingRightRef = useRef(false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+
   // Update HTML lang attribute
   useEffect(() => {
     document.documentElement.lang = i18n.language;
   }, [i18n.language]);
+
+  // Window Resize Listener for Desktop Check
+  useEffect(() => {
+      const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Routing Logic for Shares
+  useEffect(() => {
+      const path = window.location.pathname;
+      if (path.startsWith('/sheet/')) {
+          const slug = path.split('/sheet/')[1];
+          if (slug) {
+              const projectId = draftingEngine.findProjectBySlug(slug);
+              if (projectId) {
+                  if (draftingEngine.loadProject(projectId)) {
+                      setSession(draftingEngine.getSession());
+                      // Cleanup URL visually
+                      window.history.replaceState({}, '', '/sheet/' + slug);
+                  }
+              }
+          }
+      }
+  }, [draftingEngine]);
 
   const startResizing = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -666,6 +859,37 @@ const AppContent: React.FC = () => {
       isResizingRef.current = false;
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+  };
+
+  // Right Pane Resize Logic
+  const startResizingRight = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isResizingRightRef.current = true;
+      document.addEventListener('mousemove', handleMouseMoveRight);
+      document.addEventListener('mouseup', stopResizingRight);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+  };
+
+  const handleMouseMoveRight = (e: MouseEvent) => {
+      if (!isResizingRightRef.current) return;
+      
+      const newWidth = window.innerWidth - e.clientX;
+      const maxWidth = window.innerWidth * 0.5; // Max 50%
+      const minWidth = 300; // Min 300px
+
+      if (newWidth < minWidth) setRightPaneWidth(minWidth);
+      else if (newWidth > maxWidth) setRightPaneWidth(maxWidth);
+      else setRightPaneWidth(newWidth);
+  };
+
+  const stopResizingRight = () => {
+      isResizingRightRef.current = false;
+      document.removeEventListener('mousemove', handleMouseMoveRight);
+      document.removeEventListener('mouseup', stopResizingRight);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
   };
@@ -1027,6 +1251,12 @@ const AppContent: React.FC = () => {
         onAdd={handleAddPart}
         engine={draftingEngine}
       />
+      <ShareModal 
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        session={session}
+        engine={draftingEngine}
+      />
 
       {/* Sidebar Navigation - Hidden on Mobile */}
       <nav className="hidden md:flex w-[88px] border-r border-gray-200 bg-white flex-col items-center py-6 gap-6 flex-shrink-0 shadow-sm z-20 relative">
@@ -1034,9 +1264,10 @@ const AppContent: React.FC = () => {
         
         <div className="flex flex-col gap-4 flex-1 w-full items-center">
           <button 
-            className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all cursor-default"
-            title={t('app.title')}
-            aria-label={t('app.title')}
+            onClick={handleNewProject}
+            className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all hover:bg-indigo-100 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+            title={t('app.newProject')}
+            aria-label={t('app.newProject')}
           >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           </button>
@@ -1135,6 +1366,14 @@ const AppContent: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-2 text-xs font-mono text-gray-400 items-center">
+                <Button 
+                   onClick={() => setShareModalOpen(true)}
+                   variant="ghost" 
+                   className="hidden md:flex h-8 px-3 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100"
+                >
+                   Share
+                </Button>
+
                 <div className="hidden md:block">
                    {currentUser ? `${currentUser.username}@${session.slug}` : 'guest@local-draft'}
                 </div>
@@ -1338,14 +1577,26 @@ const AppContent: React.FC = () => {
         {/* Right Pane: BOM (Desktop) or Visuals+BOM (Mobile) */}
         <section 
           className={`
-            flex-col bg-white border-l border-gray-200 z-20 
-            transition-all duration-300 ease-in-out
+            flex-col bg-white border-l border-gray-200 z-20 relative
             ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}
-            ${isBomOpen ? 'md:w-[450px]' : 'md:w-0 md:border-l-0 md:overflow-hidden'}
+            ${isBomOpen ? '' : 'md:w-0 md:border-l-0 md:overflow-hidden'}
           `}
+          style={{ 
+              width: isDesktop && isBomOpen ? rightPaneWidth : undefined,
+              transition: isResizingRightRef.current ? 'none' : 'width 300ms ease-in-out' 
+          }}
         >
+          {/* Resize Handle */}
+          <div 
+              className="hidden md:flex absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-50 items-center justify-center hover:bg-transparent group"
+              onMouseDown={startResizingRight}
+              title="Drag to resize"
+          >
+              <div className="w-1 h-8 rounded-full bg-gray-300 group-hover:bg-indigo-400 transition-colors" />
+          </div>
+
           {/* Inner wrapper forces fixed width on desktop to prevent squishing during slide animation */}
-          <div className="flex flex-col h-full w-full md:w-[450px]">
+          <div className="flex flex-col h-full w-full" style={{ width: '100%' }}>
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
               <div>
@@ -1560,7 +1811,7 @@ const AppContent: React.FC = () => {
             aria-label={t('app.build')}
             aria-selected={mobileView === 'visuals'}
         >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2-2z"></path></svg>
             <span className="text-[10px] font-bold uppercase">{t('app.build')}</span>
             {mobileView === 'visuals' && <div className="absolute top-0 left-0 right-0 h-0.5 bg-indigo-600"></div>}
         </button>
@@ -1569,12 +1820,10 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
-    return (
-        <ErrorBoundary>
-            <AppContent />
-        </ErrorBoundary>
-    );
-};
+const App: React.FC = () => (
+  <ErrorBoundary>
+    <AppContent />
+  </ErrorBoundary>
+);
 
 export default App;

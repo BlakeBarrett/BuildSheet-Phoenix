@@ -76,6 +76,7 @@ export interface UserMessage {
 export interface DraftingSession {
   id: string;
   slug: string;
+  shareSlug?: string; // Custom user-defined slug for sharing (e.g., /sheet/my-custom-pc)
   ownerId: string;
   name: string;
   designRequirements: string;
