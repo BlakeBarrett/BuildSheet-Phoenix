@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, Component, ErrorInfo } from 'react';
+import React, { useState, useRef, useEffect, ErrorInfo, Component } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine } from './services/draftingEngine.ts';
@@ -161,7 +161,7 @@ const AuditModal: React.FC<{
                              </div>
                              <div>
                                  <h4 className="font-bold text-sm text-slate-800">Auto-Fix Available</h4>
-                                 <p className="text-xs text-gray-500">The Architect has proposed {pendingFixes.length} modification{pendingFixes.length !== 1 ? 's' : ''} to resolve conflicts.</p>
+                                 <p className="text-xs text-gray-500">Gemini has proposed {pendingFixes.length} modification{pendingFixes.length !== 1 ? 's' : ''} to resolve conflicts.</p>
                              </div>
                          </div>
                          <div className="flex gap-3 justify-end">
@@ -781,7 +781,6 @@ const PartDetailModal: React.FC<{
     );
 };
 
-// ... Rest of the file remains unchanged ...
 const AppContent: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { service: aiService, status: aiStatus, error: serviceError } = useService();

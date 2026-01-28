@@ -361,7 +361,7 @@ export class DraftingEngine {
         category: 'Inferred Component',
         brand: 'Design Placeholder',
         price: 0,
-        description: 'Virtual component suggested by Architect.',
+        description: 'Virtual component suggested by Gemini.',
         ports: [] 
       };
     }
