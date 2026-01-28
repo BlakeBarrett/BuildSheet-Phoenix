@@ -13,7 +13,7 @@ import { useService } from './contexts/ServiceContext.tsx';
 interface ErrorBoundaryProps { children?: React.ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
@@ -36,6 +36,197 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return this.props.children;
   }
 }
+
+// --- MODAL COMPONENTS ---
+
+const PartPickerModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onAdd: (id: string) => void;
+    engine: any 
+}> = ({ isOpen, onClose, onAdd, engine }) => {
+    const { t } = useTranslation();
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setResults(engine.searchRegistry(''));
+            setQuery('');
+        }
+    }, [isOpen, engine]);
+
+    const handleSearch = (q: string) => {
+        setQuery(q);
+        setResults(engine.searchRegistry(q));
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+             <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                    <h3 className="text-lg font-bold text-slate-800">{t('bom.add')}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
+                </div>
+                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                    <input 
+                        type="text" 
+                        value={query}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        placeholder={t('bom.search')}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
+                        autoFocus
+                    />
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                    {results.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 text-sm">{t('bom.no_results')}</div>
+                    ) : (
+                        <div className="space-y-1">
+                            {results.map(part => (
+                                <button 
+                                    key={part.id}
+                                    onClick={() => { onAdd(part.id); onClose(); }}
+                                    className="w-full text-left p-3 hover:bg-indigo-50 rounded-xl group transition-colors border border-transparent hover:border-indigo-100"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{part.name}</div>
+                                            <div className="text-[10px] text-gray-400 font-mono">{part.sku}</div>
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-900">${part.price}</div>
+                                    </div>
+                                    <div className="mt-1 flex gap-2">
+                                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded uppercase tracking-wider">{part.category}</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+             </div>
+        </div>
+    );
+};
+
+const AuditModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    result: string | null;
+    isRunning: boolean;
+    pendingFixes: any[];
+    onApply: () => void;
+    onDecline: () => void;
+}> = ({ isOpen, onClose, result, isRunning, pendingFixes, onApply, onDecline }) => {
+    const { t } = useTranslation();
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+             <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isRunning ? 'bg-indigo-50 text-indigo-600' : 'bg-green-50 text-green-600'}`}>
+                            {isRunning ? (
+                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            )}
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800">{t('audit.title')}</h3>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-8 bg-white font-sans text-sm leading-relaxed text-slate-600">
+                    {isRunning ? (
+                        <div className="flex flex-col items-center justify-center h-48 space-y-4">
+                            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-ping"></div>
+                            <p className="text-gray-400 font-medium animate-pulse">{t('audit.running')}</p>
+                        </div>
+                    ) : (
+                        <ReactMarkdown className="prose prose-sm max-w-none prose-indigo prose-headings:font-bold prose-headings:text-slate-800">
+                            {result || "No issues found."}
+                        </ReactMarkdown>
+                    )}
+                </div>
+
+                {!isRunning && pendingFixes.length > 0 && (
+                    <div className="p-4 border-t border-gray-100 bg-indigo-50/50 flex flex-col gap-3">
+                         <div className="flex items-start gap-3 p-3 bg-white border border-indigo-100 rounded-xl shadow-sm">
+                             <div className="text-indigo-600 mt-0.5">
+                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                             </div>
+                             <div>
+                                 <h4 className="font-bold text-sm text-slate-800">Auto-Fix Available</h4>
+                                 <p className="text-xs text-gray-500">The Architect has proposed {pendingFixes.length} modification{pendingFixes.length !== 1 ? 's' : ''} to resolve conflicts.</p>
+                             </div>
+                         </div>
+                         <div className="flex gap-3 justify-end">
+                             <Button onClick={onDecline} variant="ghost" className="text-gray-500 hover:text-slate-800">Ignore</Button>
+                             <Button onClick={onApply} variant="primary" className="bg-indigo-600 hover:bg-indigo-700">Apply Fixes</Button>
+                         </div>
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+};
+
+const FabricationModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    result: string | null;
+    isRunning: boolean;
+    partName: string;
+}> = ({ isOpen, onClose, result, isRunning, partName }) => {
+    const { t } = useTranslation();
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+             <div className="bg-white rounded-[28px] shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                     <div>
+                        <h3 className="text-lg font-bold text-slate-800">{t('fab.title')}</h3>
+                        <p className="text-xs text-gray-500 font-mono mt-1">{partName}</p>
+                     </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
+                    {isRunning ? (
+                        <div className="flex flex-col items-center justify-center h-64 space-y-6">
+                            <div className="relative w-16 h-16">
+                                 <div className="absolute top-0 left-0 w-full h-full border-4 border-indigo-100 rounded-full"></div>
+                                 <div className="absolute top-0 left-0 w-full h-full border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                            </div>
+                            <p className="text-indigo-600 font-medium text-sm animate-pulse">Generating Specifications...</p>
+                        </div>
+                    ) : (
+                         <article className="prose prose-sm max-w-none prose-slate prose-headings:text-slate-900 prose-img:rounded-xl prose-img:shadow-lg prose-img:border prose-img:border-gray-200">
+                             <ReactMarkdown>{result || ""}</ReactMarkdown>
+                         </article>
+                    )}
+                </div>
+
+                {!isRunning && (
+                    <div className="p-4 border-t border-gray-100 bg-white flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => window.open('https://www.pcbway.com/', '_blank')}>
+                            {t('fab.pcbway')}
+                        </Button>
+                        <Button variant="secondary" onClick={() => window.open('https://sendcutsend.com/', '_blank')}>
+                            {t('fab.scs')}
+                        </Button>
+                        <Button variant="primary" onClick={onClose}>Done</Button>
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+};
 
 const ShareModal: React.FC<{ isOpen: boolean; onClose: () => void; session: DraftingSession; engine: any }> = ({ isOpen, onClose, session, engine }) => {
     const [slugInput, setSlugInput] = useState('');
@@ -331,265 +522,22 @@ const ProjectManager: React.FC<{
     );
 };
 
-const AuditModal: React.FC<{ 
-    isOpen: boolean; 
-    onClose: () => void; 
-    result: string | null; 
-    isRunning: boolean;
-    pendingFixes: any[];
-    onApply: () => void;
-    onDecline: () => void;
-}> = ({ isOpen, onClose, result, isRunning, pendingFixes, onApply, onDecline }) => {
-    const { t } = useTranslation();
-    const [countdown, setCountdown] = useState(5);
-    const timerRef = useRef<number | null>(null);
-
-    useEffect(() => {
-        if (isOpen && pendingFixes.length > 0 && !isRunning) {
-            setCountdown(5);
-            timerRef.current = window.setInterval(() => {
-                setCountdown((prev) => {
-                    if (prev <= 1) {
-                        if (timerRef.current) clearInterval(timerRef.current);
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        } else {
-            if (timerRef.current) clearInterval(timerRef.current);
-        }
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-        };
-    }, [isOpen, pendingFixes, isRunning]);
-
-    useEffect(() => {
-        if (countdown === 0 && pendingFixes.length > 0 && isOpen) {
-            onApply();
-        }
-    }, [countdown, pendingFixes, isOpen, onApply]);
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="audit-title">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-green-100 text-green-700'}`}>
-                           {isRunning ? (
-                               <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                           ) : (
-                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                           )}
-                        </div>
-                        <div>
-                            <h3 id="audit-title" className="text-xl font-medium text-slate-800">{t('audit.title')}</h3>
-                            <p className="text-sm text-gray-500">{isRunning ? "Gemini 3.0 Pro..." : "Audit Complete"}</p>
-                        </div>
-                    </div>
-                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2 rounded-full hover:bg-gray-100" aria-label="Close">&times;</button>}
-                </div>
-                <div className="flex-1 overflow-y-auto p-6 bg-white">
-                    {isRunning ? (
-                        <div className="space-y-4">
-                            <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
-                            <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse"></div>
-                            <div className="h-4 bg-gray-100 rounded w-5/6 animate-pulse"></div>
-                            <p className="text-center text-xs text-gray-400 mt-8">{t('status.thinking')}</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            <div className="prose prose-sm prose-slate max-w-none">
-                                <ReactMarkdown>{result || ''}</ReactMarkdown>
-                            </div>
-                            
-                            {pendingFixes.length > 0 && (
-                                <div className="bg-indigo-50 border border-indigo-100 rounded-[20px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                    <h4 className="text-sm font-bold text-indigo-900 mb-3 flex items-center gap-2">
-                                        <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                        Proposed System Patches
-                                    </h4>
-                                    <div className="space-y-2 mb-4">
-                                        {pendingFixes.map((fix, i) => (
-                                            <div key={i} className="flex items-center gap-3 text-sm bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
-                                                {fix.type === 'removePart' && <span className="text-red-700 font-bold px-2 py-0.5 bg-red-100 rounded text-xs">DEL</span>}
-                                                {fix.type === 'addPart' && <span className="text-green-700 font-bold px-2 py-0.5 bg-green-100 rounded text-xs">ADD</span>}
-                                                <span className="font-mono text-slate-600 truncate flex-1">
-                                                    {fix.type === 'removePart' ? `Instance: ${fix.instanceId?.split('-')[0]}...` : `Part: ${fix.partId} (x${fix.qty})`}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="flex items-center justify-between bg-white/60 rounded-xl p-3">
-                                        <div className="text-xs font-bold text-indigo-800">
-                                            Auto-applying in <span className="text-lg font-mono text-indigo-600 w-4 inline-block text-center">{countdown}</span>s
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button 
-                                                onClick={onDecline}
-                                                variant="ghost"
-                                                className="text-xs h-8 px-3"
-                                            >
-                                                Decline
-                                            </Button>
-                                            <Button onClick={onApply} variant="primary" className="text-xs h-8 px-3">
-                                                Apply Now
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-                {!pendingFixes.length && (
-                    <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
-                        <Button onClick={onClose} variant="primary" disabled={isRunning}>
-                            {isRunning ? t('audit.running') : 'Close Report'}
-                        </Button>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const FabricationModal: React.FC<{ isOpen: boolean; onClose: () => void; result: string | null; isRunning: boolean; partName: string }> = ({ isOpen, onClose, result, isRunning, partName }) => {
-    const { t } = useTranslation();
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" role="dialog" aria-modal="true" aria-labelledby="fab-title">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
-                    <div className="flex items-center gap-3">
-                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 'bg-blue-100 text-blue-700'}`}>
-                           {isRunning ? (
-                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                           ) : (
-                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                           )}
-                        </div>
-                        <div>
-                            <h3 id="fab-title" className="text-lg font-bold text-slate-800">{t('fab.title')}</h3>
-                            <p className="text-xs text-gray-500">Drafting spec for: <strong>{partName}</strong></p>
-                        </div>
-                    </div>
-                    {!isRunning && <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>}
-                </div>
-                <div className="flex-1 overflow-y-auto p-6 bg-white">
-                    {isRunning ? (
-                         <div className="space-y-4">
-                            <div className="h-4 bg-gray-100 rounded w-2/3 animate-pulse"></div>
-                            <div className="h-4 bg-gray-100 rounded w-full animate-pulse"></div>
-                            <div className="h-4 bg-gray-100 rounded w-3/4 animate-pulse"></div>
-                             <p className="text-center text-xs text-gray-400 mt-8">{t('status.thinking')}</p>
-                        </div>
-                    ) : (
-                         <div className="prose prose-sm prose-slate max-w-none">
-                            <ReactMarkdown>{result || ''}</ReactMarkdown>
-                        </div>
-                    )}
-                </div>
-                <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end gap-2">
-                    {!isRunning && (
-                        <>
-                             <Button onClick={() => window.open('https://www.pcbway.com/', '_blank')} variant="secondary">
-                                {t('fab.pcbway')}
-                            </Button>
-                            <Button onClick={() => window.open('https://sendcutsend.com/', '_blank')} variant="secondary">
-                                {t('fab.scs')}
-                            </Button>
-                        </>
-                    )}
-                    <Button onClick={onClose} variant="primary">Close Brief</Button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const PartPickerModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    onAdd: (partId: string) => void;
-    engine: any;
-}> = ({ isOpen, onClose, onAdd, engine }) => {
-    const { t } = useTranslation();
-    const [query, setQuery] = useState('');
-    const [results, setResults] = useState<any[]>([]);
-    
-    useEffect(() => {
-        if (isOpen) {
-            setResults(engine.searchRegistry(''));
-            setQuery('');
-        }
-    }, [isOpen, engine]);
-
-    const handleSearch = (val: string) => {
-        setQuery(val);
-        setResults(engine.searchRegistry(val));
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
-                     <h3 className="font-medium text-gray-800 text-lg">{t('bom.add')}</h3>
-                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100">&times;</button>
-                 </div>
-                 <div className="p-4 border-b border-gray-100">
-                     <input
-                        autoFocus
-                        type="text"
-                        placeholder={t('bom.search')}
-                        value={query}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-gray-50"
-                     />
-                 </div>
-                 <div className="flex-1 overflow-y-auto p-2">
-                     {results.length === 0 ? (
-                         <div className="text-center p-8 text-gray-400 text-sm">{t('bom.no_results')}</div>
-                     ) : (
-                         <div className="space-y-1">
-                             {results.map(part => (
-                                 <div key={part.id} className="flex justify-between items-center p-3 hover:bg-indigo-50 rounded-xl group transition-colors cursor-default">
-                                     <div className="overflow-hidden">
-                                         <div className="font-medium text-sm text-gray-900 truncate">{part.name}</div>
-                                         <div className="text-xs text-gray-500 font-mono truncate">{part.sku} • {part.category}</div>
-                                     </div>
-                                     <Button 
-                                        onClick={() => { onAdd(part.id); onClose(); }}
-                                        variant="tonal"
-                                        className="h-8 px-3 text-xs"
-                                     >
-                                         {t('bom.add')}
-                                     </Button>
-                                 </div>
-                             ))}
-                         </div>
-                     )}
-                 </div>
-            </div>
-        </div>
-    );
-};
-
 const PartDetailModal: React.FC<{ 
     entry: BOMEntry | null; 
     onClose: () => void; 
     onFabricate: (part: any) => void;
     onSource: (entry: BOMEntry) => void;
     onManualSource: (instanceId: string, url: string) => void;
-}> = ({ entry, onClose, onFabricate, onSource, onManualSource }) => {
-    // ... logic remains same ...
+    onLocate: (entry: BOMEntry) => void;
+    onGenerateQAProtocol?: (entry: BOMEntry) => void;
+}> = ({ entry, onClose, onFabricate, onSource, onManualSource, onLocate, onGenerateQAProtocol }) => {
     const { t } = useTranslation();
     const [manualUrlInput, setManualUrlInput] = useState('');
-    
+    const [activeTab, setActiveTab] = useState<'online' | 'local' | 'quality'>('online');
+    const { service: aiService } = useService();
+    const [isGeneratingQA, setIsGeneratingQA] = useState(false);
+    const [draftingEngine] = useState(() => getDraftingEngine());
+
     useEffect(() => {
         if (entry?.sourcing?.manualUrl) {
             setManualUrlInput(entry.sourcing.manualUrl);
@@ -599,13 +547,28 @@ const PartDetailModal: React.FC<{
     }, [entry]);
 
     if (!entry) return null;
-    const { part, isCompatible, warnings } = entry;
+    const { part, isCompatible, warnings, qaProtocol } = entry;
     const isVirtual = part.sku.startsWith('DRAFT-');
     const sourcing = entry.sourcing;
 
     const handleSaveManualUrl = () => {
         if (manualUrlInput.trim()) {
             onManualSource(entry.instanceId, manualUrlInput.trim());
+        }
+    };
+
+    const handleGenQA = async () => {
+        if (!aiService.generateQAProtocol) return;
+        setIsGeneratingQA(true);
+        try {
+            const protocol = await aiService.generateQAProtocol(part.name, part.category);
+            if (protocol) {
+                draftingEngine.updatePartQAProtocol(entry.instanceId, protocol);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsGeneratingQA(false);
         }
     };
 
@@ -629,66 +592,171 @@ const PartDetailModal: React.FC<{
                     {(!isCompatible || (warnings && warnings.length > 0)) && (
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                             <h4 className="text-xs font-bold text-amber-800 uppercase">Compatibility Warnings</h4>
-                            <ul className="list-disc list-inside text-xs text-amber-900 space-y-1">
+                            <ul className="list-disc list-inside text-xs text-amber-900 space-y-1 mt-2">
                                 {warnings?.map((w, i) => <li key={i}>{w}</li>)}
                                 {!isCompatible && <li>Interfaces do not match existing system ports.</li>}
                             </ul>
                         </div>
                     )}
 
-                    {/* Sourcing Section */}
-                    <div className="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100">
-                         <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider">
-                                {t('bom.sourcing')}
-                            </h4>
-                            <Button 
-                                onClick={() => onSource(entry)} 
-                                disabled={sourcing?.loading}
-                                variant="tonal"
-                                className="h-7 text-[10px] px-2"
-                            >
-                                {sourcing?.loading ? "Searching..." : "Refresh Search"}
-                            </Button>
+                    {/* Tabs */}
+                    <div className="bg-indigo-50/50 rounded-xl border border-indigo-100 overflow-hidden">
+                         <div className="flex border-b border-indigo-100">
+                             <button 
+                                onClick={() => setActiveTab('online')}
+                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'online' ? 'bg-white text-indigo-600 border-b-2 border-indigo-500' : 'text-gray-500 hover:bg-indigo-50'}`}
+                             >
+                                 Global
+                             </button>
+                             <button 
+                                onClick={() => setActiveTab('local')}
+                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'local' ? 'bg-white text-green-600 border-b-2 border-green-500' : 'text-gray-500 hover:bg-indigo-50'}`}
+                             >
+                                 Nearby
+                             </button>
+                             <button 
+                                onClick={() => setActiveTab('quality')}
+                                className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider ${activeTab === 'quality' ? 'bg-white text-blue-600 border-b-2 border-blue-500' : 'text-gray-500 hover:bg-indigo-50'}`}
+                             >
+                                 Quality
+                             </button>
                          </div>
 
-                         {/* AI Results */}
-                         <div className="space-y-2 mb-4">
-                             {sourcing?.data?.options && sourcing.data.options.length > 0 ? (
-                                 sourcing.data.options.map((opt, i) => (
-                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-all group shadow-sm">
-                                         <div className="font-medium text-xs text-slate-800 truncate group-hover:text-indigo-700">{opt.title}</div>
-                                         <div className="text-[10px] text-gray-400 mt-0.5">{opt.source}</div>
-                                     </a>
-                                 ))
-                             ) : (
-                                 <div className="text-xs text-gray-400 italic text-center py-2">No automatic results found. Try refreshing search.</div>
+                         <div className="p-4">
+                             {activeTab === 'online' && (
+                                <>
+                                    <div className="flex justify-end mb-3">
+                                        <Button 
+                                            onClick={() => onSource(entry)} 
+                                            disabled={sourcing?.loading}
+                                            variant="tonal"
+                                            className="h-7 text-[10px] px-2"
+                                        >
+                                            {sourcing?.loading ? "Searching Graph..." : "Refresh Prices"}
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-2 mb-4">
+                                        {sourcing?.online && sourcing.online.length > 0 ? (
+                                            sourcing.online.map((opt, i) => (
+                                                <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-all group shadow-sm">
+                                                    <div className="flex-1 overflow-hidden">
+                                                        <div className="font-medium text-xs text-slate-800 truncate group-hover:text-indigo-700">{opt.title}</div>
+                                                        <div className="text-[10px] text-gray-400 mt-0.5">{opt.source}</div>
+                                                    </div>
+                                                    {opt.price && <div className="text-sm font-bold text-slate-900 ml-3">{opt.price}</div>}
+                                                </a>
+                                            ))
+                                        ) : (
+                                            <div className="text-xs text-gray-400 italic text-center py-2">No online listings found.</div>
+                                        )}
+                                    </div>
+                                    <div className="pt-3 border-t border-indigo-100">
+                                        <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Manual Link</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={manualUrlInput}
+                                                onChange={(e) => setManualUrlInput(e.target.value)}
+                                                placeholder="https://..."
+                                                className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:border-indigo-400 outline-none"
+                                            />
+                                            <Button onClick={handleSaveManualUrl} variant="primary" className="h-auto py-1 px-3 text-xs">Save</Button>
+                                        </div>
+                                    </div>
+                                </>
                              )}
-                         </div>
 
-                         {/* Manual Override */}
-                         <div className="pt-3 border-t border-indigo-100">
-                            <label className="block text-[10px] font-bold text-indigo-900 uppercase mb-1">Custom Vendor Link</label>
-                            <div className="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    value={manualUrlInput}
-                                    onChange={(e) => setManualUrlInput(e.target.value)}
-                                    placeholder="https://..."
-                                    className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:border-indigo-400 outline-none"
-                                />
-                                <Button 
-                                    onClick={handleSaveManualUrl}
-                                    variant="primary"
-                                    className="h-auto py-1 px-3 text-xs"
-                                >
-                                    Save
-                                </Button>
-                            </div>
+                             {activeTab === 'local' && (
+                                <>
+                                    <div className="flex justify-end mb-3">
+                                        <Button 
+                                            onClick={() => onLocate(entry)} 
+                                            disabled={sourcing?.loading}
+                                            variant="tonal"
+                                            className="h-7 text-[10px] px-2 bg-green-50 text-green-700 hover:bg-green-100"
+                                        >
+                                            {sourcing?.loading ? "Locating..." : "Find Nearby"}
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {sourcing?.local && sourcing.local.length > 0 ? (
+                                            sourcing.local.map((loc, i) => (
+                                                <a key={i} href={loc.url || '#'} target="_blank" rel="noopener noreferrer" className="block p-3 bg-white rounded-lg border border-gray-200 hover:border-green-300 transition-all group shadow-sm">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="font-medium text-xs text-slate-800">{loc.name}</div>
+                                                        {loc.openNow && <span className="text-[9px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">Open Now</span>}
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                                                        <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                                        {loc.address}
+                                                    </div>
+                                                </a>
+                                            ))
+                                        ) : (
+                                            <div className="text-xs text-gray-400 italic text-center py-2">
+                                                Click 'Find Nearby' to search local inventory via Maps.
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                             )}
+
+                             {activeTab === 'quality' && (
+                                <div className="space-y-4">
+                                    {!qaProtocol ? (
+                                        <div className="text-center py-6">
+                                            <div className="text-xs text-gray-500 mb-4">
+                                                Use Gemini to generate a defect detection model for Google Visual Inspection AI.
+                                            </div>
+                                            <Button 
+                                                onClick={handleGenQA}
+                                                disabled={isGeneratingQA}
+                                                variant="primary"
+                                                className="w-full justify-center bg-blue-600 hover:bg-blue-700"
+                                            >
+                                                {isGeneratingQA ? "Analyzing Geometry..." : "Generate Inspection Model"}
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                                                <div className="text-[10px] font-bold text-blue-800 uppercase tracking-wider mb-1">MDE Configuration</div>
+                                                <div className="text-xs text-blue-900 font-mono">
+                                                    {qaProtocol.recommendedSensors.join(" + ")}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="space-y-2">
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase">Target Defects</div>
+                                                {qaProtocol.defects.map((defect, i) => (
+                                                    <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="font-bold text-xs text-slate-800">{defect.name}</span>
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                                defect.severity === 'Critical' ? 'bg-red-100 text-red-700' :
+                                                                defect.severity === 'Major' ? 'bg-amber-100 text-amber-700' :
+                                                                'bg-gray-100 text-gray-600'
+                                                            }`}>{defect.severity}</span>
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500 leading-tight">{defect.description}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end">
+                                                <button className="text-[10px] text-blue-600 font-medium flex items-center gap-1 hover:underline">
+                                                    Export to Visual Inspection AI 
+                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                             )}
                          </div>
                     </div>
 
-                    {/* Overview & Ports Sections - Simplified for brevity but assume standard rendering */}
+                    {/* Overview & Ports Sections */}
                     <div>
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Overview</h4>
                         <p className="text-sm text-slate-700 leading-relaxed">{part.description}</p>
@@ -702,47 +770,7 @@ const PartDetailModal: React.FC<{
                                 </Button>
                             </div>
                         )}
-                        {!isVirtual && (
-                            <div className="mt-3 grid grid-cols-2 gap-4">
-                                <div className="p-3 bg-gray-50 rounded-xl">
-                                    <span className="block text-[10px] text-gray-400 uppercase">Brand</span>
-                                    <span className="text-sm font-medium text-slate-800">{part.brand}</span>
-                                </div>
-                                <div className="p-3 bg-gray-50 rounded-xl">
-                                    <span className="block text-[10px] text-gray-400 uppercase">Unit Price</span>
-                                    <span className="text-sm font-medium text-slate-800">${part.price.toLocaleString()}</span>
-                                </div>
-                            </div>
-                        )}
                     </div>
-                    {/* Ports Table */}
-                    {part.ports.length > 0 && (
-                        <div>
-                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Ports</h4>
-                            <div className="border border-gray-100 rounded-xl overflow-hidden">
-                                <table className="w-full text-xs text-left">
-                                    <thead className="bg-gray-50 text-gray-500 font-medium">
-                                        <tr>
-                                            <th className="px-3 py-2">Name</th>
-                                            <th className="px-3 py-2">Type</th>
-                                            <th className="px-3 py-2">Gender</th>
-                                            <th className="px-3 py-2">Spec</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {part.ports.map((port, i) => (
-                                            <tr key={i} className="hover:bg-gray-50">
-                                                <td className="px-3 py-2 font-medium text-slate-700">{port.name}</td>
-                                                <td className="px-3 py-2 text-gray-500">{port.type}</td>
-                                                <td className="px-3 py-2 text-gray-500">{port.gender}</td>
-                                                <td className="px-3 py-2 font-mono text-slate-600">{port.spec}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
@@ -753,6 +781,7 @@ const PartDetailModal: React.FC<{
     );
 };
 
+// ... Rest of the file remains unchanged ...
 const AppContent: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { service: aiService, status: aiStatus, error: serviceError } = useService();
@@ -995,6 +1024,64 @@ const AppContent: React.FC = () => {
           console.error("Sourcing failed", e);
           setPartLoading(false); 
       }
+  };
+
+  const handleLocatePart = async (entry: BOMEntry) => {
+      if (!aiService.findLocalSuppliers) return;
+      
+      const setPartLoading = (loading: boolean) => {
+          setSession(prev => ({
+              ...prev,
+              bom: prev.bom.map(b => b.instanceId === entry.instanceId ? { ...b, sourcing: { ...b.sourcing, loading } } : b)
+          }));
+      };
+
+      setPartLoading(true);
+
+      try {
+          // In a real app we'd ask for permission, here we simulate or use IP based default
+          // const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject));
+          const query = entry.part.name;
+          const result = await aiService.findLocalSuppliers(query);
+          if (result) {
+              draftingEngine.updatePartLocalSuppliers(entry.instanceId, result);
+              setSession(draftingEngine.getSession());
+          } else {
+              setPartLoading(false);
+          }
+      } catch (e) {
+          console.error("Map lookup failed", e);
+          setPartLoading(false);
+      }
+  };
+
+  const handleExportSheets = () => {
+      // Simulate Google Sheets CSV Export
+      const bom = session.bom;
+      if (bom.length === 0) return;
+
+      const headers = ['Part Name', 'SKU', 'Quantity', 'Unit Price', 'Total Cost', 'Category', 'Sourcing'];
+      const rows = bom.map(b => [
+          `"${b.part.name}"`,
+          `"${b.part.sku}"`,
+          b.quantity,
+          b.part.price,
+          (b.part.price * b.quantity).toFixed(2),
+          `"${b.part.category}"`,
+          `"${b.sourcing?.online?.[0]?.url || b.sourcing?.manualUrl || ''}"`
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+          + headers.join(",") + "\n" 
+          + rows.map(e => e.join(",")).join("\n");
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `buildsheet_export_${session.slug}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const processArchitectRequest = async (text: string, attachment?: string | null) => {
@@ -1244,7 +1331,9 @@ const AppContent: React.FC = () => {
         onFabricate={handleFabricate}
         onSource={handleSourcePart}
         onManualSource={handleManualSource}
+        onLocate={handleLocatePart}
       />
+      {/* ... Rest of App.tsx structure remains identical ... */}
       <PartPickerModal 
         isOpen={partPickerOpen}
         onClose={() => setPartPickerOpen(false)}
@@ -1610,6 +1699,16 @@ const AppContent: React.FC = () => {
                 <div className="text-[18px] font-mono font-bold text-slate-900 tabular-nums">
                   ${draftingEngine.getTotalCost().toLocaleString()}
                 </div>
+                 <button 
+                    onClick={handleExportSheets}
+                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-transparent hover:border-green-200"
+                    title="Export to Google Sheets (CSV)"
+                    aria-label="Export to Sheets"
+                 >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                    </svg>
+                 </button>
                  {/* Mobile Project Trigger */}
                  <button 
                     onClick={() => setShowProjects(true)}
@@ -1702,7 +1801,7 @@ const AppContent: React.FC = () => {
                       </div>
                       
                       {/* Sourcing Result */}
-                      {(sourcing?.data || sourcing?.manualUrl) && (
+                      {(sourcing?.online || sourcing?.manualUrl) && (
                           <div className="mt-3 bg-[#F8FAFC] rounded-xl border border-gray-100 p-2.5">
                              <div className="text-[9px] font-bold text-slate-500 uppercase mb-1 flex justify-between">
                                  <span>Available at:</span>
@@ -1714,9 +1813,10 @@ const AppContent: React.FC = () => {
                                      {sourcing.manualUrl}
                                  </a>
                              ) : (
-                                 sourcing.data?.options.map((opt: any, i: number) => (
-                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-indigo-600 truncate hover:underline font-medium">
-                                         {opt.title || opt.source}
+                                 sourcing.online?.slice(0,2).map((opt: any, i: number) => (
+                                     <a key={i} href={opt.url} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center text-[10px] text-indigo-600 truncate hover:underline font-medium">
+                                         <span>{opt.source}</span>
+                                         {opt.price && <span className="text-slate-500">{opt.price}</span>}
                                      </a>
                                  ))
                              )}

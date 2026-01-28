@@ -424,14 +424,35 @@ export class DraftingEngine {
       );
   }
 
-  public updatePartSourcing(instanceId: string, sourcingData: any) {
+  public updatePartSourcing(instanceId: string, onlineData: any) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
         if (!entry.sourcing) entry.sourcing = {};
         entry.sourcing.loading = false;
-        entry.sourcing.data = sourcingData;
+        entry.sourcing.online = onlineData;
+        entry.sourcing.lastUpdated = new Date();
         this.saveSession();
     }
+  }
+
+  public updatePartLocalSuppliers(instanceId: string, localData: any) {
+      const entry = this.session.bom.find(b => b.instanceId === instanceId);
+      if (entry) {
+          if (!entry.sourcing) entry.sourcing = {};
+          entry.sourcing.loading = false;
+          entry.sourcing.local = localData;
+          this.saveSession();
+      }
+  }
+
+  public updatePartQAProtocol(instanceId: string, protocol: any) {
+      const entry = this.session.bom.find(b => b.instanceId === instanceId);
+      if (entry) {
+          if (!entry.sourcing) entry.sourcing = {};
+          entry.sourcing.loading = false;
+          entry.qaProtocol = protocol;
+          this.saveSession();
+      }
   }
 
   public setPartManualSource(instanceId: string, url: string) {

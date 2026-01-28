@@ -45,6 +45,35 @@ export interface VisualManifest {
   components: VisualComponent[];
 }
 
+export interface ShoppingOption {
+  title: string;
+  url: string;
+  source: string;
+  price?: string;
+  currency?: string;
+  thumbnail?: string;
+}
+
+export interface LocalSupplier {
+  name: string;
+  address: string;
+  rating?: number;
+  openNow?: boolean;
+  url?: string;
+}
+
+export interface DefectDefinition {
+  name: string;
+  severity: 'Critical' | 'Major' | 'Minor';
+  description: string;
+}
+
+export interface InspectionProtocol {
+  recommendedSensors: string[];
+  defects: DefectDefinition[];
+  inspectionStrategy: string;
+}
+
 export interface BOMEntry {
   instanceId: string;
   part: Part;
@@ -54,9 +83,12 @@ export interface BOMEntry {
   warnings?: string[];
   sourcing?: {
     loading?: boolean;
-    data?: { options: { title: string; url: string; source: string }[] };
+    online?: ShoppingOption[];
+    local?: LocalSupplier[];
     manualUrl?: string;
+    lastUpdated?: Date;
   };
+  qaProtocol?: InspectionProtocol; // Added for MDE Integration
 }
 
 export interface GeneratedImage {

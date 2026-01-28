@@ -1,6 +1,7 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
+import { ShoppingOption, LocalSupplier, InspectionProtocol } from "../types.ts";
 
 const SYSTEM_INSTRUCTION = `
 ROLE: You are the Senior Hardware Architect at BuildSheet. You design complex systems using the available Parts Registry.
@@ -161,33 +162,99 @@ export class GeminiService implements AIService {
     return this.generateImage(`Generate a high-quality product design concept sketch for: ${description}`, referenceImage);
   }
 
-  async findPartSources(query: string): Promise<{ options: { title: string; url: string; source: string }[] } | null> {
+  async findPartSources(query: string): Promise<ShoppingOption[] | null> {
     try {
         const response = await this.ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Find purchase options for this hardware component: ${query}. Return a list of reliable vendors.`,
+            contents: `Find purchase options for: ${query}. Return structured JSON with price, merchant, and url.`,
             config: {
-                tools: [{ googleSearch: {} }]
+                tools: [{ googleSearch: {} }],
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: { type: Type.STRING },
+                            url: { type: Type.STRING },
+                            source: { type: Type.STRING, description: "Name of the merchant" },
+                            price: { type: Type.STRING, description: "Price including currency symbol" }
+                        }
+                    }
+                }
             }
         });
 
-        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-        
-        if (!chunks || chunks.length === 0) return null;
-
-        const options = chunks
-            .filter((c: any) => c.web && c.web.uri)
-            .map((c: any) => ({
-                title: c.web.title || "Part Source",
-                url: c.web.uri,
-                source: new URL(c.web.uri).hostname
-            }));
-
-        return { options };
+        const json = JSON.parse(response.text || "[]");
+        return json.map((item: any) => ({
+            title: item.title,
+            url: item.url,
+            source: item.source,
+            price: item.price
+        }));
     } catch (e) {
         console.error("Sourcing lookup failed", e);
         return null;
     }
+  }
+
+  async findLocalSuppliers(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null> {
+      try {
+          const prompt = `Find local electronics or hardware stores that might sell: ${query}. Focus on physical retail locations.`;
+          
+          const response = await this.ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+              config: {
+                  tools: [{ googleMaps: {} }],
+                  // Retrieve lat/lng if provided, otherwise defaults to IP-based
+                  toolConfig: location ? {
+                      retrievalConfig: {
+                          latLng: {
+                              latitude: location.lat,
+                              longitude: location.lng
+                          }
+                      }
+                  } : undefined
+              }
+          });
+
+          // Maps Grounding data isn't in JSON responseSchema, it's in candidates.groundingMetadata
+          const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+          
+          if (!chunks || chunks.length === 0) return null;
+
+          // Process Grounding Chunks into LocalSupplier format
+          // Note: The structure of Maps groundingChunks can vary, we look for place Answer Sources or simple web extraction if fallback
+          const suppliers: LocalSupplier[] = [];
+
+          chunks.forEach(chunk => {
+              if (chunk.maps?.title && chunk.maps?.placeId) {
+                  // Currently Maps grounding returns a title and place ID primarily in the grounding chunk wrapper
+                  // We often need to parse the text or use the metadata
+                  // For this demo, we assume the text contains useful info or we construct from what we have
+                  suppliers.push({
+                      name: chunk.maps.title,
+                      address: "See Map", // Grounding often returns address in snippets, simplified here
+                      url: chunk.maps.uri || `https://www.google.com/maps/place/?q=place_id:${chunk.maps.placeId}`
+                  });
+              } else if (chunk.web && chunk.web.uri && chunk.web.title) {
+                  // Fallback to web results if specific Maps objects aren't clean
+                  if (chunk.web.title.toLowerCase().includes('store') || chunk.web.title.toLowerCase().includes('supply')) {
+                      suppliers.push({
+                          name: chunk.web.title,
+                          address: "Online / Unknown",
+                          url: chunk.web.uri
+                      });
+                  }
+              }
+          });
+
+          return suppliers.slice(0, 5); // Limit to top 5
+      } catch (e) {
+          console.error("Local map lookup failed", e);
+          return null;
+      }
   }
 
   async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
@@ -270,5 +337,56 @@ export class GeminiService implements AIService {
         console.error("Fab brief failed", e);
         return `Generation failed: ${e.message}`;
     }
+  }
+
+  async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
+      try {
+          const prompt = `
+          You are a Manufacturing Quality Engineer using Google's Manufacturing Data Engine (MDE).
+          
+          TASK: Create a Visual Inspection AI Protocol for: ${partName} (Category: ${category}).
+          
+          REQUIREMENTS:
+          1. Identify 3-5 specific cosmetic or functional defects (e.g. scratches, bent pins, voiding).
+          2. Assign severity (Critical, Major, Minor).
+          3. Recommend camera/sensor setup for the inspection station.
+          
+          RETURN JSON ONLY.
+          `;
+
+          const response = await this.ai.models.generateContent({
+              model: 'gemini-3-flash-preview',
+              contents: prompt,
+              config: {
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                      type: Type.OBJECT,
+                      properties: {
+                          recommendedSensors: {
+                              type: Type.ARRAY,
+                              items: { type: Type.STRING }
+                          },
+                          inspectionStrategy: { type: Type.STRING },
+                          defects: {
+                              type: Type.ARRAY,
+                              items: {
+                                  type: Type.OBJECT,
+                                  properties: {
+                                      name: { type: Type.STRING },
+                                      severity: { type: Type.STRING, enum: ['Critical', 'Major', 'Minor'] },
+                                      description: { type: Type.STRING }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          });
+
+          return JSON.parse(response.text || "null");
+      } catch (e) {
+          console.error("QA Protocol generation failed", e);
+          return null;
+      }
   }
 }

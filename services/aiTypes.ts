@@ -1,4 +1,5 @@
-import { VisualManifest } from '../types.ts';
+
+import { VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol } from '../types.ts';
 
 export interface ArchitectResponse {
   reasoning: string;
@@ -28,9 +29,14 @@ export interface AIService {
   generateProductImage(description: string, referenceImage?: string): Promise<string | null>;
 
   /**
-   * Finds purchase options for a part using search grounding.
+   * Finds online purchase options using Google Search grounding.
    */
-  findPartSources?(query: string): Promise<{ options: { title: string; url: string; source: string }[] } | null>;
+  findPartSources?(query: string): Promise<ShoppingOption[] | null>;
+
+  /**
+   * Finds local suppliers using Google Maps grounding.
+   */
+  findLocalSuppliers?(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null>;
 
   /**
    * Uses Gemini 3.0 Thinking models to perform a deep technical audit of the BOM.
@@ -42,4 +48,9 @@ export interface AIService {
    * Generates a manufacturing specification for a custom/virtual part.
    */
   generateFabricationBrief?(partName: string, context: string): Promise<string>;
+
+  /**
+   * Generates a Quality Assurance protocol for Google Visual Inspection AI.
+   */
+  generateQAProtocol?(partName: string, category: string): Promise<InspectionProtocol | null>;
 }

@@ -1,4 +1,5 @@
 import { AIService, ArchitectResponse } from './aiTypes.ts';
+import { ShoppingOption, LocalSupplier, InspectionProtocol } from '../types.ts';
 
 export class MockService implements AIService {
   public name = "Simulation Engine (Offline)";
@@ -67,23 +68,30 @@ export class MockService implements AIService {
     return null;
   }
 
-  async findPartSources(query: string): Promise<any> {
+  async findPartSources(query: string): Promise<ShoppingOption[]> {
       await new Promise(r => setTimeout(r, 1000));
-      return {
-          options: [
-              { title: "Mouser Electronics", url: "https://www.mouser.com", source: "mouser.com" },
-              { title: "DigiKey", url: "https://www.digikey.com", source: "digikey.com" },
-              { title: "Adafruit", url: "https://www.adafruit.com", source: "adafruit.com" }
-          ]
-      };
+      return [
+          { title: "Mouser Electronics - Fast Ship", url: "https://www.mouser.com", source: "Mouser", price: "$12.99" },
+          { title: "DigiKey - In Stock", url: "https://www.digikey.com", source: "DigiKey", price: "$11.50" },
+          { title: "Adafruit Industries", url: "https://www.adafruit.com", source: "Adafruit", price: "$14.00" }
+      ];
+  }
+
+  async findLocalSuppliers(query: string, location?: any): Promise<LocalSupplier[]> {
+      await new Promise(r => setTimeout(r, 1000));
+      return [
+          { name: "Micro Center", address: "Local Tech Hub", openNow: true },
+          { name: "Best Buy", address: "City Center", openNow: true },
+          { name: "Al's Electronics Repair", address: "Main St", openNow: false }
+      ];
   }
 
   async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
     await new Promise(r => setTimeout(r, 2000));
     
     // Simple check for simulation mode consistency
-    const hasBattery = bom.some(b => b.part.category === 'Power');
-    const hasLoad = bom.some(b => b.part.category === 'Light Engine' || b.part.category === 'Keyboard PCB');
+    const hasBattery = bom.some((b: any) => b.part.category === 'Power');
+    const hasLoad = bom.some((b: any) => b.part.category === 'Light Engine' || b.part.category === 'Keyboard PCB');
     
     let reasoning = "";
     if (hasBattery && hasLoad) {
@@ -136,5 +144,18 @@ export class MockService implements AIService {
 1.  **Mounting:** Ensure USB-C connector (J2) is flush with edge cut.
 2.  **Routing:** Keep traces away from screw hole mounting points (M2.5) by at least 0.5mm.
 3.  **Assembly:** Pick-and-place required for components.`;
+  }
+
+  async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol> {
+      await new Promise(r => setTimeout(r, 1500));
+      return {
+          recommendedSensors: ["High-Res RGB Camera (50mm Lens)", "Ring Light Illuminator"],
+          inspectionStrategy: "Inspect 100% of units at station 3.",
+          defects: [
+              { name: "Bent Pins", severity: 'Critical', description: "Any deviation > 5 degrees on connector pins." },
+              { name: "Surface Scratches", severity: 'Minor', description: "Visible scratches > 2mm on top face." },
+              { name: "Missing Component", severity: 'Critical', description: "Absence of required mounting screws." }
+          ]
+      };
   }
 }
