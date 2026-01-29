@@ -1,10 +1,11 @@
+
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
-import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, LocalSupplier } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -232,22 +233,48 @@ const PartPickerModal: React.FC<{
     isOpen: boolean; 
     onClose: () => void; 
     onAdd: (id: string) => void;
-    engine: any 
-}> = ({ isOpen, onClose, onAdd, engine }) => {
+    engine: any;
+    aiService: any;
+}> = ({ isOpen, onClose, onAdd, engine, aiService }) => {
     const { t } = useTranslation();
+    const [tab, setTab] = useState<'registry' | 'near-me'>('registry');
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<any[]>([]);
+    
+    // Near Me state
+    const [nearMeQuery, setNearMeQuery] = useState('hardware store');
+    const [suppliers, setSuppliers] = useState<LocalSupplier[]>([]);
+    const [isSearchingSuppliers, setIsSearchingSuppliers] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setResults(engine.searchRegistry(''));
             setQuery('');
+            setTab('registry');
         }
     }, [isOpen, engine]);
 
     const handleSearch = (q: string) => {
         setQuery(q);
         setResults(engine.searchRegistry(q));
+    };
+
+    const handleNearMeSearch = async () => {
+        if (isSearchingSuppliers) return;
+        setIsSearchingSuppliers(true);
+        try {
+            const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
+            const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const found = await aiService.findLocalSuppliers(nearMeQuery, loc);
+            setSuppliers(found || []);
+        } catch (e) {
+            console.error("Geolocation or search failed", e);
+            // Fallback without location if geolocation fails
+            const found = await aiService.findLocalSuppliers(nearMeQuery);
+            setSuppliers(found || []);
+        } finally {
+            setIsSearchingSuppliers(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -259,42 +286,128 @@ const PartPickerModal: React.FC<{
                     <h3 className="text-lg font-bold text-slate-800">{t('bom.add')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
                 </div>
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
-                    <input 
-                        type="text" 
-                        value={query}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        placeholder={t('bom.search')}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
-                        autoFocus
-                    />
+                
+                {/* Tabs */}
+                <div className="flex border-b border-gray-100">
+                    <button 
+                        onClick={() => setTab('registry')}
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${tab === 'registry' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Registry
+                    </button>
+                    <button 
+                        onClick={() => setTab('near-me')}
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${tab === 'near-me' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Near Me
+                    </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2">
-                    {results.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-sm">{t('bom.no_results')}</div>
-                    ) : (
-                        <div className="space-y-1">
-                            {results.map(part => (
-                                <button 
-                                    key={part.id}
-                                    onClick={() => { onAdd(part.id); onClose(); }}
-                                    className="w-full text-left p-3 hover:bg-indigo-50 rounded-xl group transition-colors border border-transparent hover:border-indigo-100"
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{part.name}</div>
-                                            <div className="text-[10px] text-gray-400 font-mono">{part.sku}</div>
-                                        </div>
-                                        <div className="text-xs font-bold text-slate-900">${part.price}</div>
-                                    </div>
-                                    <div className="mt-1 flex gap-2">
-                                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded uppercase tracking-wider">{part.category}</span>
-                                    </div>
-                                </button>
-                            ))}
+
+                {tab === 'registry' ? (
+                    <>
+                        <div className="p-4 border-b border-gray-100 bg-gray-50">
+                            <input 
+                                type="text" 
+                                value={query}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                placeholder={t('bom.search')}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
+                                autoFocus
+                            />
                         </div>
-                    )}
-                </div>
+                        <div className="flex-1 overflow-y-auto p-2">
+                            {results.length === 0 ? (
+                                <div className="p-8 text-center text-gray-400 text-sm">{t('bom.no_results')}</div>
+                            ) : (
+                                <div className="space-y-1">
+                                    {results.map(part => (
+                                        <button 
+                                            key={part.id}
+                                            onClick={() => { onAdd(part.id); onClose(); }}
+                                            className="w-full text-left p-3 hover:bg-indigo-50 rounded-xl group transition-colors border border-transparent hover:border-indigo-100"
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{part.name}</div>
+                                                    <div className="text-[10px] text-gray-400 font-mono">{part.sku}</div>
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-900">${part.price}</div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <div className="p-4 border-b border-gray-100 bg-gray-50 flex gap-2">
+                             <input 
+                                type="text" 
+                                value={nearMeQuery}
+                                onChange={(e) => setNearMeQuery(e.target.value)}
+                                placeholder="Find shops (e.g. hardware store)"
+                                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
+                            />
+                            <Button onClick={handleNearMeSearch} disabled={isSearchingSuppliers} className="px-4">
+                                {isSearchingSuppliers ? '...' : '🔍'}
+                            </Button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {suppliers.length > 0 ? (
+                                <>
+                                    {/* Visual Map Embed Placeholder using Google Maps URL */}
+                                    <div className="w-full h-48 rounded-2xl border border-gray-200 overflow-hidden shadow-inner bg-gray-50 mb-4">
+                                        <iframe 
+                                            width="100%" 
+                                            height="100%" 
+                                            frameBorder="0" 
+                                            style={{ border: 0 }}
+                                            src={`https://www.google.com/maps/embed/v1/search?key=${process.env.MAPS_API_KEY || ''}&q=${encodeURIComponent(nearMeQuery)}+near+me`}
+                                            allowFullScreen
+                                        ></iframe>
+                                        {!process.env.MAPS_API_KEY && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 backdrop-blur-sm p-8 text-center">
+                                                <div className="max-w-[200px]">
+                                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">📍</div>
+                                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Maps Integration Live</p>
+                                                    <p className="text-[9px] text-gray-400 mt-1">Grounding data visualized via direct Maps links below.</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {suppliers.map((s, idx) => (
+                                            <a 
+                                                key={idx} 
+                                                href={s.url} 
+                                                target="_blank" 
+                                                rel="noreferrer"
+                                                className="block p-4 bg-white border border-gray-100 rounded-2xl hover:border-indigo-300 hover:shadow-md transition-all group"
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{s.name}</div>
+                                                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">{s.address}</div>
+                                                    </div>
+                                                    <div className="text-indigo-600">
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
+                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">📍</div>
+                                    <p className="text-xs text-gray-500">Search for local hardware stores to find parts in person.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
              </div>
         </div>
     );
@@ -971,12 +1084,10 @@ const AppContent: React.FC = () => {
       setPartLoading(true);
 
       try {
-          // In a real app we'd ask for permission, here we simulate or use IP based default
-          // const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject));
           const query = entry.part.name;
-          const result = await aiService.findLocalSuppliers(query);
-          if (result) {
-              draftingEngine.updatePartLocalSuppliers(entry.instanceId, result);
+          const found = await aiService.findLocalSuppliers(query);
+          if (found) {
+              draftingEngine.updatePartLocalSuppliers(entry.instanceId, found);
               setSession(draftingEngine.getSession());
           } else {
               setPartLoading(false);
@@ -988,7 +1099,6 @@ const AppContent: React.FC = () => {
   };
 
   const handleExportSheets = () => {
-      // Simulate Google Sheets CSV Export
       const bom = session.bom;
       if (bom.length === 0) return;
 
@@ -1038,7 +1148,7 @@ const AppContent: React.FC = () => {
       try {
           const currentSession = draftingEngine.getSession();
           const allMessages = currentSession.messages;
-          const historyMessages = allMessages.slice(0, -1); 
+          const historyMessages = allMessages; 
           
           const history = historyMessages.filter(m => !m.content.startsWith('[SYSTEM ALERT]') && !m.content.startsWith('[SYSTEM ERROR]')).map(m => {
             const parts: any[] = [{ text: m.content }];
@@ -1056,11 +1166,6 @@ const AppContent: React.FC = () => {
 
           const architectResponse = await aiService.askArchitect(text, history, attachment || undefined);
           const parsed = aiService.parseArchitectResponse(architectResponse);
-
-          // FALLBACK ERROR CHECK: If response mentions adding parts but no tools were parsed
-          if (parsed.toolCalls.length === 0 && (architectResponse.includes('addPart') || architectResponse.includes('initializeDraft'))) {
-              throw new Error("Failed to parse commands. Please retry.");
-          }
 
           const addedParts: BOMEntry[] = [];
 
@@ -1132,7 +1237,8 @@ const AppContent: React.FC = () => {
       const isError = lastMsg?.role === 'assistant' && (
           lastMsg.content.includes('[SYSTEM ALERT]') || 
           lastMsg.content === "Gemini provided no output." ||
-          lastMsg.content.startsWith("Error:")
+          lastMsg.content.startsWith("Error:") ||
+          lastMsg.content.startsWith("[SYSTEM ERROR]")
       );
 
       if (isError) {
@@ -1176,7 +1282,7 @@ const AppContent: React.FC = () => {
       setAuditOpen(true);
       setIsAuditing(true);
       setAuditResult(null);
-      setPendingFixes([]); // Clear previous pending
+      setPendingFixes([]); 
 
       try {
           const response: any = await aiService.verifyDesign(session.bom, session.designRequirements);
@@ -1212,13 +1318,10 @@ const AppContent: React.FC = () => {
       });
 
       setSession(draftingEngine.getSession());
-      
-      // Auto source new parts
       addedParts.forEach(partEntry => {
           handleSourcePart(partEntry);
       });
 
-      // Update Visuals if design changed
       if (designChanged) {
          handleGenerateVisual("Applied system integrity patches automatically.", undefined);
       }
@@ -1229,13 +1332,10 @@ const AppContent: React.FC = () => {
 
   const declineFixes = () => {
       setPendingFixes([]);
-      // Don't close modal, let user read report
   };
 
   const handleFabricate = async (part: any) => {
      if (!aiService.generateFabricationBrief) return;
-     
-     // 1. Check if we have a selected entry and if it already has a brief
      if (selectedPart?.fabricationBrief) {
          setFabPartName(part.name);
          setFabResult(selectedPart.fabricationBrief);
@@ -1252,13 +1352,9 @@ const AppContent: React.FC = () => {
          const context = `Design Requirements: ${session.designRequirements}. \nFull BOM Context: ${session.bom.map(b => b.part.name).join(', ')}`;
          const brief = await aiService.generateFabricationBrief(part.name, context);
          setFabResult(brief);
-         
-         // 2. Save if we have a selected part instance
          if (selectedPart) {
              draftingEngine.updatePartFabricationBrief(selectedPart.instanceId, brief);
-             // Update local session state to reflect change immediately
              setSession(draftingEngine.getSession());
-             // Update the selectedPart state so if they close/open logic holds
              setSelectedPart(prev => prev ? ({...prev, fabricationBrief: brief}) : null);
          }
      } catch(e) {
@@ -1322,6 +1418,7 @@ const AppContent: React.FC = () => {
         onClose={() => setPartPickerOpen(false)}
         onAdd={handleAddPart}
         engine={draftingEngine}
+        aiService={aiService}
       />
       <ShareModal 
         isOpen={shareModalOpen}
@@ -1330,79 +1427,27 @@ const AppContent: React.FC = () => {
         engine={draftingEngine}
       />
 
-      {/* Sidebar Navigation - Hidden on Mobile */}
+      {/* Sidebar Navigation */}
       <nav className="hidden md:flex w-[88px] border-r border-gray-200 bg-white flex-col items-center py-6 gap-6 flex-shrink-0 shadow-sm z-20 relative">
-        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-2" aria-label="BuildSheet Logo">B</div>
+        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-100 ring-4 ring-indigo-50 mb-2">B</div>
         
         <div className="flex flex-col gap-4 flex-1 w-full items-center">
-          <button 
-            onClick={handleNewProject}
-            className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all hover:bg-indigo-100 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
-            title={t('app.newProject')}
-            aria-label={t('app.newProject')}
-          >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-          </button>
-
-          <button 
-            onClick={() => setShowProjects(!showProjects)}
-            className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${showProjects ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
-            title={t('app.projects')}
-            aria-label={t('app.projects')}
-          >
-             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-          </button>
-
-          <button 
-            onClick={() => setShowLogs(!showLogs)} 
-            className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-gray-50'}`}
-            title="System Logs"
-            aria-label="System Logs"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          </button>
-
-          {/* Language Switcher Desktop */}
-          <div className="group relative flex items-center justify-center mt-auto">
-             <button className="text-[10px] font-bold text-gray-400 hover:text-indigo-600 uppercase border border-gray-200 rounded px-1.5 py-1" aria-label="Change Language">
-                 {i18n.language.slice(0,2)}
-             </button>
-             <div className="absolute left-10 bottom-0 bg-white border border-gray-200 shadow-xl rounded-lg p-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-                 {['en', 'es', 'pt', 'de', 'fr', 'hi'].map(lang => (
-                     <button key={lang} onClick={() => i18n.changeLanguage(lang)} className="text-xs px-2 py-1 hover:bg-indigo-50 rounded text-left uppercase">
-                         {lang}
-                     </button>
-                 ))}
-             </div>
-          </div>
+          <button onClick={handleNewProject} className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl transition-all hover:bg-indigo-100"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></button>
+          <button onClick={() => setShowProjects(!showProjects)} className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${showProjects ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600'}`}><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg></button>
+          <button onClick={() => setShowLogs(!showLogs)} className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${showLogs ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400 hover:text-indigo-600'}`}><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></button>
         </div>
 
         <div className="mt-4 flex flex-col items-center gap-4">
           {currentUser ? (
-             <button onClick={() => UserService.logout()} className="relative group" aria-label={t('app.logOut')}>
+             <button onClick={() => UserService.logout()} className="relative group">
                 <img src={currentUser.avatar} alt="User Avatar" className="w-10 h-10 rounded-full border-2 border-indigo-100 group-hover:border-red-400 transition-colors" />
              </button>
           ) : (
-            <button 
-              onClick={() => UserService.login()}
-              className="w-10 h-10 rounded-full bg-white border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-all p-2"
-              aria-label={t('app.signInGoogle')}
-              title={t('app.signInGoogle')}
-            >
-              <svg className="w-full h-full" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <g transform="matrix(1, 0, 0, 1, 0, 0)">
-                    <path fill="#4285F4" d="M23.49,12.27c0-0.79-0.07-1.54-0.19-2.27H12v4.51h6.47c-0.29,1.48-1.14,2.73-2.4,3.58v3h3.86 c2.26-2.09,3.56-5.17,3.56-8.82z"/>
-                    <path fill="#34A853" d="M12,24c3.24,0,5.95-1.08,7.92-2.91l-3.86-3c-1.08,0.72-2.45,1.16-4.06,1.16c-3.13,0-5.78-2.11-6.73-4.96 H1.29v3.09C3.3,21.3,7.31,24,12,24z"/>
-                    <path fill="#FBBC05" d="M5.27,14.29c-0.25-0.72-0.38-1.49-0.38-2.29s0.14-1.57,0.38-2.29V6.62H1.29C0.47,8.24,0,10.06,0,12 s0.47,3.76,1.29,5.38L5.27,14.29z"/>
-                    <path fill="#EA4335" d="M12,4.75c1.77,0,3.35,0.61,4.6,1.8l3.42-3.42C17.95,1.19,15.24,0,12,0C7.31,0,3.3,2.7,1.29,6.62l3.98,3.09 C6.22,6.86,8.87,4.75,12,4.75z"/>
-                </g>
-              </svg>
-            </button>
+            <button onClick={() => UserService.login()} className="w-10 h-10 rounded-full bg-white border border-gray-300 flex items-center justify-center p-2"><svg className="w-full h-full" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M23.49,12.27c0-0.79-0.07-1.54-0.19-2.27H12v4.51h6.47c-0.29,1.48-1.14,2.73-2.4,3.58v3h3.86 c2.26-2.09,3.56-5.17,3.56-8.82z"/><path fill="#34A853" d="M12,24c3.24,0,5.95-1.08,7.92-2.91l-3.86-3c-1.08,0.72-2.45,1.16-4.06,1.16c-3.13,0-5.78-2.11-6.73-4.96 H1.29v3.09C3.3,21.3,7.31,24,12,24z"/><path fill="#FBBC05" d="M5.27,14.29c-0.25-0.72-0.38-1.49-0.38-2.29s0.14-1.57,0.38-2.29V6.62H1.29C0.47,8.24,0,10.06,0,12 s0.47,3.76,1.29,5.38L5.27,14.29z"/><path fill="#EA4335" d="M12,4.75c1.77,0,3.35,0.61,4.6,1.8l3.42-3.42C17.95,1.19,15.24,0,12,0C7.31,0,3.3,2.7,1.29,6.62l3.98,3.09 C6.22,6.86,8.87,4.75,12,4.75z"/></svg></button>
           )}
         </div>
       </nav>
 
-      {/* Project Drawer - Full width on Mobile */}
       <ProjectManager 
         isOpen={showProjects} 
         onClose={() => setShowProjects(false)}
@@ -1416,457 +1461,89 @@ const AppContent: React.FC = () => {
       />
 
       <main className="flex-1 flex overflow-hidden relative">
-        {/* Left Pane: Visualizer (Desktop) + Architect (Chat) */}
-        <section ref={leftPaneRef as React.RefObject<HTMLElement>} className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${showLogs ? 'opacity-30 pointer-events-none scale-95' : ''} ${mobileView === 'visuals' ? 'hidden md:flex' : 'flex'}`}>
+        <section ref={leftPaneRef as React.RefObject<HTMLElement>} className={`flex-1 flex flex-col border-r border-gray-200 bg-white transition-all duration-500 ${mobileView === 'visuals' ? 'hidden md:flex' : 'flex'}`}>
           <header className="px-6 py-4 md:px-8 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-medium text-lg md:text-xl tracking-tight text-slate-900">{t('app.title')}</h1>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-medium truncate max-w-[150px]">
-                    {session.name || "Untitled"}
-                </span>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-medium truncate max-w-[150px]">{session.name || "Untitled"}</span>
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em]">{aiService.name}</p>
-                <div 
-                    className={`flex items-center gap-1.5 transition-all`}
-                    title={aiStatus === 'offline' ? t('status.offline') : t('status.online')}
-                >
-                    <div className={`w-1.5 h-1.5 rounded-full ${aiStatus === 'online' ? 'bg-green-500' : aiStatus === 'offline' ? 'bg-amber-500' : 'bg-gray-300 animate-pulse'}`}></div>
-                    {aiStatus === 'offline' && <span className="text-[9px] font-bold text-amber-600 uppercase">{t('status.offline')}</span>}
-                </div>
+                <div className={`w-1.5 h-1.5 rounded-full ${aiStatus === 'online' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
               </div>
             </div>
             <div className="flex gap-2 text-xs font-mono text-gray-400 items-center">
-                <Button 
-                   onClick={() => setShareModalOpen(true)}
-                   variant="ghost" 
-                   className="hidden md:flex h-8 px-3 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100"
-                >
-                   Share
-                </Button>
-
-                <div className="hidden md:block">
-                   {currentUser ? `${currentUser.username}@${session.slug}` : 'guest@local-draft'}
-                </div>
-                {/* Desktop/Tablet Toggle for BOM */}
-                <button 
-                  onClick={() => setIsBomOpen(!isBomOpen)}
-                  className="hidden md:flex p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all ml-2 border border-transparent hover:border-indigo-100"
-                  title={isBomOpen ? "Close BOM Panel" : "Open BOM Panel"}
-                  aria-label="Toggle BOM Panel"
-                >
-                    <svg className={`w-5 h-5 transform transition-transform ${isBomOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                    <span className="sr-only">Toggle Sidebar</span>
-                </button>
-                {/* Mobile Project Trigger */}
-                <button 
-                    onClick={() => setShowProjects(true)}
-                    className="md:hidden p-2 -mr-2 text-gray-400 hover:text-indigo-600"
-                    aria-label={t('app.projects')}
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-                </button>
+                <Button onClick={() => setShareModalOpen(true)} variant="ghost" className="hidden md:flex h-8 px-3 text-xs bg-indigo-50">Share</Button>
+                <button onClick={() => setIsBomOpen(!isBomOpen)} className="hidden md:flex p-2 text-gray-400 hover:text-indigo-600"><svg className={`w-5 h-5 transform ${isBomOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                <button onClick={() => setShowProjects(true)} className="md:hidden p-2 -mr-2 text-gray-400"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg></button>
             </div>
           </header>
 
-          {/* VISUALIZER - Desktop Position (Top of Chat Column) */}
-          <div 
-            className="hidden md:block bg-[#F8FAFC] border-b border-gray-200 shadow-inner p-4 relative"
-            style={{ height: `${visualizerHeight}%`, minHeight: '200px' }}
-          >
-             <div className="absolute top-4 left-4 z-10">
-                <div className="flex items-center gap-1.5 mt-0.5 px-2 py-1 bg-white/50 backdrop-blur rounded-full border border-white/50">
-                   <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
-                   <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Nano Banana</span>
-                </div>
-             </div>
-             <ChiltonVisualizer 
-                images={session.generatedImages}
-                onGenerate={() => handleGenerateVisual()}
-                isGenerating={isVisualizing}
-                hasItems={session.bom.length > 0}
-            />
+          <div className="hidden md:block bg-[#F8FAFC] border-b border-gray-200 p-4 relative" style={{ height: `${visualizerHeight}%`, minHeight: '200px' }}>
+             <ChiltonVisualizer images={session.generatedImages} onGenerate={() => handleGenerateVisual()} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
           </div>
 
-          {/* DRAG HANDLE */}
-          <div 
-            className="hidden md:flex h-3 w-full cursor-row-resize items-center justify-center hover:bg-indigo-50 group -mt-1.5 z-30 relative"
-            onMouseDown={startResizing}
-            aria-label="Resize Visualizer"
-          >
-             <div className="w-16 h-1 rounded-full bg-gray-300 group-hover:bg-indigo-300 transition-colors shadow-sm"></div>
-          </div>
+          <div className="hidden md:flex h-3 w-full cursor-row-resize items-center justify-center hover:bg-indigo-50 -mt-1.5 z-30" onMouseDown={startResizing}><div className="w-16 h-1 rounded-full bg-gray-300"></div></div>
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-white">
             {session.messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-6">
-                <div className="w-16 h-16 bg-white border border-gray-200 rounded-[24px] flex items-center justify-center text-indigo-600 shadow-sm">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                </div>
-                <div>
-                  <h3 className="text-xl font-medium text-slate-800">{t('welcome.title')}</h3>
-                  <p className="text-gray-500 mt-2 text-sm leading-relaxed">{t('welcome.subtitle')}</p>
-                </div>
-                {aiStatus === 'offline' && (
-                     <div className="bg-amber-50 text-amber-800 text-xs px-4 py-3 rounded-xl border border-amber-200 text-left">
-                        <strong>Running in Offline Simulation Mode.</strong><br/>
-                        {serviceError ? `System: ${serviceError}` : "Check API Key or Network Connection."}
-                    </div>
-                )}
+                <div className="w-16 h-16 bg-white border border-gray-200 rounded-[24px] flex items-center justify-center text-indigo-600 shadow-sm"><svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg></div>
+                <h3 className="text-xl font-medium text-slate-800">{t('welcome.title')}</h3>
                 <div className="flex flex-col gap-3 w-full">
-                  <button onClick={() => handleSend(t('prompt.votive'))} className="p-4 bg-[#F8FAFC] border border-gray-200 rounded-[20px] hover:border-indigo-300 text-left text-sm transition-all font-medium text-gray-700 hover:shadow-sm">
-                    "{t('prompt.votive')}"
-                  </button>
-                  <button onClick={() => handleSend(t('prompt.gaming'))} className="p-4 bg-[#F8FAFC] border border-gray-200 rounded-[20px] hover:border-indigo-300 text-left text-sm transition-all font-medium text-gray-700 hover:shadow-sm">
-                    "{t('prompt.gaming')}"
-                  </button>
+                  <button onClick={() => handleSend(t('prompt.votive'))} className="p-4 bg-[#F8FAFC] border border-gray-200 rounded-[20px] hover:border-indigo-300 text-left text-sm font-medium">"{t('prompt.votive')}"</button>
+                  <button onClick={() => handleSend(t('prompt.gaming'))} className="p-4 bg-[#F8FAFC] border border-gray-200 rounded-[20px] hover:border-indigo-300 text-left text-sm font-medium">"{t('prompt.gaming')}"</button>
                 </div>
               </div>
             )}
             
             {session.messages.map((m, i) => {
-              const isError = m.role === 'assistant' && (
-                  m.content.includes('[SYSTEM ALERT]') || 
-                  m.content.includes('[SYSTEM ERROR]') || 
-                  m.content.startsWith('Error:') || 
-                  m.content === "Gemini provided no output."
-              );
-
+              const isError = m.content.startsWith('[SYSTEM ERROR]') || m.content.startsWith('Error:');
               return (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-1 duration-200`}>
-                <div className={`max-w-[90%] rounded-[20px] px-5 py-3.5 border ${
-                  m.role === 'user' 
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-md rounded-br-sm' 
-                  : isError
-                    ? 'bg-red-50 text-red-900 border-red-200 shadow-sm' 
-                    : 'bg-[#F0F4F9] text-slate-800 border-transparent shadow-sm rounded-bl-sm'
-                }`}>
-                  {m.attachment && (
-                      <div className="mb-3 rounded-xl overflow-hidden border border-white/20 shadow-sm">
-                          <img src={m.attachment} alt="User attachment" className="max-w-full max-h-64 object-contain" />
-                      </div>
-                  )}
-                  <div className="text-[14px] leading-relaxed whitespace-pre-wrap font-normal">
-                      <ReactMarkdown>{m.content}</ReactMarkdown>
-                  </div>
-                  
-                  {isError && (
-                    <div className="mt-3">
-                        <button 
-                            onClick={handleRetry}
-                            className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-full font-bold hover:bg-red-200 transition-colors flex items-center gap-1"
-                        >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                            Retry Request
-                        </button>
-                    </div>
-                  )}
-
-                  <div className={`text-[10px] mt-2 font-medium opacity-40 ${m.role === 'user' ? 'text-right text-white/70' : 'text-left text-slate-400'}`}>
-                    {m.timestamp.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}
-                  </div>
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[90%] rounded-[20px] px-5 py-3.5 border ${m.role === 'user' ? 'bg-slate-900 text-white' : isError ? 'bg-red-50 text-red-900 border-red-200' : 'bg-[#F0F4F9] text-slate-800'}`}>
+                  {m.attachment && <div className="mb-3 rounded-xl overflow-hidden"><img src={m.attachment} alt="User attachment" className="max-w-full max-h-64 object-contain" /></div>}
+                  <div className="text-[14px] leading-relaxed whitespace-pre-wrap"><ReactMarkdown>{m.content}</ReactMarkdown></div>
+                  {isError && <div className="mt-3"><button onClick={handleRetry} className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-full font-bold">Retry</button></div>}
                 </div>
               </div>
             )})}
-            {isThinking && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-gray-100 shadow-sm rounded-full px-4 py-2 flex gap-3 items-center">
-                  <div className="flex gap-1">
-                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div>
-                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    {t('status.thinking')}
-                  </span>
-                </div>
-              </div>
-            )}
+            {isThinking && <div className="flex justify-start"><div className="bg-white border border-gray-100 rounded-full px-4 py-2 flex gap-3 items-center"><div className="flex gap-1"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div></div><span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t('status.thinking')}</span></div></div>}
             <div ref={chatEndRef} />
           </div>
 
-          <footer className="p-4 md:p-6 border-t border-gray-100 bg-white shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.02)]">
+          <footer className="p-4 md:p-6 border-t border-gray-100 bg-white shadow-sm">
             <div className="relative flex flex-col gap-2">
-              {pendingAttachment && (
-                  <div className="relative inline-block self-start animate-in fade-in zoom-in duration-200">
-                      <div className="h-16 w-16 rounded-xl border border-gray-200 overflow-hidden relative shadow-sm">
-                          <img src={pendingAttachment} className="w-full h-full object-cover" alt="Preview" />
-                      </div>
-                      <button 
-                        onClick={() => { setPendingAttachment(null); if(fileInputRef.current) fileInputRef.current.value=''; }}
-                        className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-900 shadow-md ring-2 ring-white"
-                        aria-label="Remove Attachment"
-                      >
-                          &times;
-                      </button>
-                  </div>
-              )}
-              
-              <div className="relative w-full group">
-                  <textarea 
-                    ref={textareaRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSend();
-                        }
-                    }}
-                    placeholder={t('input.placeholder')}
-                    rows={1}
-                    aria-label="Chat Input"
-                    className="w-full pl-6 pr-28 py-4 bg-[#F0F4F9] border-none rounded-[28px] focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all text-sm font-medium resize-none min-h-[56px] max-h-[200px] overflow-y-auto text-slate-800 placeholder-slate-500"
-                  />
-                  
+              {pendingAttachment && <div className="relative inline-block self-start"><div className="h-16 w-16 rounded-xl border border-gray-200 overflow-hidden relative shadow-sm"><img src={pendingAttachment} className="w-full h-full object-cover" alt="Preview" /></div><button onClick={() => setPendingAttachment(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]">&times;</button></div>}
+              <div className="relative w-full">
+                  <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }} placeholder={t('input.placeholder')} rows={1} className="w-full pl-6 pr-28 py-4 bg-[#F0F4F9] border-none rounded-[28px] text-sm resize-none min-h-[56px] max-h-[200px]" />
                   <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        ref={fileInputRef} 
-                        onChange={handleFileUpload} 
-                        className="hidden" 
-                        aria-hidden="true"
-                      />
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-10 h-10 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full flex items-center justify-center transition-all"
-                        title="Attach Image"
-                        aria-label="Attach Image"
-                      >
-                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
-                      </button>
-
-                      <button 
-                        onClick={() => handleSend()}
-                        disabled={isThinking || (!input.trim() && !pendingAttachment)}
-                        className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-indigo-600 transition-all active:scale-95 shadow-sm"
-                        aria-label="Send Message"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                      </button>
+                      <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                      <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 text-gray-500 hover:text-indigo-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg></button>
+                      <button onClick={() => handleSend()} disabled={isThinking || (!input.trim() && !pendingAttachment)} className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></button>
                   </div>
               </div>
             </div>
           </footer>
         </section>
 
-        {/* Right Pane: BOM (Desktop) or Visuals+BOM (Mobile) */}
-        <section 
-          className={`
-            flex-col bg-white border-l border-gray-200 z-20 relative
-            ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}
-            ${isBomOpen ? '' : 'md:w-0 md:border-l-0 md:overflow-hidden'}
-          `}
-          style={{ 
-              width: isDesktop && isBomOpen ? rightPaneWidth : undefined,
-              transition: isResizingRightRef.current ? 'none' : 'width 300ms ease-in-out' 
-          }}
-        >
-          {/* Resize Handle */}
-          <div 
-              className="hidden md:flex absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-50 items-center justify-center hover:bg-transparent group"
-              onMouseDown={startResizingRight}
-              title="Drag to resize"
-          >
-              <div className="w-1 h-8 rounded-full bg-gray-300 group-hover:bg-indigo-400 transition-colors" />
-          </div>
-
-          {/* Inner wrapper forces fixed width on desktop to prevent squishing during slide animation */}
-          <div className="flex flex-col h-full w-full" style={{ width: '100%' }}>
+        <section className={`flex-col bg-white border-l border-gray-200 z-20 relative ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'} ${isBomOpen ? '' : 'md:w-0 md:border-l-0 md:overflow-hidden'}`} style={{ width: isDesktop && isBomOpen ? rightPaneWidth : undefined }}>
+          <div className="hidden md:flex absolute -left-1.5 top-0 bottom-0 w-3 cursor-col-resize z-50 items-center justify-center" onMouseDown={startResizingRight}><div className="w-1 h-8 rounded-full bg-gray-300" /></div>
+          <div className="flex flex-col h-full w-full">
           <header className="px-6 py-4 border-b border-gray-200 flex flex-col gap-2 bg-white sticky top-0 z-10">
             <div className="flex justify-between items-end">
-              <div>
-                <h2 className="font-medium text-lg tracking-tight uppercase text-slate-800">{t('app.build')}</h2>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                   <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{t('status.online')}</span>
-                </div>
-              </div>
-              <div className="text-right flex items-center gap-4">
-                <div className="text-[18px] font-mono font-bold text-slate-900 tabular-nums">
-                  ${draftingEngine.getTotalCost().toLocaleString()}
-                </div>
-                 <button 
-                    onClick={handleExportSheets}
-                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-transparent hover:border-green-200"
-                    title="Export to Google Sheets (CSV)"
-                    aria-label="Export to Sheets"
-                 >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-                    </svg>
-                 </button>
-                 {/* Mobile Project Trigger */}
-                 <button 
-                    onClick={() => setShowProjects(true)}
-                    className="md:hidden p-2 -mr-2 text-gray-400 hover:text-indigo-600"
-                    aria-label={t('app.projects')}
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
-                </button>
-              </div>
+              <div><h2 className="font-medium text-lg tracking-tight uppercase text-slate-800">{t('app.build')}</h2><div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div></div>
+              <div className="text-right flex items-center gap-4"><div className="text-[18px] font-mono font-bold text-slate-900 tabular-nums">${draftingEngine.getTotalCost().toLocaleString()}</div><button onClick={handleExportSheets} className="p-2 text-green-600 hover:bg-green-50"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></button></div>
             </div>
           </header>
-
-          {/* VISUALIZER - Mobile Position (Only visible in Blueprint Tab on Mobile) */}
-          <div className="md:hidden h-[300px] bg-gray-50 border-b border-gray-100 shadow-inner p-4 relative">
-             <div className="absolute top-4 left-4 z-10">
-                 <Chip label={isVisualizing ? t('vis.generating') : "Nano Banana"} color={isVisualizing ? "bg-indigo-100 text-indigo-700 animate-pulse" : "bg-yellow-100 text-yellow-800 border border-yellow-200"} />
-             </div>
-             <ChiltonVisualizer 
-                images={session.generatedImages}
-                onGenerate={() => handleGenerateVisual()}
-                isGenerating={isVisualizing}
-                hasItems={session.bom.length > 0}
-            />
-          </div>
-
-          {/* BOM Section */}
           <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-[#F8FAFC]">
-             <button 
-                onClick={() => setPartPickerOpen(true)}
-                className="w-full py-3 border border-dashed border-indigo-200 bg-indigo-50/50 rounded-xl text-indigo-600 font-medium text-xs uppercase tracking-wider hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 mb-2"
-             >
-                <span className="text-lg leading-none">+</span> {t('bom.add')}
-             </button>
-
-            {session.bom.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40 grayscale pointer-events-none">
-                <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('bom.empty')}</p>
-              </div>
-            ) : (
-              session.bom.map((entry) => {
-                const isVirtual = entry.part.sku.startsWith('DRAFT-');
-                const sourcing = (entry as any).sourcing; // Cast to access extended prop
-                return (
-                  <div 
-                    key={entry.instanceId} 
-                    className={`bg-white border p-4 rounded-[20px] shadow-sm transition-all hover:shadow-md group cursor-default ${
-                    isVirtual ? 'border-dashed border-indigo-300 bg-indigo-50/30' : 
-                    !entry.isCompatible ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
-                  }`}>
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)} role="button" tabIndex={0}>
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
-                              isVirtual ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {isVirtual ? 'Design Placeholder' : entry.part.category}
-                            </span>
-                            {!entry.isCompatible && (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-md uppercase bg-red-100 text-red-600 animate-pulse">
-                                    {t('bom.incompatible')}
-                                </span>
-                            )}
-                          </div>
-                          <h4 className="font-semibold text-sm text-slate-900 leading-snug hover:text-indigo-600 transition-colors">{entry.part.name}</h4>
-                          <div className="text-[10px] text-gray-400 font-mono mt-1 flex items-center gap-1">
-                            {entry.part.sku}
-                          </div>
-                        </div>
-                        <div className="text-right flex flex-col items-end">
-                          <div className="text-xs font-mono font-bold text-slate-900">
-                            {entry.part.price > 0 ? `$${(entry.part.price * entry.quantity).toLocaleString()}` : 'TBD'}
-                          </div>
-                          
-                          {/* Sourcing Button */}
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }}
-                                disabled={sourcing?.loading}
-                                className={`mt-2 p-1.5 rounded-lg transition-all ${sourcing?.manualUrl ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-50 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600'}`}
-                                title={sourcing?.manualUrl ? "Custom Source Set" : t('bom.sourcing')}
-                                aria-label={t('bom.sourcing')}
-                              >
-                                {sourcing?.loading ? (
-                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                ) : (
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                                )}
-                              </button>
-                        </div>
-                      </div>
-                      
-                      {/* Sourcing Result */}
-                      {sourcing?.online && sourcing.online.length > 0 && (
-                          <div className="mt-3 bg-indigo-50 rounded-xl p-3 text-xs space-y-2 animate-in slide-in-from-top-2">
-                              <div className="font-bold text-indigo-800 uppercase tracking-wider text-[10px]">Online Options</div>
-                              {sourcing.online.slice(0, 2).map((opt: any, idx: number) => (
-                                  <a key={idx} href={opt.url} target="_blank" rel="noreferrer" className="block p-2 bg-white rounded-lg border border-indigo-100 hover:border-indigo-300 transition-colors flex justify-between group">
-                                      <span className="font-medium text-slate-700 group-hover:text-indigo-700 truncate">{opt.source}</span>
-                                      <span className="font-bold text-slate-900">{opt.price}</span>
-                                  </a>
-                              ))}
-                          </div>
-                      )}
-                      
-                      {sourcing?.local && sourcing.local.length > 0 && (
-                          <div className="mt-3 bg-green-50 rounded-xl p-3 text-xs space-y-2 animate-in slide-in-from-top-2">
-                               <div className="font-bold text-green-800 uppercase tracking-wider text-[10px]">Local Suppliers</div>
-                               {sourcing.local.map((loc: any, idx: number) => (
-                                   <div key={idx} className="p-2 bg-white rounded-lg border border-green-100 flex justify-between items-center">
-                                       <div>
-                                           <div className="font-medium text-slate-700">{loc.name}</div>
-                                           <div className="text-[10px] text-gray-500">{loc.address}</div>
-                                       </div>
-                                   </div>
-                               ))}
-                          </div>
-                      )}
-
-                      {sourcing?.manualUrl && (
-                          <div className="mt-3 p-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-gray-500 uppercase">Manual Source</span>
-                              <a href={sourcing.manualUrl} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline truncate max-w-[150px]">{sourcing.manualUrl}</a>
-                          </div>
-                      )}
-                  </div>
-                );
-              })
-            )}
+             <button onClick={() => setPartPickerOpen(true)} className="w-full py-3 border border-dashed border-indigo-200 bg-indigo-50/50 rounded-xl text-indigo-600 font-medium text-xs uppercase tracking-wider mb-2">+ {t('bom.add')}</button>
+            {session.bom.length === 0 ? <div className="h-full flex flex-col items-center justify-center p-12 opacity-40"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('bom.empty')}</p></div> : session.bom.map((entry) => (
+                  <div key={entry.instanceId} className={`bg-white border p-4 rounded-[20px] shadow-sm transition-all hover:shadow-md group cursor-default ${entry.part.sku.startsWith('DRAFT-') ? 'border-dashed border-indigo-300 bg-indigo-50/30' : !entry.isCompatible ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}><div className="flex justify-between items-start"><div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)}><h4 className="font-semibold text-sm text-slate-900 leading-snug">{entry.part.name}</h4><div className="text-[10px] text-gray-400 font-mono mt-1">{entry.part.sku}</div></div><div className="text-right flex flex-col items-end"><div className="text-xs font-mono font-bold text-slate-900">${(entry.part.price * entry.quantity).toLocaleString()}</div><button onClick={(e) => { e.stopPropagation(); handleLocatePart(entry); }} className="mt-2 p-1.5 rounded-lg bg-gray-50 hover:bg-indigo-50"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></button></div></div></div>
+            ))}
           </div>
-
-          <footer className="p-6 bg-white border-t border-gray-200 grid grid-cols-2 gap-3">
-            <Button 
-                onClick={handleVerifyDesign}
-                disabled={session.bom.length === 0}
-                className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-200 flex items-center justify-center gap-2"
-            >
-                {isAuditing ? (
-                    <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span>{t('audit.running')}</span>
-                    </>
-                ) : (
-                    <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <span>{t('audit.button')}</span>
-                    </>
-                )}
-            </Button>
-            
-            <Button
-                onClick={handlePlanAssembly}
-                disabled={session.bom.length === 0}
-                className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-200 flex items-center justify-center gap-2"
-            >
-                {isPlanningAssembly ? (
-                    <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span>Robotics-ER...</span>
-                    </>
-                ) : (
-                    <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        <span>Plan Assembly</span>
-                    </>
-                )}
-            </Button>
-          </footer>
+          <footer className="p-6 bg-white border-t border-gray-200 grid grid-cols-2 gap-3"><Button onClick={handleVerifyDesign} disabled={session.bom.length === 0} className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-2">{isAuditing ? <span>{t('audit.running')}</span> : <span>{t('audit.button')}</span>}</Button><Button onClick={handlePlanAssembly} disabled={session.bom.length === 0} className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2">{isPlanningAssembly ? <span>Robotics-ER...</span> : <span>Plan Assembly</span>}</Button></footer>
           </div>
         </section>
       </main>
@@ -1874,10 +1551,5 @@ const AppContent: React.FC = () => {
   );
 };
 
-const App: React.FC = () => (
-    <ErrorBoundary>
-        <AppContent />
-    </ErrorBoundary>
-);
-
+const App: React.FC = () => (<ErrorBoundary><AppContent /></ErrorBoundary>);
 export default App;

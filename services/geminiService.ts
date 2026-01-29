@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
@@ -15,37 +16,12 @@ You have access to two inventory sources:
 1. **Local Registry (Preferred):** Physical parts currently in stock.
 2. **Global Catalog (Virtual):** The entire universe of hardware components.
 
-ROBOTICS & PHYSICS KNOWLEDGE:
-- You inherently understand kinematic chains, payload limits, and assembly feasibility.
-- When creating Virtual Parts, consider their weight and manipulability.
-- If a user asks for a "Drone", ensure you select motors with sufficient thrust-to-weight ratio.
-- If a user asks for a "Robot Arm", ensure servos have sufficient torque.
-
 BEHAVIOR:
 1. **START:** When a user asks to build something new, you MUST call \`initializeDraft(name, requirements)\` first.
-
-2. **SOURCING & VIRTUAL PART CREATION:** 
-   - Check the **Local Registry** first. If a part fits the user's needs perfectly, use it.
-   - If the Local Registry is insufficient or irrelevant (e.g., user wants a "Gaming PC" but registry only has "Truck Parts"), you **MUST** ignore the registry and architect the system using **Virtual Parts**.
-   - To add a part from the Global Catalog, simply generate a new \`partId\` that describes the item.
-   - **ID Convention:** Use kebab-case that is descriptive. 
-     - BAD: \`part-1\`, \`gpu\`, \`thing\`
-     - GOOD: \`gpu-nvidia-rtx4090\`, \`mcu-esp32-wroom\`, \`servo-mg996r-metal\`
-   - The system will automatically create a placeholder for these IDs.
-   - **NEVER** say "I can't find parts". You are an Architect; invent the specification using Virtual Parts.
-
-3. **COMPATIBILITY:** 
-   - For Local Registry parts, respect the declared 'Ports'.
-   - For Virtual Parts, assume standard industry interfaces (e.g., PCIe, USB, GPIO) apply implicitly.
-
-4. **CLARIFICATION:**
-   - If the request is vague ("Build a thing"), ask clarifying questions.
-   - If specific ("Build a drone"), immediately generate the BOM using Virtual Parts if Local ones don't exist.
-
-5. **OUTPUT FORMAT:**
-   - You can provide a brief reasoning summary.
-   - You **MUST** append the Tool Calls at the end or embedded in your response.
-   - Syntax: \`addPart("id", quantity)\`
+2. **SOURCING:** Invent the specification using Virtual Parts if Local ones don't exist.
+3. **OUTPUT FORMAT:** Provide a brief reasoning summary. Append Tool Calls at the end. 
+   **CRITICAL:** Do NOT label the tool calls with "Tool Calls:" or "Corrections:". Just output the functions.
+   Syntax: \`addPart("id", quantity)\`
 
 TOOLS:
 - \`initializeDraft(name: string, requirements: string)\`
@@ -54,29 +30,7 @@ TOOLS:
 
 ---
 LOCAL REGISTRY (Use these IDs if they match):
-${HARDWARE_REGISTRY ? HARDWARE_REGISTRY.map(p => {
-  const ports = p.ports.map(pt => `${pt.name} (${pt.gender} ${pt.spec})`).join(', ');
-  return `- ID: "${p.id}" | Name: "${p.name}" | Cat: "${p.category}"`;
-}).join('\n') : 'Registry Offline'}
----
-
-EXAMPLE 1 (Using Virtual Parts):
-User: "Design a Raspberry Pi home server."
-Reasoning: Local registry has no Raspberry Pi. I will use Virtual Parts from the Global Catalog.
-Tool Calls:
-initializeDraft("Home Media Server", "RPi 4 based, low power")
-addPart("sbc-rpi-4-8gb", 1)
-addPart("case-flirc-alu", 1)
-addPart("psu-usb-c-5v-3a", 1)
-addPart("ssd-samsung-t7-1tb", 1)
-
-EXAMPLE 2 (Hybrid):
-User: "I need a flashlight."
-Reasoning: Local registry contains "flashlight-body", "led-emitter", etc. I will use those.
-Tool Calls:
-initializeDraft("C8 LED Torch", "High lumens")
-addPart("flashlight-body", 1)
-addPart("led-emitter", 1)
+${HARDWARE_REGISTRY ? HARDWARE_REGISTRY.map(p => `- ID: "${p.id}" | Name: "${p.name}"`).join('\n') : 'Registry Offline'}
 `;
 
 export class GeminiService implements AIService {
@@ -85,7 +39,6 @@ export class GeminiService implements AIService {
   private ai: GoogleGenAI;
 
   constructor() {
-    // Uses process.env.API_KEY directly as mandated by protocol
     this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
@@ -94,18 +47,12 @@ export class GeminiService implements AIService {
         const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
         if (!matches || matches.length !== 3) return null;
         return { mimeType: matches[1], data: matches[2] };
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
   }
 
   async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     try {
-      // Map internal history format to Gemini SDK format
-      // history comes in as { role: 'user'|'model', parts: [...] } from App.tsx construction
       const contents = [...history];
-      
-      // Construct current turn
       const currentParts: any[] = [{ text: prompt }];
       
       if (image) {
@@ -122,23 +69,12 @@ export class GeminiService implements AIService {
         contents: contents,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.7, // Increased to allow creative Virtual Part generation
+          temperature: 0.7,
           topP: 0.9,
         }
       });
 
-      // Robust error handling for empty responses
-      if (!response.text) {
-          if (response.candidates && response.candidates.length > 0) {
-              const candidate = response.candidates[0];
-              if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-                  return `Error: Model stopped due to ${candidate.finishReason}. Please try rephrasing.`;
-              }
-          }
-          return "Gemini provided no output.";
-      }
-
-      return response.text;
+      return response.text || "Gemini provided no output.";
     } catch (error: any) {
       console.error("Gemini SDK Error:", error);
       throw new Error(`Gemini Service Error: ${error.message}`);
@@ -151,35 +87,32 @@ export class GeminiService implements AIService {
 
     let reasoning = text;
 
-    // Parse initializeDraft - Robust Regex with optional semicolon
+    // 1. Extract tool calls using the standard string format
     const initMatch = text.match(/initializeDraft\s*\(\s*["'](.+?)["']\s*,\s*["'](.+?)["']\s*\)\s*;?/);
     if (initMatch) {
       toolCalls.push({ type: 'initializeDraft', name: initMatch[1], reqs: initMatch[2] });
       reasoning = reasoning.replace(initMatch[0], '');
     }
 
-    try {
-      // Parse addPart - More flexible quotes/spacing, optional semicolon
-      const addMatches = [...text.matchAll(/addPart\s*\(\s*["']?([^"',\s]+)["']?\s*,\s*(\d+)\s*\)\s*;?/g)];
-      addMatches.forEach(m => {
-          toolCalls.push({ type: 'addPart', partId: m[1], qty: parseInt(m[2]) });
-          reasoning = reasoning.replace(m[0], '');
-      });
+    const addMatches = [...text.matchAll(/addPart\s*\(\s*["']?([^"',\s]+)["']?\s*,\s*(\d+)\s*\)\s*;?/g)];
+    addMatches.forEach(m => {
+        toolCalls.push({ type: 'addPart', partId: m[1], qty: parseInt(m[2]) });
+        reasoning = reasoning.replace(m[0], '');
+    });
 
-      // Parse removePart - Optional semicolon
-      const removeMatches = [...text.matchAll(/removePart\s*\(\s*["']?([^"',\s]+)["']?\s*\)\s*;?/g)];
-      removeMatches.forEach(m => {
-          toolCalls.push({ type: 'removePart', instanceId: m[1] });
-          reasoning = reasoning.replace(m[0], '');
-      });
-    } catch (e) {
-        console.error("Parsing Regex Error", e);
-    }
+    const removeMatches = [...text.matchAll(/removePart\s*\(\s*["']?([^"',\s]+)["']?\s*\)\s*;?/g)];
+    removeMatches.forEach(m => {
+        toolCalls.push({ type: 'removePart', instanceId: m[1] });
+        reasoning = reasoning.replace(m[0], '');
+    });
 
-    // Cleanup whitespace artifacts from removed tool calls
-    // Remove lines that are now just comments (leftovers from removed code lines)
+    // 2. SCRUBBING: Remove technical headers and residual JSON blocks from the human-readable text
+    reasoning = reasoning.replace(/(###?\s*(Tool Calls|Corrections|Actions|Functions|Tool\s*Commands|Correction|Correction\s*\(Tool\s*Calls\)).*)/gi, '');
+    reasoning = reasoning.replace(/(Task\s*\d+:\s*(Correction|Tool Calls|Actions).*)/gi, '');
+    reasoning = reasoning.replace(/```[a-z]*\s*[\s\S]*?(addPart|removePart|initializeDraft|tool|arguments)[\s\S]*?```/gi, '');
+    reasoning = reasoning.replace(/\[\s*\{\s*["']tool["']\s*:[\s\S]*?\}\s*\]/gi, '');
+
     reasoning = reasoning.replace(/^\s*\/\/.*$/gm, '');
-    // Remove lines that are just semicolons or empty
     reasoning = reasoning.replace(/^\s*;\s*$/gm, '');
     reasoning = reasoning.replace(/[ \t]+$/gm, '');
     reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
@@ -190,43 +123,28 @@ export class GeminiService implements AIService {
   private async generateImage(prompt: string, referenceImage?: string): Promise<string | null> {
     try {
         const parts: any[] = [{ text: prompt }];
-
         if (referenceImage) {
             const imageData = this.cleanBase64(referenceImage);
-            if (imageData) {
-                parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
-            }
+            if (imageData) parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
         }
-
         const response: GenerateContentResponse = await this.ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
-            contents: { parts },
-            config: {}
+            contents: { parts }
         });
-        
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
-            if (part.inlineData) {
-                // Ensure mimeType is present, fallback to png if missing
-                const mime = part.inlineData.mimeType || 'image/png';
-                return `data:${mime};base64,${part.inlineData.data}`;
-            }
-        }
-        return null;
-    } catch (e) {
-        console.warn("Image generation failed", e);
-        return null;
-    }
+        const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+        return part ? `data:${part.inlineData!.mimeType || 'image/png'};base64,${part.inlineData!.data}` : null;
+    } catch (e) { return null; }
   }
 
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
-    return this.generateImage(`Generate a high-quality product design concept sketch for: ${description}`, referenceImage);
+    return this.generateImage(`Product design concept sketch: ${description}`, referenceImage);
   }
 
   async findPartSources(query: string): Promise<ShoppingOption[] | null> {
     try {
         const response = await this.ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Find purchase options for: ${query}. Return structured JSON with price, merchant, and url.`,
+            contents: `Find purchase options for: ${query}.`,
             config: {
                 tools: [{ googleSearch: {} }],
                 responseMimeType: "application/json",
@@ -237,37 +155,24 @@ export class GeminiService implements AIService {
                         properties: {
                             title: { type: Type.STRING },
                             url: { type: Type.STRING },
-                            source: { type: Type.STRING, description: "Name of the merchant" },
-                            price: { type: Type.STRING, description: "Price including currency symbol" }
+                            source: { type: Type.STRING },
+                            price: { type: Type.STRING }
                         }
                     }
                 }
             }
         });
-
-        const json = JSON.parse(response.text || "[]");
-        return json.map((item: any) => ({
-            title: item.title,
-            url: item.url,
-            source: item.source,
-            price: item.price
-        }));
-    } catch (e) {
-        console.error("Sourcing lookup failed", e);
-        return null;
-    }
+        return JSON.parse(response.text || "[]");
+    } catch (e) { return null; }
   }
 
   async findLocalSuppliers(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null> {
       try {
-          const prompt = `Find local electronics or hardware stores that might sell: ${query}. Focus on physical retail locations.`;
-          
           const response = await this.ai.models.generateContent({
               model: 'gemini-2.5-flash',
-              contents: prompt,
-              config: {
+              contents: `Find local stores for: ${query}.`,
+              config: { 
                   tools: [{ googleMaps: {} }],
-                  // Retrieve lat/lng if provided, otherwise defaults to IP-based
                   toolConfig: location ? {
                       retrievalConfig: {
                           latLng: {
@@ -278,238 +183,97 @@ export class GeminiService implements AIService {
                   } : undefined
               }
           });
-
-          // Maps Grounding data isn't in JSON responseSchema, it's in candidates.groundingMetadata
-          const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-          
-          if (!chunks || chunks.length === 0) return null;
-
-          // Process Grounding Chunks into LocalSupplier format
-          // Note: The structure of Maps groundingChunks can vary, we look for place Answer Sources or simple web extraction if fallback
-          const suppliers: LocalSupplier[] = [];
-
-          chunks.forEach(chunk => {
-              if (chunk.maps?.title && chunk.maps?.placeId) {
-                  // Currently Maps grounding returns a title and place ID primarily in the grounding chunk wrapper
-                  // We often need to parse the text or use the metadata
-                  // For this demo, we assume the text contains useful info or we construct from what we have
-                  suppliers.push({
-                      name: chunk.maps.title,
-                      address: "See Map", // Grounding often returns address in snippets, simplified here
-                      url: chunk.maps.uri || `https://www.google.com/maps/place/?q=place_id:${chunk.maps.placeId}`
-                  });
-              } else if (chunk.web && chunk.web.uri && chunk.web.title) {
-                  // Fallback to web results if specific Maps objects aren't clean
-                  if (chunk.web.title.toLowerCase().includes('store') || chunk.web.title.toLowerCase().includes('supply')) {
-                      suppliers.push({
-                          name: chunk.web.title,
-                          address: "Online / Unknown",
-                          url: chunk.web.uri
-                      });
-                  }
-              }
-          });
-
-          return suppliers.slice(0, 5); // Limit to top 5
-      } catch (e) {
-          console.error("Local map lookup failed", e);
-          return null;
-      }
+          const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+          return chunks.map(chunk => ({
+              name: chunk.maps?.title || chunk.web?.title || "Supplier",
+              address: "Local Store",
+              url: chunk.maps?.uri || chunk.web?.uri
+          })).slice(0, 5);
+      } catch (e) { return null; }
   }
 
   async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
     try {
-        // Includes instanceId to allow specific removal commands
-        const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.sku}) - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
+        const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
         
         const prompt = `
-        PERFORM A COMPREHENSIVE TECHNICAL AND LEGAL AUDIT ON THIS HARDWARE ASSEMBLY.
+        PERFORM A TECHNICAL AND PATENT AUDIT.
         
         DESIGN GOALS: ${requirements}
-        
-        BILL OF MATERIALS:
+        BOM:
         ${digest}
         
-        TASK 1: TECHNICAL INTEGRITY
-        - Identify voltage mismatches, connector mismatches, or missing components.
-        - Verify signal compatibility.
-        - Suggest "Auto-Correct" actions if failures are found.
+        TASK 1: TECHNICAL INTEGRITY (Human-readable report)
+        TASK 2: PATENT INFRINGEMENT RISK (Human-readable report)
+        TASK 3: CORRECTIONS (Tool Calls)
         
-        TASK 2: PATENT INFRINGEMENT RISK ASSESSMENT
-        - Analyze the unique combination of components.
-        - Flag potential infringement risks against major utility patents (e.g., Apple, Samsung, Dyson, Tesla mechanisms) if the assembly mimics protected proprietary mechanisms.
-        - Cite specific patent numbers or families if relevant (e.g. "US Patent 9,xxx,xxx").
-        - If generic/standard, clearly state "Low Patent Risk" and explain why.
-
-        TASK 3: CORRECTION (Tool Calls)
-        - If technical incompatibilities exist, you MUST generate \`removePart\` and \`addPart\` calls to fix them.
-        
-        OUTPUT FORMAT:
-        Provide a structured Markdown report. Use these exact headers:
-        
-        ## 🛠️ Technical Verification
-        [Technical findings here]
-
-        ## ⚖️ Patent Risk Analysis
-        [Legal findings here]
-
-        [Tool Calls at the end if needed]
+        **CRITICAL INSTRUCTIONS:**
+        1. Use Markdown for Task 1 and 2.
+        2. **DO NOT** use JSON for Task 3. 
+        3. Use ONLY string function format: \`addPart("id", quantity)\` or \`removePart("id")\`.
+        4. Place corrections at the absolute end of your response.
+        5. **DO NOT** label the corrections section in the text.
         `;
 
         const response = await this.ai.models.generateContent({
-            model: 'gemini-3-pro-preview', // Using Pro for reasoning
+            model: 'gemini-3-pro-preview',
             contents: prompt,
-            config: {
-                thinkingConfig: { thinkingBudget: 4096 } // Increased for legal reasoning
-            }
+            config: { thinkingConfig: { thinkingBudget: 4096 } }
         });
 
-        // Use the same parser as chat to extract tool calls from the verification report
         return this.parseArchitectResponse(response.text || "");
     } catch (e: any) {
-        console.error("Verification failed", e);
-        return { 
-          reasoning: `Verification failed: ${e.message}`, 
-          toolCalls: [] 
-        };
+        return { reasoning: `Verification failed: ${e.message}`, toolCalls: [] };
     }
   }
 
   async generateFabricationBrief(partName: string, context: string): Promise<string> {
     try {
-        const textPrompt = `
-        GENERATE A MANUFACTURING SPECIFICATION BRIEF for a custom custom component.
-        
-        COMPONENT: ${partName}
-        CONTEXT: ${context}
-        
-        TASK:
-        You are a Manufacturing Engineer. Infer the likely physical properties of this custom part based on its context.
-        
-        OUTPUT FORMAT:
-        Markdown. Be specific and technical.
-        `;
-
-        const textPromise = this.ai.models.generateContent({
+        const response = await this.ai.models.generateContent({
             model: 'gemini-3-pro-preview',
-            contents: textPrompt,
-            config: {
-                thinkingConfig: { thinkingBudget: 2048 }
-            }
+            contents: `Manufacturing specs for: ${partName}. Context: ${context}.`,
+            config: { thinkingConfig: { thinkingBudget: 2048 } }
         });
-
-        const imagePrompt = `Technical engineering blueprint diagram of ${partName}. Context: ${context}. Classic blueprint style: white lines on dark blue paper background. Orthographic projection with dimension lines.`;
-        const imagePromise = this.generateImage(imagePrompt);
-
-        const [textResponse, base64Image] = await Promise.all([textPromise, imagePromise]);
-
-        let markdown = textResponse.text || "Brief generation failed.";
-        
-        if (base64Image) {
-            markdown = `![Technical Blueprint](${base64Image})\n\n` + markdown;
-        }
-
-        return markdown;
-    } catch (e: any) {
-        console.error("Fab brief failed", e);
-        return `Generation failed: ${e.message}`;
-    }
+        const img = await this.generateImage(`Engineering blueprint diagram of ${partName}. Orthographic projections.`);
+        return (img ? `![Technical Blueprint](${img})\n\n` : "") + (response.text || "");
+    } catch (e: any) { return `Generation failed: ${e.message}`; }
   }
 
   async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
       try {
-          const prompt = `
-          You are a Manufacturing Quality Engineer using Google's Manufacturing Data Engine (MDE).
-          
-          TASK: Create a Visual Inspection AI Protocol for: ${partName} (Category: ${category}).
-          
-          REQUIREMENTS:
-          1. Identify 3-5 specific cosmetic or functional defects (e.g. scratches, bent pins, voiding).
-          2. Assign severity (Critical, Major, Minor).
-          3. Recommend camera/sensor setup for the inspection station.
-          
-          RETURN JSON ONLY.
-          `;
-
           const response = await this.ai.models.generateContent({
               model: 'gemini-3-flash-preview',
-              contents: prompt,
+              contents: `QA protocol for: ${partName}.`,
               config: {
                   responseMimeType: "application/json",
                   responseSchema: {
                       type: Type.OBJECT,
                       properties: {
-                          recommendedSensors: {
-                              type: Type.ARRAY,
-                              items: { type: Type.STRING }
-                          },
+                          recommendedSensors: { type: Type.ARRAY, items: { type: Type.STRING } },
                           inspectionStrategy: { type: Type.STRING },
-                          defects: {
-                              type: Type.ARRAY,
-                              items: {
-                                  type: Type.OBJECT,
-                                  properties: {
-                                      name: { type: Type.STRING },
-                                      severity: { type: Type.STRING, enum: ['Critical', 'Major', 'Minor'] },
-                                      description: { type: Type.STRING }
-                                  }
-                              }
-                          }
+                          defects: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, severity: { type: Type.STRING }, description: { type: Type.STRING } } } }
                       }
                   }
               }
           });
-
           return JSON.parse(response.text || "null");
-      } catch (e) {
-          console.error("QA Protocol generation failed", e);
-          return null;
-      }
+      } catch (e) { return null; }
   }
 
   async generateAssemblyPlan(bom: any[]): Promise<AssemblyPlan | null> {
       try {
-          const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name} (${b.part.category})`).join('\n');
-          
-          const prompt = `
-          ROLE: You are "Gemini Robotics-ER 1.5", an expert in Robotics and Manufacturing Engineering.
-          
-          TASK: Create a Robotic Automated Assembly Plan for the following Bill of Materials.
-          
-          BOM:
-          ${bomDigest}
-          
-          REQUIREMENTS:
-          1. Analyze the parts for potential collision points or difficult manipulations.
-          2. Determine the End-Effector (Gripper) types required (e.g. Vacuum, 2-Finger, Magnetic).
-          3. Generate a step-by-step assembly sequence for a 6-DOF Industrial Robot Arm.
-          4. Estimate the difficulty and automation feasibility (0-100%).
-          
-          RETURN JSON ONLY.
-          `;
-
+          const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
           const response = await this.ai.models.generateContent({
               model: 'gemini-3-pro-preview',
-              contents: prompt,
+              contents: `Assembly plan for:\n${bomDigest}`,
               config: {
                   responseMimeType: "application/json",
                   responseSchema: {
                       type: Type.OBJECT,
                       properties: {
-                          steps: {
-                              type: Type.ARRAY,
-                              items: {
-                                  type: Type.OBJECT,
-                                  properties: {
-                                      stepNumber: { type: Type.INTEGER },
-                                      description: { type: Type.STRING },
-                                      requiredTool: { type: Type.STRING },
-                                      estimatedTime: { type: Type.STRING }
-                                  }
-                              }
-                          },
+                          steps: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { stepNumber: { type: Type.INTEGER }, description: { type: Type.STRING }, requiredTool: { type: Type.STRING }, estimatedTime: { type: Type.STRING } } } },
                           totalTime: { type: Type.STRING },
-                          difficulty: { type: Type.STRING, enum: ['Easy', 'Medium', 'Hard', 'Expert'] },
+                          difficulty: { type: Type.STRING },
                           requiredEndEffectors: { type: Type.ARRAY, items: { type: Type.STRING } },
                           automationFeasibility: { type: Type.INTEGER },
                           notes: { type: Type.STRING }
@@ -517,11 +281,7 @@ export class GeminiService implements AIService {
                   }
               }
           });
-
           return JSON.parse(response.text || "null");
-      } catch (e) {
-          console.error("Assembly Plan generation failed", e);
-          return null;
-      }
+      } catch (e) { return null; }
   }
 }
