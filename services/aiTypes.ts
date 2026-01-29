@@ -1,5 +1,5 @@
 
-import { VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol } from '../types.ts';
+import { VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan } from '../types.ts';
 
 export interface ArchitectResponse {
   reasoning: string;
@@ -53,4 +53,9 @@ export interface AIService {
    * Generates a Quality Assurance protocol for Google Visual Inspection AI.
    */
   generateQAProtocol?(partName: string, category: string): Promise<InspectionProtocol | null>;
+
+  /**
+   * Generates a robotic assembly plan using the "Robotics-ER" persona.
+   */
+  generateAssemblyPlan?(bom: any[]): Promise<AssemblyPlan | null>;
 }

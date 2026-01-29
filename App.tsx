@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect, ErrorInfo } from 'react';
+import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
-import { DraftingSession, UserMessage, User, BOMEntry, Part } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -13,7 +13,7 @@ import { useService } from './contexts/ServiceContext.tsx';
 interface ErrorBoundaryProps { children?: React.ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
@@ -38,6 +38,112 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 // --- MODAL COMPONENTS ---
+
+const AssemblyModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    plan: AssemblyPlan | null;
+    isRunning: boolean;
+}> = ({ isOpen, onClose, plan, isRunning }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+             <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isRunning ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
+                            {isRunning ? (
+                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                            ) : (
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800">Robotic Assembly Planner</h3>
+                            <p className="text-[10px] text-gray-400 font-mono uppercase">Powered by Gemini Robotics-ER 1.5</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-8 bg-white font-sans text-sm leading-relaxed text-slate-600">
+                    {isRunning ? (
+                        <div className="flex flex-col items-center justify-center h-48 space-y-4">
+                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></div>
+                            <p className="text-gray-400 font-medium animate-pulse">Calculating kinematics & collisions...</p>
+                        </div>
+                    ) : plan ? (
+                        <div className="space-y-6">
+                            {/* Summary Metrics */}
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                    <div className="text-[10px] uppercase font-bold text-blue-400 mb-1">Feasibility</div>
+                                    <div className="text-2xl font-bold text-blue-700">{plan.automationFeasibility}%</div>
+                                </div>
+                                <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
+                                    <div className="text-[10px] uppercase font-bold text-orange-400 mb-1">Difficulty</div>
+                                    <div className="text-xl font-bold text-orange-700">{plan.difficulty}</div>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                    <div className="text-[10px] uppercase font-bold text-gray-400 mb-1">Est. Time</div>
+                                    <div className="text-xl font-bold text-slate-700">{plan.totalTime}</div>
+                                </div>
+                            </div>
+
+                            {/* End Effectors */}
+                            <div>
+                                <h4 className="font-bold text-xs uppercase text-slate-800 mb-3">Required End-Effectors</h4>
+                                <div className="flex gap-2 flex-wrap">
+                                    {plan.requiredEndEffectors.map((tool, i) => (
+                                        <span key={i} className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-medium text-slate-700">
+                                            🔧 {tool}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Steps */}
+                            <div>
+                                <h4 className="font-bold text-xs uppercase text-slate-800 mb-3">Assembly Sequence</h4>
+                                <div className="space-y-4 relative before:absolute before:left-3.5 before:top-2 before:bottom-0 before:w-0.5 before:bg-gray-100">
+                                    {plan.steps.map((step, i) => (
+                                        <div key={i} className="relative pl-10">
+                                            <div className="absolute left-0 top-0 w-8 h-8 bg-white border-2 border-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shadow-sm z-10">
+                                                {step.stepNumber}
+                                            </div>
+                                            <div className="bg-[#F8FAFC] border border-gray-100 rounded-xl p-4">
+                                                <div className="font-medium text-slate-800 mb-1">{step.description}</div>
+                                                <div className="flex justify-between items-center text-[10px] text-gray-400 uppercase tracking-wide mt-2">
+                                                    <span>Using: {step.requiredTool}</span>
+                                                    <span>⏱ {step.estimatedTime}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Notes */}
+                            {plan.notes && (
+                                <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-sm text-yellow-800">
+                                    <strong>Engineer's Notes:</strong> {plan.notes}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-center text-gray-400">No plan generated.</div>
+                    )}
+                </div>
+                {!isRunning && (
+                    <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end">
+                        <Button onClick={onClose} variant="primary">Done</Button>
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+};
 
 const PartDetailModal: React.FC<{
   entry: BOMEntry | null;
@@ -635,6 +741,11 @@ const AppContent: React.FC = () => {
   const [isFabricating, setIsFabricating] = useState(false);
   const [fabPartName, setFabPartName] = useState('');
 
+  // Assembly Modal State
+  const [assemblyOpen, setAssemblyOpen] = useState(false);
+  const [assemblyPlan, setAssemblyPlan] = useState<AssemblyPlan | null>(null);
+  const [isPlanningAssembly, setIsPlanningAssembly] = useState(false);
+
   const [partPickerOpen, setPartPickerOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   
@@ -701,7 +812,7 @@ const AppContent: React.FC = () => {
       const relativeY = e.clientY - paneRect.top - headerOffset;
       
       let percentage = (relativeY / (paneRect.height - headerOffset)) * 100;
-      percentage = Math.min(80, Math.max(20, percentage)); // Clamp between 20% and 80%
+      percentage = Math.min(50, Math.max(20, percentage)); // Clamp between 20% and 50%
       setVisualizerHeight(percentage);
   };
 
@@ -903,6 +1014,23 @@ const AppContent: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+  };
+
+  const handlePlanAssembly = async () => {
+      if (!aiService.generateAssemblyPlan || session.bom.length === 0) return;
+      
+      setAssemblyOpen(true);
+      setIsPlanningAssembly(true);
+      setAssemblyPlan(null);
+
+      try {
+          const plan = await aiService.generateAssemblyPlan(session.bom);
+          setAssemblyPlan(plan);
+      } catch (e) {
+          console.error("Planning failed", e);
+      } finally {
+          setIsPlanningAssembly(false);
+      }
   };
 
   const processArchitectRequest = async (text: string, attachment?: string | null) => {
@@ -1174,6 +1302,12 @@ const AppContent: React.FC = () => {
          result={fabResult}
          isRunning={isFabricating}
          partName={fabPartName}
+      />
+      <AssemblyModal
+         isOpen={assemblyOpen}
+         onClose={() => setAssemblyOpen(false)}
+         plan={assemblyPlan}
+         isRunning={isPlanningAssembly}
       />
       <PartDetailModal 
         entry={selectedPart}
@@ -1695,6 +1829,44 @@ const AppContent: React.FC = () => {
               })
             )}
           </div>
+
+          <footer className="p-6 bg-white border-t border-gray-200 grid grid-cols-2 gap-3">
+            <Button 
+                onClick={handleVerifyDesign}
+                disabled={session.bom.length === 0}
+                className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-200 flex items-center justify-center gap-2"
+            >
+                {isAuditing ? (
+                    <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>{t('audit.running')}</span>
+                    </>
+                ) : (
+                    <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>{t('audit.button')}</span>
+                    </>
+                )}
+            </Button>
+            
+            <Button
+                onClick={handlePlanAssembly}
+                disabled={session.bom.length === 0}
+                className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-200 flex items-center justify-center gap-2"
+            >
+                {isPlanningAssembly ? (
+                    <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>Robotics-ER...</span>
+                    </>
+                ) : (
+                    <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <span>Plan Assembly</span>
+                    </>
+                )}
+            </Button>
+          </footer>
           </div>
         </section>
       </main>

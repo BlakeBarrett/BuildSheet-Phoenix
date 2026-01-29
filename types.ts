@@ -74,6 +74,22 @@ export interface InspectionProtocol {
   inspectionStrategy: string;
 }
 
+export interface AssemblyStep {
+  stepNumber: number;
+  description: string;
+  requiredTool: string;
+  estimatedTime: string;
+}
+
+export interface AssemblyPlan {
+  steps: AssemblyStep[];
+  totalTime: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Expert';
+  requiredEndEffectors: string[];
+  automationFeasibility: number; // 0-100
+  notes: string;
+}
+
 export interface BOMEntry {
   instanceId: string;
   part: Part;

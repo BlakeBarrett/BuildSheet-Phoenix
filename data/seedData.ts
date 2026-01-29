@@ -40,18 +40,18 @@ export const HARDWARE_REGISTRY: Part[] = [
     ]
   },
 
-  // --- 1994 CHEVY TRUCK ECOSYSTEM ---
+  // --- AUTOMOTIVE POWERTRAIN ECOSYSTEM ---
   {
     id: 'truck-eng-1',
-    sku: 'CHEVY-V8-350',
-    name: 'GM 5.7L 350 Small Block V8',
+    sku: 'CHEVY-LS-53-ALU',
+    name: 'GM 5.3L LS V8 (Aluminum Block)',
     category: 'Engine',
     brand: 'GM Performance',
-    price: 3500.00,
-    description: 'The legendary small block 350. Reliable, powerful, iconic.',
+    price: 4200.00,
+    description: 'Modern aluminum block LS-series V8. Significantly lighter than iron blocks with superior airflow.',
     ports: [
       { id: 'e1', name: 'Bellhousing Mount', type: PortType.MECHANICAL, gender: Gender.FEMALE, spec: 'chevy-v8-bellhousing' },
-      { id: 'e2', name: 'Engine Mounts', type: PortType.MECHANICAL, gender: Gender.MALE, spec: 'chevy-truck-mount' }
+      { id: 'e2', name: 'Engine Mounts', type: PortType.MECHANICAL, gender: Gender.MALE, spec: 'chevy-ls-mount' }
     ]
   },
   {

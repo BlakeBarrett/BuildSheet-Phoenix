@@ -1,10 +1,10 @@
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
-import { ShoppingOption, LocalSupplier, InspectionProtocol } from "../types.ts";
+import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan } from "../types.ts";
 
 const SYSTEM_INSTRUCTION = `
-ROLE: You are Gemini, the Senior Hardware Architect at BuildSheet. 
+ROLE: You are Gemini, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
 
 CORE DIRECTIVE:
 You are a FUNCTIONAL AGENT. Your primary job is to Manipulate the State of the drafting board using Tools.
@@ -14,6 +14,12 @@ CONTEXT:
 You have access to two inventory sources:
 1. **Local Registry (Preferred):** Physical parts currently in stock.
 2. **Global Catalog (Virtual):** The entire universe of hardware components.
+
+ROBOTICS & PHYSICS KNOWLEDGE:
+- You inherently understand kinematic chains, payload limits, and assembly feasibility.
+- When creating Virtual Parts, consider their weight and manipulability.
+- If a user asks for a "Drone", ensure you select motors with sufficient thrust-to-weight ratio.
+- If a user asks for a "Robot Arm", ensure servos have sufficient torque.
 
 BEHAVIOR:
 1. **START:** When a user asks to build something new, you MUST call \`initializeDraft(name, requirements)\` first.
@@ -440,6 +446,64 @@ export class GeminiService implements AIService {
           return JSON.parse(response.text || "null");
       } catch (e) {
           console.error("QA Protocol generation failed", e);
+          return null;
+      }
+  }
+
+  async generateAssemblyPlan(bom: any[]): Promise<AssemblyPlan | null> {
+      try {
+          const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name} (${b.part.category})`).join('\n');
+          
+          const prompt = `
+          ROLE: You are "Gemini Robotics-ER 1.5", an expert in Robotics and Manufacturing Engineering.
+          
+          TASK: Create a Robotic Automated Assembly Plan for the following Bill of Materials.
+          
+          BOM:
+          ${bomDigest}
+          
+          REQUIREMENTS:
+          1. Analyze the parts for potential collision points or difficult manipulations.
+          2. Determine the End-Effector (Gripper) types required (e.g. Vacuum, 2-Finger, Magnetic).
+          3. Generate a step-by-step assembly sequence for a 6-DOF Industrial Robot Arm.
+          4. Estimate the difficulty and automation feasibility (0-100%).
+          
+          RETURN JSON ONLY.
+          `;
+
+          const response = await this.ai.models.generateContent({
+              model: 'gemini-3-pro-preview',
+              contents: prompt,
+              config: {
+                  responseMimeType: "application/json",
+                  responseSchema: {
+                      type: Type.OBJECT,
+                      properties: {
+                          steps: {
+                              type: Type.ARRAY,
+                              items: {
+                                  type: Type.OBJECT,
+                                  properties: {
+                                      stepNumber: { type: Type.INTEGER },
+                                      description: { type: Type.STRING },
+                                      requiredTool: { type: Type.STRING },
+                                      estimatedTime: { type: Type.STRING }
+                                  }
+                              }
+                          },
+                          totalTime: { type: Type.STRING },
+                          difficulty: { type: Type.STRING, enum: ['Easy', 'Medium', 'Hard', 'Expert'] },
+                          requiredEndEffectors: { type: Type.ARRAY, items: { type: Type.STRING } },
+                          automationFeasibility: { type: Type.INTEGER },
+                          notes: { type: Type.STRING }
+                      }
+                  }
+              }
+          });
+
+          return JSON.parse(response.text || "null");
+      } catch (e) {
+          console.error("Assembly Plan generation failed", e);
           return null;
       }
   }
