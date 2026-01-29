@@ -323,27 +323,44 @@ export class GeminiService implements AIService {
         const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.sku}) - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
         
         const prompt = `
-        PERFORM A DEEP TECHNICAL AUDIT ON THIS HARDWARE SYSTEM.
+        PERFORM A COMPREHENSIVE TECHNICAL AND LEGAL AUDIT ON THIS HARDWARE ASSEMBLY.
         
         DESIGN GOALS: ${requirements}
         
         BILL OF MATERIALS:
         ${digest}
         
-        TASK:
-        1. Identify voltage mismatches, connector mismatches, or missing parts.
-        2. AUTO-CORRECT: If you find incompatible parts, you MUST output \`removePart("instance_id")\` AND \`addPart("correct_part_id", qty)\`.
-        3. BE AGGRESSIVE: Do not just delete incompatible parts. You MUST suggest a valid replacement from your internal knowledge OR the Global Catalog.
+        TASK 1: TECHNICAL INTEGRITY
+        - Identify voltage mismatches, connector mismatches, or missing components.
+        - Verify signal compatibility.
+        - Suggest "Auto-Correct" actions if failures are found.
+        
+        TASK 2: PATENT INFRINGEMENT RISK ASSESSMENT
+        - Analyze the unique combination of components.
+        - Flag potential infringement risks against major utility patents (e.g., Apple, Samsung, Dyson, Tesla mechanisms) if the assembly mimics protected proprietary mechanisms.
+        - Cite specific patent numbers or families if relevant (e.g. "US Patent 9,xxx,xxx").
+        - If generic/standard, clearly state "Low Patent Risk" and explain why.
+
+        TASK 3: CORRECTION (Tool Calls)
+        - If technical incompatibilities exist, you MUST generate \`removePart\` and \`addPart\` calls to fix them.
         
         OUTPUT FORMAT:
-        Provide a Markdown report (Action Taken, Status) followed by any necessary tool calls.
+        Provide a structured Markdown report. Use these exact headers:
+        
+        ## 🛠️ Technical Verification
+        [Technical findings here]
+
+        ## ⚖️ Patent Risk Analysis
+        [Legal findings here]
+
+        [Tool Calls at the end if needed]
         `;
 
         const response = await this.ai.models.generateContent({
             model: 'gemini-3-pro-preview', // Using Pro for reasoning
             contents: prompt,
             config: {
-                thinkingConfig: { thinkingBudget: 2048 }
+                thinkingConfig: { thinkingBudget: 4096 } // Increased for legal reasoning
             }
         });
 

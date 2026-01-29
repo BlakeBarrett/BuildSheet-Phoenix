@@ -1,5 +1,5 @@
 import { AIService, ArchitectResponse } from './aiTypes.ts';
-import { ShoppingOption, LocalSupplier, InspectionProtocol } from '../types.ts';
+import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan } from '../types.ts';
 
 export class MockService implements AIService {
   public name = "Simulation Engine (Offline)";
@@ -95,7 +95,7 @@ export class MockService implements AIService {
     
     let reasoning = "";
     if (hasBattery && hasLoad) {
-         reasoning = `### ✅ Simulation Audit Report
+         reasoning = `## 🛠️ Technical Verification
     
 **Status: Pass**
 
@@ -103,9 +103,15 @@ export class MockService implements AIService {
 2.  **Mechanical:** ✅ Components fit within standard host tolerances.
 3.  **Connectivity:** ✅ Logical connections appear valid.
 
-*System looks good for prototyping.*`;
+## ⚖️ Patent Risk Analysis
+
+**Risk Level: Low**
+
+*   **Prior Art Check:** The combination of standard off-the-shelf components (Generic Driver, Standard 18650 Cell) constitutes "Obviousness" under 35 U.S.C. § 103.
+*   **Freedom to Operate:** No specific proprietary mechanisms detected that would infringe on major active utility patents in this domain.
+*   **Advisory:** Ensure the specific "C8 Host" form factor sourced does not violate active design patents (e.g., SureFire or Maglite trade dress).`;
     } else {
-        reasoning = `### ⚠️ Simulation Audit Report
+        reasoning = `## 🛠️ Technical Verification
     
 **Status: Provisional Pass**
 
@@ -113,7 +119,13 @@ export class MockService implements AIService {
 2.  **Mechanical:** ⚠️ Please verify case depth. Current stack height (PCB + Battery) may exceed enclosure limits by 1.2mm.
 3.  **Missing:** ❌ No USB-C Cable detected in BOM. User cannot charge device.
 
-*Recommendation: Add a standard USB-C cable and check z-height constraints.*`;
+## ⚖️ Patent Risk Analysis
+
+**Risk Level: Moderate**
+
+*   **Potential Conflict:** The proposed wireless charging coil alignment mechanism bears similarity to **US Patent 10,847,998 (Apple Inc.)**.
+*   **Recommendation:** Ensure the magnetic alignment array does not replicate the specific polarity arrangement defined in the MagSafe claims.
+*   **Action:** Consult IP counsel regarding specific coil winding geometry.`;
     }
 
     return {
@@ -156,6 +168,22 @@ export class MockService implements AIService {
               { name: "Surface Scratches", severity: 'Minor', description: "Visible scratches > 2mm on top face." },
               { name: "Missing Component", severity: 'Critical', description: "Absence of required mounting screws." }
           ]
+      };
+  }
+
+  async generateAssemblyPlan(bom: any[]): Promise<AssemblyPlan | null> {
+      await new Promise(r => setTimeout(r, 1500));
+      return {
+          steps: [
+              { stepNumber: 1, description: "Secure base chassis to fixture.", requiredTool: "Vacuum Gripper", estimatedTime: "5s" },
+              { stepNumber: 2, description: "Insert main PCB into chassis guides.", requiredTool: "Parallel Gripper", estimatedTime: "12s" },
+              { stepNumber: 3, description: "Fasten 4x M2.5 screws.", requiredTool: "Electric Screwdriver", estimatedTime: "20s" }
+          ],
+          totalTime: "37s",
+          difficulty: "Easy",
+          requiredEndEffectors: ["Vacuum Gripper", "Parallel Gripper", "Electric Screwdriver"],
+          automationFeasibility: 95,
+          notes: "Standard pick-and-place operation. High automation potential."
       };
   }
 }
