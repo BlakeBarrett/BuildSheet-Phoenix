@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
@@ -107,11 +106,19 @@ export class GeminiService implements AIService {
     });
 
     // 2. SCRUBBING: Remove technical headers and residual JSON blocks from the human-readable text
+    // Remove Markdown headers that often precede tool calls
     reasoning = reasoning.replace(/(###?\s*(Tool Calls|Corrections|Actions|Functions|Tool\s*Commands|Correction|Correction\s*\(Tool\s*Calls\)).*)/gi, '');
+    
+    // Remove specific Task labels
     reasoning = reasoning.replace(/(Task\s*\d+:\s*(Correction|Tool Calls|Actions).*)/gi, '');
+
+    // Remove code blocks containing tool calls
     reasoning = reasoning.replace(/```[a-z]*\s*[\s\S]*?(addPart|removePart|initializeDraft|tool|arguments)[\s\S]*?```/gi, '');
+
+    // Remove raw JSON arrays if they appear (sometimes Gemini Pro outputs JSON even when told not to)
     reasoning = reasoning.replace(/\[\s*\{\s*["']tool["']\s*:[\s\S]*?\}\s*\]/gi, '');
 
+    // Cleanup whitespace artifacts
     reasoning = reasoning.replace(/^\s*\/\/.*$/gm, '');
     reasoning = reasoning.replace(/^\s*;\s*$/gm, '');
     reasoning = reasoning.replace(/[ \t]+$/gm, '');
@@ -166,27 +173,17 @@ export class GeminiService implements AIService {
     } catch (e) { return null; }
   }
 
-  async findLocalSuppliers(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null> {
+  async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
       try {
           const response = await this.ai.models.generateContent({
               model: 'gemini-2.5-flash',
               contents: `Find local stores for: ${query}.`,
-              config: { 
-                  tools: [{ googleMaps: {} }],
-                  toolConfig: location ? {
-                      retrievalConfig: {
-                          latLng: {
-                              latitude: location.lat,
-                              longitude: location.lng
-                          }
-                      }
-                  } : undefined
-              }
+              config: { tools: [{ googleMaps: {} }] }
           });
           const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
           return chunks.map(chunk => ({
               name: chunk.maps?.title || chunk.web?.title || "Supplier",
-              address: "Local Store",
+              address: "See Map",
               url: chunk.maps?.uri || chunk.web?.uri
           })).slice(0, 5);
       } catch (e) { return null; }

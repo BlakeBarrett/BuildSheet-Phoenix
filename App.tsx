@@ -1,11 +1,10 @@
-
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
-import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, LocalSupplier } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -233,48 +232,22 @@ const PartPickerModal: React.FC<{
     isOpen: boolean; 
     onClose: () => void; 
     onAdd: (id: string) => void;
-    engine: any;
-    aiService: any;
-}> = ({ isOpen, onClose, onAdd, engine, aiService }) => {
+    engine: any 
+}> = ({ isOpen, onClose, onAdd, engine }) => {
     const { t } = useTranslation();
-    const [tab, setTab] = useState<'registry' | 'near-me'>('registry');
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<any[]>([]);
-    
-    // Near Me state
-    const [nearMeQuery, setNearMeQuery] = useState('hardware store');
-    const [suppliers, setSuppliers] = useState<LocalSupplier[]>([]);
-    const [isSearchingSuppliers, setIsSearchingSuppliers] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setResults(engine.searchRegistry(''));
             setQuery('');
-            setTab('registry');
         }
     }, [isOpen, engine]);
 
     const handleSearch = (q: string) => {
         setQuery(q);
         setResults(engine.searchRegistry(q));
-    };
-
-    const handleNearMeSearch = async () => {
-        if (isSearchingSuppliers) return;
-        setIsSearchingSuppliers(true);
-        try {
-            const pos = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000 }));
-            const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            const found = await aiService.findLocalSuppliers(nearMeQuery, loc);
-            setSuppliers(found || []);
-        } catch (e) {
-            console.error("Geolocation or search failed", e);
-            // Fallback without location if geolocation fails
-            const found = await aiService.findLocalSuppliers(nearMeQuery);
-            setSuppliers(found || []);
-        } finally {
-            setIsSearchingSuppliers(false);
-        }
     };
 
     if (!isOpen) return null;
@@ -286,128 +259,42 @@ const PartPickerModal: React.FC<{
                     <h3 className="text-lg font-bold text-slate-800">{t('bom.add')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-slate-800" aria-label="Close">&times;</button>
                 </div>
-                
-                {/* Tabs */}
-                <div className="flex border-b border-gray-100">
-                    <button 
-                        onClick={() => setTab('registry')}
-                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${tab === 'registry' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        Registry
-                    </button>
-                    <button 
-                        onClick={() => setTab('near-me')}
-                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${tab === 'near-me' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        Near Me
-                    </button>
+                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                    <input 
+                        type="text" 
+                        value={query}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        placeholder={t('bom.search')}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
+                        autoFocus
+                    />
                 </div>
-
-                {tab === 'registry' ? (
-                    <>
-                        <div className="p-4 border-b border-gray-100 bg-gray-50">
-                            <input 
-                                type="text" 
-                                value={query}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                placeholder={t('bom.search')}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
-                                autoFocus
-                            />
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-2">
-                            {results.length === 0 ? (
-                                <div className="p-8 text-center text-gray-400 text-sm">{t('bom.no_results')}</div>
-                            ) : (
-                                <div className="space-y-1">
-                                    {results.map(part => (
-                                        <button 
-                                            key={part.id}
-                                            onClick={() => { onAdd(part.id); onClose(); }}
-                                            className="w-full text-left p-3 hover:bg-indigo-50 rounded-xl group transition-colors border border-transparent hover:border-indigo-100"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{part.name}</div>
-                                                    <div className="text-[10px] text-gray-400 font-mono">{part.sku}</div>
-                                                </div>
-                                                <div className="text-xs font-bold text-slate-900">${part.price}</div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="p-4 border-b border-gray-100 bg-gray-50 flex gap-2">
-                             <input 
-                                type="text" 
-                                value={nearMeQuery}
-                                onChange={(e) => setNearMeQuery(e.target.value)}
-                                placeholder="Find shops (e.g. hardware store)"
-                                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 text-sm"
-                            />
-                            <Button onClick={handleNearMeSearch} disabled={isSearchingSuppliers} className="px-4">
-                                {isSearchingSuppliers ? '...' : '🔍'}
-                            </Button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {suppliers.length > 0 ? (
-                                <>
-                                    {/* Visual Map Embed Placeholder using Google Maps URL */}
-                                    <div className="w-full h-48 rounded-2xl border border-gray-200 overflow-hidden shadow-inner bg-gray-50 mb-4">
-                                        <iframe 
-                                            width="100%" 
-                                            height="100%" 
-                                            frameBorder="0" 
-                                            style={{ border: 0 }}
-                                            src={`https://www.google.com/maps/embed/v1/search?key=${process.env.MAPS_API_KEY || ''}&q=${encodeURIComponent(nearMeQuery)}+near+me`}
-                                            allowFullScreen
-                                        ></iframe>
-                                        {!process.env.MAPS_API_KEY && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 backdrop-blur-sm p-8 text-center">
-                                                <div className="max-w-[200px]">
-                                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">📍</div>
-                                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Maps Integration Live</p>
-                                                    <p className="text-[9px] text-gray-400 mt-1">Grounding data visualized via direct Maps links below.</p>
-                                                </div>
-                                            </div>
-                                        )}
+                <div className="flex-1 overflow-y-auto p-2">
+                    {results.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 text-sm">{t('bom.no_results')}</div>
+                    ) : (
+                        <div className="space-y-1">
+                            {results.map(part => (
+                                <button 
+                                    key={part.id}
+                                    onClick={() => { onAdd(part.id); onClose(); }}
+                                    className="w-full text-left p-3 hover:bg-indigo-50 rounded-xl group transition-colors border border-transparent hover:border-indigo-100"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{part.name}</div>
+                                            <div className="text-[10px] text-gray-400 font-mono">{part.sku}</div>
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-900">${part.price}</div>
                                     </div>
-
-                                    <div className="space-y-2">
-                                        {suppliers.map((s, idx) => (
-                                            <a 
-                                                key={idx} 
-                                                href={s.url} 
-                                                target="_blank" 
-                                                rel="noreferrer"
-                                                className="block p-4 bg-white border border-gray-100 rounded-2xl hover:border-indigo-300 hover:shadow-md transition-all group"
-                                            >
-                                                <div className="flex justify-between items-center">
-                                                    <div>
-                                                        <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700">{s.name}</div>
-                                                        <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">{s.address}</div>
-                                                    </div>
-                                                    <div className="text-indigo-600">
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                                    </div>
-                                                </div>
-                                            </a>
-                                        ))}
+                                    <div className="mt-1 flex gap-2">
+                                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded uppercase tracking-wider">{part.category}</span>
                                     </div>
-                                </>
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
-                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">📍</div>
-                                    <p className="text-xs text-gray-500">Search for local hardware stores to find parts in person.</p>
-                                </div>
-                            )}
+                                </button>
+                            ))}
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
              </div>
         </div>
     );
@@ -1084,10 +971,12 @@ const AppContent: React.FC = () => {
       setPartLoading(true);
 
       try {
+          // In a real app we'd ask for permission, here we simulate or use IP based default
+          // const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject));
           const query = entry.part.name;
-          const found = await aiService.findLocalSuppliers(query);
-          if (found) {
-              draftingEngine.updatePartLocalSuppliers(entry.instanceId, found);
+          const result = await aiService.findLocalSuppliers(query);
+          if (result) {
+              draftingEngine.updatePartLocalSuppliers(entry.instanceId, result);
               setSession(draftingEngine.getSession());
           } else {
               setPartLoading(false);
@@ -1099,6 +988,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleExportSheets = () => {
+      // Simulate Google Sheets CSV Export
       const bom = session.bom;
       if (bom.length === 0) return;
 
@@ -1232,6 +1122,7 @@ const AppContent: React.FC = () => {
 
   const handleRetry = async () => {
       const currentMsgs = draftingEngine.getSession().messages;
+      // We look for the last human message if the current last is an error
       const lastMsg = currentMsgs[currentMsgs.length - 1];
       
       const isError = lastMsg?.role === 'assistant' && (
@@ -1418,7 +1309,6 @@ const AppContent: React.FC = () => {
         onClose={() => setPartPickerOpen(false)}
         onAdd={handleAddPart}
         engine={draftingEngine}
-        aiService={aiService}
       />
       <ShareModal 
         isOpen={shareModalOpen}
@@ -1540,7 +1430,7 @@ const AppContent: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-[#F8FAFC]">
              <button onClick={() => setPartPickerOpen(true)} className="w-full py-3 border border-dashed border-indigo-200 bg-indigo-50/50 rounded-xl text-indigo-600 font-medium text-xs uppercase tracking-wider mb-2">+ {t('bom.add')}</button>
             {session.bom.length === 0 ? <div className="h-full flex flex-col items-center justify-center p-12 opacity-40"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('bom.empty')}</p></div> : session.bom.map((entry) => (
-                  <div key={entry.instanceId} className={`bg-white border p-4 rounded-[20px] shadow-sm transition-all hover:shadow-md group cursor-default ${entry.part.sku.startsWith('DRAFT-') ? 'border-dashed border-indigo-300 bg-indigo-50/30' : !entry.isCompatible ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}><div className="flex justify-between items-start"><div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)}><h4 className="font-semibold text-sm text-slate-900 leading-snug">{entry.part.name}</h4><div className="text-[10px] text-gray-400 font-mono mt-1">{entry.part.sku}</div></div><div className="text-right flex flex-col items-end"><div className="text-xs font-mono font-bold text-slate-900">${(entry.part.price * entry.quantity).toLocaleString()}</div><button onClick={(e) => { e.stopPropagation(); handleLocatePart(entry); }} className="mt-2 p-1.5 rounded-lg bg-gray-50 hover:bg-indigo-50"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></button></div></div></div>
+                  <div key={entry.instanceId} className={`bg-white border p-4 rounded-[20px] shadow-sm transition-all hover:shadow-md group cursor-default ${entry.part.sku.startsWith('DRAFT-') ? 'border-dashed border-indigo-300 bg-indigo-50/30' : !entry.isCompatible ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}><div className="flex justify-between items-start"><div className="flex-1 cursor-pointer" onClick={() => setSelectedPart(entry)}><h4 className="font-semibold text-sm text-slate-900 leading-snug">{entry.part.name}</h4><div className="text-[10px] text-gray-400 font-mono mt-1">{entry.part.sku}</div></div><div className="text-right flex flex-col items-end"><div className="text-xs font-mono font-bold text-slate-900">${(entry.part.price * entry.quantity).toLocaleString()}</div><button onClick={(e) => { e.stopPropagation(); handleSourcePart(entry); }} className="mt-2 p-1.5 rounded-lg bg-gray-50 hover:bg-indigo-50"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button></div></div></div>
             ))}
           </div>
           <footer className="p-6 bg-white border-t border-gray-200 grid grid-cols-2 gap-3"><Button onClick={handleVerifyDesign} disabled={session.bom.length === 0} className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-2">{isAuditing ? <span>{t('audit.running')}</span> : <span>{t('audit.button')}</span>}</Button><Button onClick={handlePlanAssembly} disabled={session.bom.length === 0} className="py-3.5 text-xs font-bold uppercase tracking-[0.15em] bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2">{isPlanningAssembly ? <span>Robotics-ER...</span> : <span>Plan Assembly</span>}</Button></footer>

@@ -1,7 +1,5 @@
 {
   "name": "BuildSheet",
   "description": "A production-grade demo for hardware engineering, featuring an AI-assisted Drafting Mode with real N:1 PortDefinition compatibility and a live Bill of Materials (BOM).",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
+  "requestFramePermissions": []
 }
