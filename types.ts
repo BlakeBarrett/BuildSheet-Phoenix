@@ -1,5 +1,4 @@
 
-
 export enum PortType {
   MECHANICAL = 'MECHANICAL',
   ELECTRICAL = 'ELECTRICAL',
@@ -88,6 +87,15 @@ export interface AssemblyPlan {
   requiredEndEffectors: string[];
   automationFeasibility: number; // 0-100
   notes: string;
+  generatedAt: Date;
+}
+
+export interface EnclosureSpec {
+  material: string;
+  dimensions: string;
+  openSCAD?: string;
+  description: string;
+  renderUrl?: string;
 }
 
 export interface BOMEntry {
@@ -104,8 +112,9 @@ export interface BOMEntry {
     manualUrl?: string;
     lastUpdated?: Date;
   };
-  qaProtocol?: InspectionProtocol; // Added for MDE Integration
-  fabricationBrief?: string; // Markdown content for manufacturing brief
+  qaProtocol?: InspectionProtocol;
+  fabricationBrief?: string;
+  enclosure?: EnclosureSpec;
 }
 
 export interface GeneratedImage {
@@ -125,7 +134,7 @@ export interface UserMessage {
 export interface DraftingSession {
   id: string;
   slug: string;
-  shareSlug?: string; // Custom user-defined slug for sharing (e.g., /sheet/my-custom-pc)
+  shareSlug?: string;
   ownerId: string;
   name: string;
   designRequirements: string;
@@ -135,6 +144,10 @@ export interface DraftingSession {
   messages: UserMessage[];
   createdAt: Date;
   lastModified: Date;
+  // Caching & Validation
+  cachedAuditResult?: string;
+  cachedAssemblyPlan?: AssemblyPlan;
+  cacheIsDirty: boolean; // True if BOM changed since last audit/plan
 }
 
 export interface User {
@@ -148,6 +161,6 @@ export interface User {
 export interface UserActivityLog {
   id: string;
   timestamp: Date;
-  action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED' | 'IMAGE_GENERATED' | 'PART_UPDATED';
+  action: 'SESSION_INITIALIZED' | 'PART_ADDED' | 'PART_REMOVED' | 'DRAFT_COMMITTED' | 'IMAGE_GENERATED' | 'PART_UPDATED' | 'ENCLOSURE_GENERATED';
   metadata: any;
 }

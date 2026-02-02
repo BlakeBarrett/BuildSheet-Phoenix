@@ -1,3 +1,4 @@
+
 import { AIService, ArchitectResponse } from './aiTypes.ts';
 import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan } from '../types.ts';
 
@@ -171,6 +172,7 @@ export class MockService implements AIService {
       };
   }
 
+  // Fixed: Added generatedAt: new Date() to satisfy AssemblyPlan interface requirement
   async generateAssemblyPlan(bom: any[]): Promise<AssemblyPlan | null> {
       await new Promise(r => setTimeout(r, 1500));
       return {
@@ -183,7 +185,8 @@ export class MockService implements AIService {
           difficulty: "Easy",
           requiredEndEffectors: ["Vacuum Gripper", "Parallel Gripper", "Electric Screwdriver"],
           automationFeasibility: 95,
-          notes: "Standard pick-and-place operation. High automation potential."
+          notes: "Standard pick-and-place operation. High automation potential.",
+          generatedAt: new Date()
       };
   }
 }

@@ -1,7 +1,8 @@
+
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
-import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan } from "../types.ts";
+import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
 
 const SYSTEM_INSTRUCTION = `
 ROLE: You are Gemini, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
@@ -86,7 +87,6 @@ export class GeminiService implements AIService {
 
     let reasoning = text;
 
-    // 1. Extract tool calls using the standard string format
     const initMatch = text.match(/initializeDraft\s*\(\s*["'](.+?)["']\s*,\s*["'](.+?)["']\s*\)\s*;?/);
     if (initMatch) {
       toolCalls.push({ type: 'initializeDraft', name: initMatch[1], reqs: initMatch[2] });
@@ -105,20 +105,10 @@ export class GeminiService implements AIService {
         reasoning = reasoning.replace(m[0], '');
     });
 
-    // 2. SCRUBBING: Remove technical headers and residual JSON blocks from the human-readable text
-    // Remove Markdown headers that often precede tool calls
     reasoning = reasoning.replace(/(###?\s*(Tool Calls|Corrections|Actions|Functions|Tool\s*Commands|Correction|Correction\s*\(Tool\s*Calls\)).*)/gi, '');
-    
-    // Remove specific Task labels
     reasoning = reasoning.replace(/(Task\s*\d+:\s*(Correction|Tool Calls|Actions).*)/gi, '');
-
-    // Remove code blocks containing tool calls
     reasoning = reasoning.replace(/```[a-z]*\s*[\s\S]*?(addPart|removePart|initializeDraft|tool|arguments)[\s\S]*?```/gi, '');
-
-    // Remove raw JSON arrays if they appear (sometimes Gemini Pro outputs JSON even when told not to)
     reasoning = reasoning.replace(/\[\s*\{\s*["']tool["']\s*:[\s\S]*?\}\s*\]/gi, '');
-
-    // Cleanup whitespace artifacts
     reasoning = reasoning.replace(/^\s*\/\/.*$/gm, '');
     reasoning = reasoning.replace(/^\s*;\s*$/gm, '');
     reasoning = reasoning.replace(/[ \t]+$/gm, '');
@@ -127,9 +117,9 @@ export class GeminiService implements AIService {
     return { reasoning: reasoning.trim(), toolCalls };
   }
 
-  private async generateImage(prompt: string, referenceImage?: string): Promise<string | null> {
+  async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     try {
-        const parts: any[] = [{ text: prompt }];
+        const parts: any[] = [{ text: `Product design concept sketch: ${description}` }];
         if (referenceImage) {
             const imageData = this.cleanBase64(referenceImage);
             if (imageData) parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
@@ -143,33 +133,25 @@ export class GeminiService implements AIService {
     } catch (e) { return null; }
   }
 
-  async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
-    return this.generateImage(`Product design concept sketch: ${description}`, referenceImage);
-  }
-
   async findPartSources(query: string): Promise<ShoppingOption[] | null> {
     try {
         const response = await this.ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Find purchase options for: ${query}.`,
+            contents: `Find purchase options for: ${query}. List specific store links.`,
             config: {
                 tools: [{ googleSearch: {} }],
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            url: { type: Type.STRING },
-                            source: { type: Type.STRING },
-                            price: { type: Type.STRING }
-                        }
-                    }
-                }
             }
         });
-        return JSON.parse(response.text || "[]");
+        
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        return chunks
+            .filter(chunk => chunk.web)
+            .map(chunk => ({
+                title: chunk.web?.title || "Sourcing Link",
+                url: chunk.web?.uri || "",
+                source: chunk.web?.uri ? new URL(chunk.web.uri).hostname : "Web Result"
+            }))
+            .slice(0, 5);
     } catch (e) { return null; }
   }
 
@@ -189,17 +171,30 @@ export class GeminiService implements AIService {
       } catch (e) { return null; }
   }
 
-  async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
+  async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse> {
     try {
         const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
         
-        const prompt = `
+        let prompt = `
         PERFORM A TECHNICAL AND PATENT AUDIT.
-        
         DESIGN GOALS: ${requirements}
-        BOM:
+        CURRENT BOM:
         ${digest}
-        
+        `;
+
+        if (previousAudit) {
+            prompt += `
+            ---
+            PREVIOUS AUDIT RESULT:
+            ${previousAudit}
+            ---
+            TASK: The BOM or requirements have changed. Provide a DELTA AUDIT. 
+            Identify what has improved or what new risks have been introduced. 
+            Keep the response concise by referencing previous findings where still valid.
+            `;
+        }
+
+        prompt += `
         TASK 1: TECHNICAL INTEGRITY (Human-readable report)
         TASK 2: PATENT INFRINGEMENT RISK (Human-readable report)
         TASK 3: CORRECTIONS (Tool Calls)
@@ -209,7 +204,6 @@ export class GeminiService implements AIService {
         2. **DO NOT** use JSON for Task 3. 
         3. Use ONLY string function format: \`addPart("id", quantity)\` or \`removePart("id")\`.
         4. Place corrections at the absolute end of your response.
-        5. **DO NOT** label the corrections section in the text.
         `;
 
         const response = await this.ai.models.generateContent({
@@ -231,7 +225,7 @@ export class GeminiService implements AIService {
             contents: `Manufacturing specs for: ${partName}. Context: ${context}.`,
             config: { thinkingConfig: { thinkingBudget: 2048 } }
         });
-        const img = await this.generateImage(`Engineering blueprint diagram of ${partName}. Orthographic projections.`);
+        const img = await this.generateProductImage(`Engineering blueprint diagram of ${partName}. Orthographic projections.`);
         return (img ? `![Technical Blueprint](${img})\n\n` : "") + (response.text || "");
     } catch (e: any) { return `Generation failed: ${e.message}`; }
   }
@@ -257,12 +251,18 @@ export class GeminiService implements AIService {
       } catch (e) { return null; }
   }
 
-  async generateAssemblyPlan(bom: any[]): Promise<AssemblyPlan | null> {
+  async generateAssemblyPlan(bom: any[], previousPlan?: AssemblyPlan): Promise<AssemblyPlan | null> {
       try {
           const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
+          let prompt = `Generate an assembly plan for:\n${bomDigest}`;
+          
+          if (previousPlan) {
+              prompt += `\n\n--- PREVIOUS PLAN: ${JSON.stringify(previousPlan)} ---\nUpdate this plan based on the new BOM. Maintain the same structure.`;
+          }
+
           const response = await this.ai.models.generateContent({
               model: 'gemini-3-pro-preview',
-              contents: `Assembly plan for:\n${bomDigest}`,
+              contents: prompt,
               config: {
                   responseMimeType: "application/json",
                   responseSchema: {
@@ -278,7 +278,56 @@ export class GeminiService implements AIService {
                   }
               }
           });
-          return JSON.parse(response.text || "null");
+          const plan = JSON.parse(response.text || "null");
+          if (plan) plan.generatedAt = new Date();
+          return plan;
       } catch (e) { return null; }
+  }
+
+  async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {
+    try {
+        const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
+        const response = await this.ai.models.generateContent({
+            model: 'gemini-3-pro-preview',
+            contents: `Generate a 3D printable enclosure specification for this project. Context: ${context}. Components: ${bomDigest}`,
+            config: {
+                thinkingConfig: { thinkingBudget: 4096 },
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        material: { type: Type.STRING },
+                        dimensions: { type: Type.STRING },
+                        openSCAD: { type: Type.STRING, description: "OpenSCAD script code for the enclosure" },
+                        description: { type: Type.STRING }
+                    }
+                }
+            }
+        });
+        const spec = JSON.parse(response.text || "{}");
+        const img = await this.generateProductImage(`3D CAD render of enclosure: ${spec.description}. Minimalist industrial design.`);
+        return { ...spec, renderUrl: img };
+    } catch (e) { return null; }
+  }
+
+  async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
+    try {
+        const step = plan.steps.find(s => s.stepNumber === currentStep);
+        const imageData = this.cleanBase64(image);
+        if (!imageData) return "Unable to process camera frame.";
+
+        const response = await this.ai.models.generateContent({
+            model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
+                    { text: `AR ASSEMBLY GUIDE: Current Step ${currentStep}: ${step?.description}. REQUIRED TOOL: ${step?.requiredTool}. 
+                    Analyze the camera frame. Are the correct parts visible? Are they oriented correctly? 
+                    Provide a concise instruction for the user. Keep it under 30 words.` }
+                ]
+            }
+        });
+        return response.text || "Continue with the assembly step.";
+    } catch (e) { return "Guidance temporarily unavailable."; }
   }
 }

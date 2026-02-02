@@ -1,8 +1,11 @@
-
 import React from 'react';
 
-export const Card: React.FC<{ children: React.ReactNode, className?: string }> = ({ children, className }) => (
-  <div className={`bg-white rounded-[20px] border border-gray-200 shadow-sm overflow-hidden ${className}`}>
+// Added onClick prop to allow Card components to be interactive (fixes type error in App.tsx)
+export const Card: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void }> = ({ children, className, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`bg-white rounded-[20px] border border-gray-200 shadow-sm overflow-hidden ${className}`}
+  >
     {children}
   </div>
 );
