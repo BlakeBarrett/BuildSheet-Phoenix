@@ -1,4 +1,4 @@
-# BuildSheet Phoenix
+# BuildSheet
 
 **BuildSheet** is the first **AI-Native Hardware Architect** designed to bridge the gap between generative logic and physical manufacturing. It transforms natural language into validated Bill of Materials (BOM), manufacturing blueprints, and robotic assembly plans.
 
