@@ -1,4 +1,3 @@
-
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
@@ -41,6 +40,11 @@ export class DraftingEngine {
         createdAt: new Date(data.createdAt),
         lastModified: data.lastModified ? new Date(data.lastModified) : new Date(),
         cacheIsDirty: data.cacheIsDirty ?? true,
+        cachedAuditResult: data.cachedAuditResult,
+        cachedAssemblyPlan: data.cachedAssemblyPlan ? {
+            ...data.cachedAssemblyPlan,
+            generatedAt: new Date(data.cachedAssemblyPlan.generatedAt)
+        } : undefined,
         generatedImages: data.generatedImages?.map((img: any) => ({
             ...img,
             timestamp: new Date(img.timestamp)
@@ -220,7 +224,16 @@ export class DraftingEngine {
   }
 
   public exportManifest(): string {
-    return JSON.stringify(this.session, null, 2);
+    // Explicitly construct the manifest to ensure Plan and Verify are included
+    const manifest = {
+        ...this.session,
+        _exportMetadata: {
+            exportedAt: new Date().toISOString(),
+            version: "1.0",
+            integrityVerified: !this.session.cacheIsDirty
+        }
+    };
+    return JSON.stringify(manifest, null, 2);
   }
 
   public getSourcingCompletion(): number {

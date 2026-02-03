@@ -27,7 +27,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                 <h1 className="text-2xl font-bold text-[#FFB4AB] mb-4">System Critical Failure</h1>
                 <p className="mb-4 text-[#E2E2E2]">The application encountered an unrecoverable error.</p>
                 <pre className="bg-black/30 p-4 rounded-xl text-xs font-mono overflow-auto border border-[#FFB4AB]/30">{this.state.error?.message}</pre>
-                <Button onClick={() => window.location.reload()} variant="tonal" className="mt-6">Reboot System</Button>
+                <Button onClick={() => window.location.reload()} variant="tonal" className="mt-6" aria-label="Restart Application">Reboot System</Button>
             </div>
         </div>
       );
@@ -61,14 +61,14 @@ const ValidationReportModal: React.FC<{
     };
 
     return (
-        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-labelledby="validation-title">
              <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
                     <div className="flex flex-col">
-                        <h3 className="text-lg font-bold text-slate-800">System Integrity Suite</h3>
-                        <p className="text-[10px] text-gray-400 font-mono tracking-tighter">BUILD: BS-PHOENIX-STABLE</p>
+                        <h3 id="validation-title" className="text-lg font-bold text-slate-800">System Integrity Suite</h3>
+                        <p className="text-[10px] text-gray-400 font-mono tracking-tighter">BUILD: BS-STABLE</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800" disabled={isFixing || isRunning}>&times;</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2" aria-label="Close modal" disabled={isFixing || isRunning}>&times;</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-900 font-mono text-sm leading-relaxed text-indigo-100">
                     {(isRunning || isFixing) ? (
@@ -82,7 +82,7 @@ const ValidationReportModal: React.FC<{
                                 <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">Draft Integrity</h4>
                                 {results.filter(r => r.category === 'INTEGRITY').map((res, i) => (
                                     <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
-                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'}>
+                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
                                             [{res.status}]
                                         </span>
                                         <div className="text-left">
@@ -96,7 +96,21 @@ const ValidationReportModal: React.FC<{
                                 <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">UI Flows & Stability</h4>
                                 {results.filter(r => r.category === 'FLOW').map((res, i) => (
                                     <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
-                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'}>
+                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
+                                            [{res.status}]
+                                        </span>
+                                        <div className="text-left">
+                                            <p className="font-bold text-white uppercase text-xs">{res.name}</p>
+                                            <p className="text-[11px] text-indigo-300/70">{res.message}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">Compliance & Branding</h4>
+                                {results.filter(r => r.category === 'ACCESSIBILITY' || r.category === 'SYSTEM').map((res, i) => (
+                                    <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
+                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
                                             [{res.status}]
                                         </span>
                                         <div className="text-left">
@@ -111,10 +125,10 @@ const ValidationReportModal: React.FC<{
                 </div>
                 <div className="p-4 border-t border-gray-100 bg-white flex justify-end gap-2">
                     {results.some(r => r.status !== 'PASS') && !isFixing && !isRunning && (
-                        <Button onClick={handleFix} variant="tonal" className="bg-indigo-50 text-indigo-700">One-Click Repair</Button>
+                        <Button onClick={handleFix} variant="tonal" className="bg-indigo-50 text-indigo-700" aria-label="Repair all failing tests">One-Click Repair</Button>
                     )}
-                    <Button onClick={onRunAgain} variant="secondary" disabled={isRunning || isFixing}>Rerun Tests</Button>
-                    <Button onClick={onClose} variant="primary" disabled={isFixing || isRunning}>Close</Button>
+                    <Button onClick={onRunAgain} variant="secondary" disabled={isRunning || isFixing} aria-label="Re-run all tests">Rerun Tests</Button>
+                    <Button onClick={onClose} variant="primary" disabled={isFixing || isRunning} aria-label="Close validation report">Close</Button>
                 </div>
              </div>
         </div>
@@ -128,16 +142,16 @@ const PartDetailModal: React.FC<{
 }> = ({ entry, onClose, onSource }) => {
     if (!entry) return null;
     return (
-        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-labelledby="part-title">
              <div className="bg-white rounded-[28px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                        <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold" aria-hidden="true">
                             {entry.part.category[0] || 'P'}
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800">{entry.part.name}</h3>
+                        <h3 id="part-title" className="text-lg font-bold text-slate-800">{entry.part.name}</h3>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2" aria-label="Close detail modal">&times;</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 bg-white">
                     <div className="space-y-6">
@@ -148,11 +162,11 @@ const PartDetailModal: React.FC<{
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-[10px] font-bold text-gray-400 uppercase">SKU</label>
-                                <p className="text-xs font-mono">{entry.part.sku}</p>
+                                <p className="text-xs font-mono text-slate-800">{entry.part.sku}</p>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-gray-400 uppercase">Price</label>
-                                <p className="text-xs">${entry.part.price.toFixed(2)}</p>
+                                <p className="text-xs text-slate-800">${entry.part.price.toFixed(2)}</p>
                             </div>
                         </div>
                         {entry.sourcing?.online && entry.sourcing.online.length > 0 && (
@@ -160,7 +174,7 @@ const PartDetailModal: React.FC<{
                                 <label className="text-[10px] font-bold text-gray-400 uppercase">Sourcing Links</label>
                                 <div className="mt-2 space-y-2">
                                     {entry.sourcing.online.map((s, i) => (
-                                        <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-indigo-600 hover:bg-indigo-50 transition-colors">
+                                        <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-indigo-600 hover:bg-indigo-50 transition-colors" aria-label={`View ${entry.part.name} at ${s.source}`}>
                                             {s.title} ({s.source})
                                         </a>
                                     ))}
@@ -170,8 +184,8 @@ const PartDetailModal: React.FC<{
                     </div>
                 </div>
                 <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex flex-wrap gap-2 justify-end">
-                    <Button variant="tonal" onClick={() => onSource(entry)} className="text-xs">Update Sourcing</Button>
-                    <Button variant="primary" onClick={onClose}>Close</Button>
+                    <Button variant="tonal" onClick={() => onSource(entry)} className="text-xs" aria-label="Refresh pricing and availability">Update Sourcing</Button>
+                    <Button variant="primary" onClick={onClose} aria-label="Close part details">Close</Button>
                 </div>
              </div>
         </div>
@@ -189,19 +203,19 @@ const AssemblyModal: React.FC<{
 }> = ({ isOpen, onClose, plan, isRunning, isDirty, onLaunchAR, onRefresh }) => {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-labelledby="assembly-title">
              <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
                     <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isRunning ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isRunning ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`} aria-hidden="true">
                             {isRunning ? <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800">Robotic Assembly Planner</h3>
+                            <h3 id="assembly-title" className="text-lg font-bold text-slate-800">Robotic Assembly Planner</h3>
                             {isDirty && <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded font-bold ml-2">STALE</span>}
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2" aria-label="Close assembly planner">&times;</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 bg-white font-sans text-sm leading-relaxed text-slate-600">
                     {isRunning ? (
@@ -214,7 +228,7 @@ const AssemblyModal: React.FC<{
                             {isDirty && (
                                 <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex justify-between items-center">
                                     <p className="text-xs text-red-600 font-medium">Draft changed since this plan was generated.</p>
-                                    <Button onClick={onRefresh} variant="tonal" className="text-[10px] h-7 px-3 bg-red-100 text-red-700">Refresh Plan</Button>
+                                    <Button onClick={onRefresh} variant="tonal" className="text-[10px] h-7 px-3 bg-red-100 text-red-700" aria-label="Update assembly sequence">Refresh Plan</Button>
                                 </div>
                             )}
                             <div className="grid grid-cols-3 gap-4">
@@ -236,7 +250,7 @@ const AssemblyModal: React.FC<{
                                     <h4 className="font-bold text-sm">Multimodal AR Guide</h4>
                                     <p className="text-white/70 text-xs">Use your camera for step-by-step guidance.</p>
                                 </div>
-                                <Button onClick={onLaunchAR} className="bg-white text-indigo-600 border-none px-4 py-2 text-xs">Launch AR</Button>
+                                <Button onClick={onLaunchAR} className="bg-white text-indigo-600 border-none px-4 py-2 text-xs" aria-label="Start augmented reality assembly guide">Launch AR</Button>
                             </div>
                             <div>
                                 <h4 className="font-bold text-xs uppercase text-slate-800 mb-3">Assembly Sequence</h4>
@@ -255,7 +269,7 @@ const AssemblyModal: React.FC<{
                         </div>
                     ) : <div className="text-center text-gray-400">No plan generated.</div>}
                 </div>
-                {!isRunning && <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end"><Button onClick={onClose} variant="primary">Done</Button></div>}
+                {!isRunning && <div className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex justify-end"><Button onClick={onClose} variant="primary" aria-label="Exit assembly planner">Done</Button></div>}
              </div>
         </div>
     );
@@ -271,16 +285,16 @@ const AuditModal: React.FC<{
 }> = ({ isOpen, onClose, result, isRunning, isDirty, onRefresh }) => {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-labelledby="audit-title">
              <div className="bg-white rounded-[28px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
                     <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-slate-900 text-white`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-slate-900 text-white`} aria-hidden="true">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-7.618 3.040 12.02 12.02 0 00-3.131 8.903 12.01 12.01 0 007.97 10.743l.779.275.779-.275a12.01 12.01 0 007.97-10.743 12.02 12.02 0 00-3.131-8.903z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800">System Integrity Audit</h3>
+                        <h3 id="audit-title" className="text-lg font-bold text-slate-800">System Integrity Audit</h3>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800">&times;</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-slate-800 p-2" aria-label="Close audit">&times;</button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
                     {isRunning ? (
@@ -293,14 +307,14 @@ const AuditModal: React.FC<{
                             {isDirty && (
                                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex justify-between items-center mb-6">
                                     <p className="text-xs text-amber-700 font-medium m-0">This audit might be outdated due to BOM changes.</p>
-                                    <Button onClick={onRefresh} variant="tonal" className="text-[10px] h-7 px-3 bg-amber-100 text-amber-800 border-none">Update Audit</Button>
+                                    <Button onClick={onRefresh} variant="tonal" className="text-[10px] h-7 px-3 bg-amber-100 text-amber-800 border-none" aria-label="Re-analyze system integrity">Update Audit</Button>
                                 </div>
                             )}
                             <ReactMarkdown>{result || "Run an audit to see technical and legal verification."}</ReactMarkdown>
                         </div>
                     )}
                 </div>
-                <div className="p-4 border-t border-gray-100 bg-white flex justify-end"><Button onClick={onClose} variant="primary">Close</Button></div>
+                <div className="p-4 border-t border-gray-100 bg-white flex justify-end"><Button onClick={onClose} variant="primary" aria-label="Close integrity report">Close</Button></div>
              </div>
         </div>
     );
@@ -349,59 +363,37 @@ const AppContent: React.FC = () => {
       } catch (e) { console.error(e); }
   };
 
-  const handleOneClickKit = async () => {
-    const latestSession = draftingEngine.getSession();
-    if (latestSession.bom.length === 0) return;
-    
-    // 1. Sourcing
-    for (const entry of latestSession.bom) {
-      if (!entry.sourcing?.online?.length) {
-        await handleSourcePart(entry);
-      }
-    }
-    
-    // 2. Rendering (if missing)
-    const currentSession = draftingEngine.getSession();
-    if (currentSession.generatedImages.length === 0) {
-        await handleGenerateVisual();
-    }
-    
-    // 3. Technical Audit
-    await handleVerifyAudit();
-    
-    // 4. Assembly Planning
-    await handlePlanAssembly();
-    
-    refreshState();
-  };
-
-  const handleVerifyAudit = async () => {
+  const performVerifyAudit = async (silent = false) => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
-      setAuditOpen(true);
-      setIsAuditing(true);
+      if (!silent) {
+        setAuditOpen(true);
+        setIsAuditing(true);
+      }
       try {
           const res = await aiService.verifyDesign(currentSession.bom, currentSession.designRequirements, currentSession.cachedAuditResult);
           draftingEngine.cacheAuditResult(res.reasoning);
-          refreshState();
-      } catch (e) { console.error(e); } finally { setIsAuditing(false); }
-  };
+          if (!silent) refreshState();
+      } catch (e) { console.error(e); } finally { if (!silent) setIsAuditing(false); }
+  }
 
-  const handlePlanAssembly = async () => {
+  const performPlanAssembly = async (silent = false) => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
-      setAssemblyOpen(true);
-      setIsPlanningAssembly(true);
+      if (!silent) {
+        setAssemblyOpen(true);
+        setIsPlanningAssembly(true);
+      }
       try {
           const plan = await aiService.generateAssemblyPlan(currentSession.bom, currentSession.cachedAssemblyPlan);
           if (plan) {
               draftingEngine.cacheAssemblyPlan(plan);
-              refreshState();
+              if (!silent) refreshState();
           }
-      } catch (e) { console.error(e); } finally { setIsPlanningAssembly(false); }
-  };
+      } catch (e) { console.error(e); } finally { if (!silent) setIsPlanningAssembly(false); }
+  }
 
-  const handleGenerateVisual = async () => {
+  const performVisualGeneration = async () => {
       const currentSession = draftingEngine.getSession();
       if (isVisualizing || currentSession.bom.length === 0) return;
       setIsVisualizing(true);
@@ -410,9 +402,50 @@ const AppContent: React.FC = () => {
           const imageUrl = await aiService.generateProductImage(requirements);
           if (imageUrl) {
               draftingEngine.addGeneratedImage(imageUrl, `Design concept for: ${requirements}`);
-              refreshState();
           }
       } catch (e) { console.error(e); } finally { setIsVisualizing(false); }
+  }
+
+  const handleOneClickKit = async () => {
+    const latestSession = draftingEngine.getSession();
+    if (latestSession.bom.length === 0) return;
+    
+    for (const entry of latestSession.bom) {
+      if (!entry.sourcing?.online?.length) {
+        await handleSourcePart(entry);
+      }
+    }
+    
+    const currentSession = draftingEngine.getSession();
+    if (currentSession.generatedImages.length === 0) {
+        await performVisualGeneration();
+    }
+    
+    await performVerifyAudit(true);
+    await performPlanAssembly(true);
+    
+    refreshState();
+  };
+
+  const handleVerifyAudit = async () => {
+      if (session.cachedAuditResult && !session.cacheIsDirty) {
+          setAuditOpen(true);
+          return;
+      }
+      await performVerifyAudit();
+  };
+
+  const handlePlanAssembly = async () => {
+      if (session.cachedAssemblyPlan && !session.cacheIsDirty) {
+          setAssemblyOpen(true);
+          return;
+      }
+      await performPlanAssembly();
+  };
+
+  const handleGenerateVisual = async () => {
+      await performVisualGeneration();
+      refreshState();
   };
 
   const handleExport = () => {
@@ -455,7 +488,7 @@ const AppContent: React.FC = () => {
         });
         
         draftingEngine.addMessage({ role: 'assistant', content: parsed.reasoning || architectResponse, timestamp: new Date() });
-        if (stateModified) handleGenerateVisual();
+        if (stateModified) performVisualGeneration().then(() => refreshState());
         refreshState();
     } catch (e: any) {
         draftingEngine.addMessage({ role: 'assistant', content: `[ERROR] ${e.message}`, timestamp: new Date() });
@@ -473,52 +506,48 @@ const AppContent: React.FC = () => {
         onRunAgain={runValidationSuite} 
         onFixAll={handleOneClickKit} 
       />
-      <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={handlePlanAssembly} />
-      <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={handleVerifyAudit} />
+      <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
+      <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
       <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
       {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
-      {/* Restore Sidebar Layout */}
       <nav className="hidden md:flex w-[88px] border-r border-gray-200 bg-white flex-col items-center py-6 gap-6 z-20 shadow-sm">
-        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg">B</div>
+        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg" aria-hidden="true">B</div>
         <div className="flex flex-col gap-4 flex-1 items-center">
-            <button onClick={() => { draftingEngine.createNewProject(); refreshState(); }} className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl hover:bg-indigo-100 transition-colors" title="New Project"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg></button>
-            <button onClick={handleExport} className="w-12 h-12 flex items-center justify-center text-emerald-600 bg-emerald-50 rounded-2xl hover:bg-emerald-100 transition-colors" title="Export Manifest"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
-            <button onClick={runValidationSuite} className="w-12 h-12 flex items-center justify-center text-rose-600 bg-rose-50 rounded-2xl hover:bg-rose-100 transition-colors" title="Integrity Tests"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-7.618 3.040 12.02 12.02 0 00-3.131 8.903 12.01 12.01 0 007.97 10.743l.779.275.779-.275a12.01 12.01 0 007.97-10.743 12.02 12.02 0 00-3.131-8.903z"></path></svg></button>
+            <button onClick={() => { draftingEngine.createNewProject(); refreshState(); }} className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl hover:bg-indigo-100 transition-colors focus:ring-2 ring-indigo-500 outline-none" aria-label="Create new hardware project"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg></button>
+            <button onClick={handleExport} className="w-12 h-12 flex items-center justify-center text-emerald-600 bg-emerald-50 rounded-2xl hover:bg-emerald-100 transition-colors focus:ring-2 ring-emerald-500 outline-none" aria-label="Export manifest as JSON"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
+            <button onClick={runValidationSuite} className="w-12 h-12 flex items-center justify-center text-rose-600 bg-rose-50 rounded-2xl hover:bg-rose-100 transition-colors focus:ring-2 ring-rose-500 outline-none" aria-label="Run system integrity tests"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-7.618 3.040 12.02 12.02 0 00-3.131 8.903 12.01 12.01 0 007.97 10.743l.779.275.779-.275a12.01 12.01 0 007.97-10.743 12.02 12.02 0 00-3.131-8.903z"></path></svg></button>
         </div>
       </nav>
 
       <main className="flex-1 flex overflow-hidden">
-        {/* Main Feed Content Area */}
-        <section className="flex-1 flex flex-col border-r border-gray-200 bg-white">
+        <section className="flex-1 flex flex-col border-r border-gray-200 bg-white" aria-label="Drafting Canvas">
           <header className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
             <h1 className="font-medium text-xl tracking-tight text-slate-900">{session.name || "Untitled Draft"}</h1>
             <div className="flex gap-2 items-center">
-                {session.cacheIsDirty && session.bom.length > 0 && <Chip label="MODIFIED" color="bg-amber-50 text-amber-600 font-bold border-amber-100" />}
-                <button onClick={() => setIsBomOpen(!isBomOpen)} className="p-2 text-slate-400 hover:text-slate-800 transition-colors"><svg className={`w-5 h-5 transition-transform ${isBomOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                {session.cacheIsDirty && session.bom.length > 0 && <Chip label="MODIFIED" color="bg-amber-100 text-amber-800 font-bold border-amber-200" />}
+                <button onClick={() => setIsBomOpen(!isBomOpen)} className="p-2 text-slate-400 hover:text-slate-800 transition-colors focus:ring-2 ring-slate-200 rounded-lg outline-none" aria-label={isBomOpen ? "Hide Bill of Materials" : "Show Bill of Materials"}><svg className={`w-5 h-5 transition-transform ${isBomOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
             </div>
           </header>
 
-          {/* Visualizer Header */}
-          <div className="bg-[#F8FAFC] border-b border-gray-200 p-4 h-[35%]">
+          <div className="bg-[#F8FAFC] border-b border-gray-200 p-4 h-[35%] overflow-hidden">
              <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
           </div>
 
-          {/* Message Thread */}
-          <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-white">
+          <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-white" aria-label="Conversation Feed">
             {session.messages.length === 0 && (
-                <div className="text-center py-10 opacity-40">
-                    <p className="text-sm font-medium">Describe your hardware project to begin drafting.</p>
+                <div className="text-center py-10 opacity-60">
+                    <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin drafting.</p>
                 </div>
             )}
             {session.messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-[24px] px-6 py-4 shadow-sm ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-[#F1F5F9] text-slate-800'}`}>
-                  <ReactMarkdown className="prose prose-sm max-w-none prose-slate">{m.content}</ReactMarkdown>
+                <div className={`max-w-[85%] rounded-[24px] px-6 py-4 shadow-sm border border-transparent ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-[#F1F5F9] text-slate-800'}`}>
+                  <ReactMarkdown className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-800'}`}>{m.content}</ReactMarkdown>
                 </div>
               </div>
             ))}
-            {isThinking && <div className="flex justify-start"><div className="bg-[#F1F5F9] rounded-[24px] px-6 py-4 animate-pulse text-slate-400 text-sm">Architect is reasoning...</div></div>}
+            {isThinking && <div className="flex justify-start"><div className="bg-[#F1F5F9] rounded-[24px] px-6 py-4 animate-pulse text-slate-500 text-sm font-medium border border-gray-100">Architect is reasoning...</div></div>}
             <div ref={chatEndRef} />
           </div>
 
@@ -529,37 +558,37 @@ const AppContent: React.FC = () => {
                     onChange={e => setInput(e.target.value)} 
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                     placeholder="E.g. Build a mechanical keyboard with linear switches..." 
-                    className="w-full pl-6 pr-16 py-4 bg-[#F1F5F9] border-none rounded-[28px] text-sm resize-none outline-none focus:ring-2 ring-indigo-500/20" 
+                    className="w-full pl-6 pr-16 py-4 bg-[#F1F5F9] border border-transparent rounded-[28px] text-sm text-slate-900 resize-none outline-none focus:ring-2 ring-indigo-500/20 focus:bg-white focus:border-indigo-100 transition-all" 
                     rows={1} 
+                    aria-label="Instruction input"
                 />
-                <button onClick={handleSend} className="absolute right-2 top-2 w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center hover:bg-slate-800 transition-colors shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></button>
+                <button onClick={handleSend} className="absolute right-2 top-2 w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center hover:bg-slate-800 transition-colors shadow-sm focus:ring-2 ring-indigo-500 outline-none" aria-label="Send instruction"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></button>
             </div>
           </footer>
         </section>
 
-        {/* Right Sidebar BOM */}
         {isBomOpen && (
-          <section className="w-[450px] flex flex-col bg-white border-l border-gray-200 shadow-lg animate-in slide-in-from-right duration-300">
+          <section className="w-[450px] flex flex-col bg-white border-l border-gray-200 shadow-lg animate-in slide-in-from-right duration-300" aria-label="Bill of Materials Panel">
             <header className="px-6 py-6 border-b border-gray-200 flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <h2 className="font-bold text-xs uppercase tracking-widest text-slate-500">Bill of Materials</h2>
-                <div className="text-2xl font-mono font-bold text-indigo-600">${draftingEngine.getTotalCost().toLocaleString()}</div>
+                <div className="text-2xl font-mono font-bold text-indigo-600" aria-label={`Total build cost: ${draftingEngine.getTotalCost()} dollars`}>${draftingEngine.getTotalCost().toLocaleString()}</div>
               </div>
-              <Button variant="secondary" className="w-full text-xs h-9 font-bold bg-indigo-50 text-indigo-700 border-none shadow-none" onClick={handleOneClickKit}>
-                {draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty ? 'Build Stabilized' : 'One-Click Kit'}
+              <Button variant="secondary" className="w-full text-xs h-9 font-bold bg-indigo-50 text-indigo-700 border-none shadow-none" onClick={handleOneClickKit} aria-label="Automatically source and validate all parts">
+                {draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan ? 'Build Stabilized' : 'One-Click Kit'}
               </Button>
             </header>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#FAFAFA]">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#FAFAFA]" aria-label="Parts list">
               {session.bom.map(entry => (
-                <Card key={entry.instanceId} className="p-4 hover:shadow-md cursor-pointer transition-all border-none bg-white shadow-sm" onClick={() => setSelectedPart(entry)}>
+                <Card key={entry.instanceId} className="p-4 hover:shadow-md cursor-pointer transition-all border border-transparent hover:border-indigo-100 bg-white shadow-sm" onClick={() => setSelectedPart(entry)} aria-label={`View details for ${entry.part.name}`}>
                   <div className="flex justify-between items-center">
                     <div>
                         <div className="font-bold text-sm text-slate-800">{entry.part.name}</div>
                         <div className="flex gap-2 items-center mt-1">
                             <span className="text-[10px] text-slate-400 font-mono tracking-tighter">{entry.part.sku}</span>
-                            <span className="text-[10px] text-slate-400 font-medium">x{entry.quantity}</span>
-                            {entry.sourcing?.online?.length ? <span className="text-[9px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Sourced</span> : <span className="text-[9px] bg-rose-50 text-rose-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Missing Link</span>}
+                            <span className="text-[10px] text-slate-500 font-medium">x{entry.quantity}</span>
+                            {entry.sourcing?.online?.length ? <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Sourced</span> : <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Missing Link</span>}
                         </div>
                     </div>
                     <div className="text-xs font-bold text-slate-900">${(entry.part.price * entry.quantity).toLocaleString()}</div>
@@ -567,18 +596,18 @@ const AppContent: React.FC = () => {
                 </Card>
               ))}
               {session.bom.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-12 py-32">
-                    <svg className="w-16 h-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    <p className="text-sm font-medium">Add components to populate the build sheet.</p>
+                  <div className="h-full flex flex-col items-center justify-center opacity-40 text-center px-12 py-32">
+                    <svg className="w-16 h-16 mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <p className="text-sm font-medium text-slate-400">Add components to populate the build sheet.</p>
                   </div>
               )}
             </div>
 
             <footer className="p-6 border-t border-gray-200 grid grid-cols-2 gap-3 bg-white">
-              <Button onClick={handleVerifyAudit} className={`text-white text-xs h-10 transition-all ${session.cacheIsDirty ? 'bg-indigo-600 shadow-lg' : 'bg-slate-900 opacity-60'}`}>
+              <Button onClick={handleVerifyAudit} className={`text-white text-xs h-10 transition-all ${session.cacheIsDirty ? 'bg-indigo-600 shadow-lg' : 'bg-slate-900 opacity-60'}`} aria-label="Verify technical integrity and patent risks">
                 {session.cachedAuditResult && !session.cacheIsDirty ? 'View Audit' : 'Verify Design'}
               </Button>
-              <Button onClick={handlePlanAssembly} className={`text-white text-xs h-10 transition-all ${session.cacheIsDirty ? 'bg-blue-600 shadow-lg' : 'bg-blue-800 opacity-60'}`}>
+              <Button onClick={handlePlanAssembly} className={`text-white text-xs h-10 transition-all ${session.cacheIsDirty ? 'bg-blue-600 shadow-lg' : 'bg-blue-800 opacity-60'}`} aria-label="Generate or view assembly plan">
                 {session.cachedAssemblyPlan && !session.cacheIsDirty ? 'View Plan' : 'Plan Assembly'}
               </Button>
             </footer>
