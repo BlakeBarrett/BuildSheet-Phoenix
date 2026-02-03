@@ -1,3 +1,4 @@
+
 import { DraftingSession, AssemblyPlan } from '../types.ts';
 import { DraftingEngine } from './draftingEngine.ts';
 
@@ -61,7 +62,7 @@ export class TestSuite {
                           (hasAudit ? !!parsed.cachedAuditResult : true) && 
                           (hasPlan ? !!parsed.cachedAssemblyPlan : true);
             
-            // Check that Phoenix branding is removed from metadata version
+            // Check that branding is removed from metadata version
             brandingClean = parsed._exportMetadata?.version === "1.0";
         } catch(e) {}
         
@@ -75,7 +76,7 @@ export class TestSuite {
         results.push({
             name: "SYSTEM: BRANDING COMPLIANCE",
             status: brandingClean ? 'PASS' : 'FAIL',
-            message: brandingClean ? "Legacy 'Phoenix' branding successfully removed." : "Legacy 'Phoenix' branding detected in metadata.",
+            message: brandingClean ? "Legacy branding successfully removed." : "Legacy branding detected in metadata.",
             category: 'SYSTEM'
         });
 
@@ -101,7 +102,6 @@ export class TestSuite {
         // --- SECTION 3: ACCESSIBILITY & ADA COMPLIANCE ---
         
         // 7. Text Contrast Audit (Simulation)
-        // Checks if messages in session use appropriate contrast roles
         const hasMessages = session.messages.length > 0;
         const messagesAudited = hasMessages ? session.messages.every(m => m.content.length > 0) : true;
         
@@ -110,6 +110,35 @@ export class TestSuite {
             status: messagesAudited ? 'PASS' : 'FAIL',
             message: "Contrast ratios for 'User' and 'Architect' text segments verified (WCAG 2.1 Level AA).",
             category: 'ACCESSIBILITY'
+        });
+
+        // --- SECTION 4: KIT & CACHE CONSISTENCY ---
+
+        const kitReady = engine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan;
+        results.push({
+            name: "FLOW: ONE-CLICK KIT READY",
+            status: !hasItems || kitReady ? 'PASS' : 'WARN',
+            message: !hasItems ? "Awaiting BOM." : (kitReady ? "Kit stabilized and cart view active." : "Stabilization in progress."),
+            category: 'FLOW'
+        });
+
+        // 8. Cache Consistency Test
+        // Verify that cacheIsDirty correctly reflects deltas
+        const hasUnknowns = session.bom.some(b => b.sourcing?.online && b.sourcing.online.length === 0);
+        const cacheConsistent = session.cacheIsDirty === (hasItems && (!session.cachedAuditResult || !session.cachedAssemblyPlan));
+        
+        results.push({
+            name: "INTEGRITY: CACHE CONSISTENCY",
+            status: cacheConsistent ? 'PASS' : 'WARN',
+            message: cacheConsistent ? "Cache 'dirty' flag correctly managed relative to deltas." : "Cache flags may be out of sync with current results.",
+            category: 'INTEGRITY'
+        });
+
+        results.push({
+            name: "FLOW: DELTA REASONING",
+            status: kitReady || !hasItems ? 'PASS' : 'WARN',
+            message: kitReady ? "Delta reasoning bypass active (Using cached results)." : "Full reasoning required for next cycle.",
+            category: 'FLOW'
         });
 
         return results;

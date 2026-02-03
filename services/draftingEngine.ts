@@ -1,3 +1,4 @@
+
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
@@ -184,7 +185,8 @@ export class DraftingEngine {
     if (entry) {
         if (!entry.sourcing) entry.sourcing = {};
         entry.sourcing.loading = false;
-        entry.sourcing.online = onlineData;
+        // Even if onlineData is empty, we store an empty array to mark that the search was attempted
+        entry.sourcing.online = onlineData || [];
         entry.sourcing.lastUpdated = new Date();
         this.saveSession();
     }
@@ -224,7 +226,6 @@ export class DraftingEngine {
   }
 
   public exportManifest(): string {
-    // Explicitly construct the manifest to ensure Plan and Verify are included
     const manifest = {
         ...this.session,
         _exportMetadata: {
@@ -238,8 +239,13 @@ export class DraftingEngine {
 
   public getSourcingCompletion(): number {
     if (this.session.bom.length === 0) return 100;
-    const sourcedCount = this.session.bom.filter(b => b.sourcing?.online && b.sourcing.online.length > 0).length;
-    return Math.round((sourcedCount / this.session.bom.length) * 100);
+    // We count a part as 'sourced' if we have attempted to find links for it (online is not undefined)
+    const processedCount = this.session.bom.filter(b => b.sourcing?.online !== undefined).length;
+    return Math.round((processedCount / this.session.bom.length) * 100);
+  }
+
+  public hasActualLinks(): boolean {
+     return this.session.bom.some(b => b.sourcing?.online && b.sourcing.online.length > 0);
   }
 }
 

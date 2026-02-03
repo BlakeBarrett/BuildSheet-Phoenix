@@ -1,3 +1,4 @@
+
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
@@ -23,10 +24,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       return (
         <div className="h-screen w-full flex items-center justify-center bg-[#1E1E1E] text-white p-8">
-            <div className="max-w-lg">
+            <div className="max-w-lg text-center">
                 <h1 className="text-2xl font-bold text-[#FFB4AB] mb-4">System Critical Failure</h1>
                 <p className="mb-4 text-[#E2E2E2]">The application encountered an unrecoverable error.</p>
-                <pre className="bg-black/30 p-4 rounded-xl text-xs font-mono overflow-auto border border-[#FFB4AB]/30">{this.state.error?.message}</pre>
+                <pre className="bg-black/30 p-4 rounded-xl text-xs font-mono overflow-auto border border-[#FFB4AB]/30 text-left">{this.state.error?.message}</pre>
                 <Button onClick={() => window.location.reload()} variant="tonal" className="mt-6" aria-label="Restart Application">Reboot System</Button>
             </div>
         </div>
@@ -37,6 +38,82 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 // --- MODAL COMPONENTS ---
+
+const KitSummaryModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    session: DraftingSession;
+    onExport: () => void;
+}> = ({ isOpen, onClose, session, onExport }) => {
+    if (!isOpen) return null;
+    const sourcedParts = session.bom.filter(b => b.sourcing?.online?.length);
+    const missingParts = session.bom.filter(b => !b.sourcing?.online?.length);
+    const totalCost = session.bom.reduce((acc, curr) => acc + (curr.part.price * curr.quantity), 0);
+
+    return (
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-labelledby="kit-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
+                    <div>
+                        <h3 id="kit-title" className="text-2xl font-black text-slate-900 tracking-tight">Your Hardware Kit</h3>
+                        <p className="text-sm text-slate-500 font-medium mt-1">Ready for fulfillment & assembly</p>
+                    </div>
+                    <button onClick={onClose} className="text-slate-300 hover:text-slate-900 transition-colors p-2 text-2xl" aria-label="Close cart">&times;</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-6 bg-slate-900 rounded-[24px] text-white">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Build Cost</label>
+                            <div className="text-3xl font-mono font-bold mt-1">${totalCost.toLocaleString()}</div>
+                        </div>
+                        <div className="p-6 bg-indigo-50 rounded-[24px] border border-indigo-100">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Kit Progress</label>
+                            <div className="text-3xl font-bold text-indigo-600 mt-1">{Math.round((sourcedParts.length / session.bom.length) * 100)}%</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Verified Items ({sourcedParts.length})</h4>
+                        <div className="space-y-3">
+                            {sourcedParts.map((b, i) => (
+                                <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div className="flex-1">
+                                        <div className="font-bold text-slate-800 text-sm">{b.part.name} <span className="text-slate-400 font-medium ml-2">x{b.quantity}</span></div>
+                                        <div className="flex gap-2 mt-1">
+                                            {b.sourcing?.online?.slice(0, 1).map((s, idx) => (
+                                                <a key={idx} href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Buy on {s.source}</a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-mono font-bold text-slate-900">${(b.part.price * b.quantity).toFixed(2)}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {missingParts.length > 0 && (
+                        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-amber-800">
+                            <p className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                Action Required
+                            </p>
+                            <p className="text-sm">We couldn't find automatic purchase links for {missingParts.length} components. These items were still included in your technical audit and assembly plan.</p>
+                            <div className="mt-4 space-y-2">
+                                {missingParts.map((b, i) => (
+                                    <div key={i} className="text-xs font-medium border-l-2 border-amber-200 pl-3 py-1 opacity-70">{b.part.name} (Custom/Inferred)</div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="p-6 border-t border-gray-100 bg-white flex gap-3">
+                    <Button variant="secondary" onClick={onExport} className="flex-1" aria-label="Export manifest with verification results">Export Data</Button>
+                    <Button variant="primary" onClick={onClose} className="flex-1" aria-label="Finish reviewing kit">Close Summary</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const ValidationReportModal: React.FC<{
     isOpen: boolean;
@@ -72,54 +149,28 @@ const ValidationReportModal: React.FC<{
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-900 font-mono text-sm leading-relaxed text-indigo-100">
                     {(isRunning || isFixing) ? (
-                        <div className="space-y-2">
+                        <div className="space-y-2" aria-live="polite">
                              <p className="animate-pulse text-indigo-400">>> {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
                              <p className="animate-pulse text-indigo-300 delay-75">>> ANALYZING BUILD SHEET INTEGRITY...</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            <div>
-                                <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">Draft Integrity</h4>
-                                {results.filter(r => r.category === 'INTEGRITY').map((res, i) => (
-                                    <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
-                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
-                                            [{res.status}]
-                                        </span>
-                                        <div className="text-left">
-                                            <p className="font-bold text-white uppercase text-xs">{res.name}</p>
-                                            <p className="text-[11px] text-indigo-300/70">{res.message}</p>
+                            {['INTEGRITY', 'FLOW', 'ACCESSIBILITY', 'SYSTEM'].map(cat => (
+                                <div key={cat}>
+                                    <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">{cat.replace('_', ' ')}</h4>
+                                    {results.filter(r => r.category === cat).map((res, i) => (
+                                        <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
+                                            <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
+                                                [{res.status}]
+                                            </span>
+                                            <div className="text-left">
+                                                <p className="font-bold text-white uppercase text-xs">{res.name}</p>
+                                                <p className="text-[11px] text-indigo-300/70">{res.message}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">UI Flows & Stability</h4>
-                                {results.filter(r => r.category === 'FLOW').map((res, i) => (
-                                    <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
-                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
-                                            [{res.status}]
-                                        </span>
-                                        <div className="text-left">
-                                            <p className="font-bold text-white uppercase text-xs">{res.name}</p>
-                                            <p className="text-[11px] text-indigo-300/70">{res.message}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] text-indigo-500 font-bold mb-3 tracking-widest uppercase text-left">Compliance & Branding</h4>
-                                {results.filter(r => r.category === 'ACCESSIBILITY' || r.category === 'SYSTEM').map((res, i) => (
-                                    <div key={i} className="flex gap-4 border-b border-white/5 pb-3 mb-3">
-                                        <span className={res.status === 'PASS' ? 'text-emerald-400' : res.status === 'FAIL' ? 'text-rose-400' : 'text-amber-400'} aria-label={`Status: ${res.status}`}>
-                                            [{res.status}]
-                                        </span>
-                                        <div className="text-left">
-                                            <p className="font-bold text-white uppercase text-xs">{res.name}</p>
-                                            <p className="text-[11px] text-indigo-300/70">{res.message}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -300,7 +351,7 @@ const AuditModal: React.FC<{
                     {isRunning ? (
                         <div className="flex flex-col items-center justify-center h-48 space-y-4">
                             <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
-                            <p className="text-gray-400 font-medium">Gemini Thinking (Heavy Reasoner)...</p>
+                            <p className="text-gray-400 font-medium text-center">Gemini Thinking (Heavy Reasoner)...</p>
                         </div>
                     ) : (
                         <div className="prose prose-slate max-w-none text-left">
@@ -337,6 +388,8 @@ const AppContent: React.FC = () => {
   const [isPlanningAssembly, setIsPlanningAssembly] = useState(false);
   const [arOpen, setArOpen] = useState(false);
   const [isVisualizing, setIsVisualizing] = useState(false);
+  const [isKitting, setIsKitting] = useState(false);
+  const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
 
   // Validation State
   const [validationOpen, setValidationOpen] = useState(false);
@@ -356,16 +409,22 @@ const AppContent: React.FC = () => {
       }));
       try {
           const result = await aiService.findPartSources?.(entry.part.name);
-          if (result) {
-             draftingEngine.updatePartSourcing(entry.instanceId, result);
-             refreshState();
-          }
-      } catch (e) { console.error(e); }
+          draftingEngine.updatePartSourcing(entry.instanceId, result || []);
+          refreshState();
+      } catch (e) { 
+          console.error(e);
+          draftingEngine.updatePartSourcing(entry.instanceId, []);
+          refreshState();
+      }
   };
 
   const performVerifyAudit = async (silent = false) => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
+      
+      // Delta optimization
+      if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
+
       if (!silent) {
         setAuditOpen(true);
         setIsAuditing(true);
@@ -380,6 +439,10 @@ const AppContent: React.FC = () => {
   const performPlanAssembly = async (silent = false) => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
+      
+      // Delta optimization
+      if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
+
       if (!silent) {
         setAssemblyOpen(true);
         setIsPlanningAssembly(true);
@@ -407,28 +470,51 @@ const AppContent: React.FC = () => {
   }
 
   const handleOneClickKit = async () => {
-    const latestSession = draftingEngine.getSession();
+    let latestSession = draftingEngine.getSession();
     if (latestSession.bom.length === 0) return;
     
-    for (const entry of latestSession.bom) {
-      if (!entry.sourcing?.online?.length) {
-        await handleSourcePart(entry);
-      }
+    const sourcingComplete = draftingEngine.getSourcingCompletion() === 100;
+    const processDone = sourcingComplete && !latestSession.cacheIsDirty && latestSession.cachedAuditResult && latestSession.cachedAssemblyPlan;
+    
+    if (processDone) {
+        setKitSummaryOpen(true);
+        return;
     }
-    
-    const currentSession = draftingEngine.getSession();
-    if (currentSession.generatedImages.length === 0) {
-        await performVisualGeneration();
-    }
-    
-    await performVerifyAudit(true);
-    await performPlanAssembly(true);
-    
+
+    setIsKitting(true);
+    // Add informational message
+    draftingEngine.addMessage({ role: 'assistant', content: "Stabilizing the build sheet. Running sourcing lookups, technical audits, and assembly simulations...", timestamp: new Date() });
     refreshState();
+
+    try {
+        // 1. Fresh loop to ensure no stale BOM entries are missed
+        for (const entry of latestSession.bom) {
+          if (entry.sourcing?.online === undefined) {
+             await handleSourcePart(entry);
+          }
+        }
+        
+        // 2. Proactive AI verification
+        await performVerifyAudit(true);
+        await performPlanAssembly(true);
+        
+        // 3. Visual rendering
+        if (draftingEngine.getSession().generatedImages.length === 0) {
+            await performVisualGeneration();
+        }
+        
+        refreshState();
+        setKitSummaryOpen(true);
+    } catch (e) {
+        console.error("Kit stabilization error", e);
+    } finally {
+        setIsKitting(false);
+    }
   };
 
   const handleVerifyAudit = async () => {
-      if (session.cachedAuditResult && !session.cacheIsDirty) {
+      const currentSession = draftingEngine.getSession();
+      if (currentSession.cachedAuditResult && !currentSession.cacheIsDirty) {
           setAuditOpen(true);
           return;
       }
@@ -436,7 +522,8 @@ const AppContent: React.FC = () => {
   };
 
   const handlePlanAssembly = async () => {
-      if (session.cachedAssemblyPlan && !session.cacheIsDirty) {
+      const currentSession = draftingEngine.getSession();
+      if (currentSession.cachedAssemblyPlan && !currentSession.cacheIsDirty) {
           setAssemblyOpen(true);
           return;
       }
@@ -496,8 +583,11 @@ const AppContent: React.FC = () => {
     } finally { setIsThinking(false); }
   };
 
+  const kitReady = draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan;
+
   return (
     <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row">
+      <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
       <ValidationReportModal 
         isOpen={validationOpen} 
         onClose={() => setValidationOpen(false)} 
@@ -574,8 +664,24 @@ const AppContent: React.FC = () => {
                 <h2 className="font-bold text-xs uppercase tracking-widest text-slate-500">Bill of Materials</h2>
                 <div className="text-2xl font-mono font-bold text-indigo-600" aria-label={`Total build cost: ${draftingEngine.getTotalCost()} dollars`}>${draftingEngine.getTotalCost().toLocaleString()}</div>
               </div>
-              <Button variant="secondary" className="w-full text-xs h-9 font-bold bg-indigo-50 text-indigo-700 border-none shadow-none" onClick={handleOneClickKit} aria-label="Automatically source and validate all parts">
-                {draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan ? 'Build Stabilized' : 'One-Click Kit'}
+              <Button 
+                variant={kitReady ? "primary" : "secondary"} 
+                className={`w-full text-sm h-12 font-bold transition-all shadow-lg ${kitReady ? 'bg-indigo-600' : 'bg-indigo-50 text-indigo-700'}`} 
+                onClick={handleOneClickKit} 
+                disabled={isKitting}
+                aria-label={kitReady ? "Review and buy kit" : "Automatically source and validate all parts"}
+              >
+                {isKitting ? (
+                    <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+                        Stabilizing Build...
+                    </div>
+                ) : kitReady ? (
+                    <div className="flex items-center gap-2">
+                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                         Checkout Kit
+                    </div>
+                ) : 'One-Click Kit'}
               </Button>
             </header>
             
@@ -588,7 +694,7 @@ const AppContent: React.FC = () => {
                         <div className="flex gap-2 items-center mt-1">
                             <span className="text-[10px] text-slate-400 font-mono tracking-tighter">{entry.part.sku}</span>
                             <span className="text-[10px] text-slate-500 font-medium">x{entry.quantity}</span>
-                            {entry.sourcing?.online?.length ? <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Sourced</span> : <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Missing Link</span>}
+                            {entry.sourcing?.online?.length ? <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Sourced</span> : entry.sourcing?.online !== undefined ? <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Custom</span> : <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Pending</span>}
                         </div>
                     </div>
                     <div className="text-xs font-bold text-slate-900">${(entry.part.price * entry.quantity).toLocaleString()}</div>
