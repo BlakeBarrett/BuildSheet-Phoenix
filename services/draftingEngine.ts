@@ -218,6 +218,16 @@ export class DraftingEngine {
       this.session.ownerId = ownerId;
       this.saveSession();
   }
+
+  public exportManifest(): string {
+    return JSON.stringify(this.session, null, 2);
+  }
+
+  public getSourcingCompletion(): number {
+    if (this.session.bom.length === 0) return 100;
+    const sourcedCount = this.session.bom.filter(b => b.sourcing?.online && b.sourcing.online.length > 0).length;
+    return Math.round((sourcedCount / this.session.bom.length) * 100);
+  }
 }
 
 let instance: DraftingEngine | null = null;

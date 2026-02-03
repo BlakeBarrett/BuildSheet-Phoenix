@@ -66,7 +66,8 @@ export class MockService implements AIService {
 
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     await new Promise(r => setTimeout(r, 1000));
-    return null;
+    // Return a base64 grey square to satisfy the rendering test
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
   }
 
   async findPartSources(query: string): Promise<ShoppingOption[]> {
