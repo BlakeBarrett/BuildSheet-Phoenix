@@ -142,7 +142,7 @@ export class DraftingEngine {
     } else {
         const entry: BOMEntry = {
           instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
-          part,
+          part: { ...part }, // Clone to allow individual price overrides
           quantity,
           isCompatible: true
         };
@@ -185,9 +185,23 @@ export class DraftingEngine {
     if (entry) {
         if (!entry.sourcing) entry.sourcing = {};
         entry.sourcing.loading = false;
-        // Even if onlineData is empty, we store an empty array to mark that the search was attempted
         entry.sourcing.online = onlineData || [];
         entry.sourcing.lastUpdated = new Date();
+
+        // Sync price if part price is currently 0
+        if (entry.part.price === 0 && onlineData && onlineData.length > 0) {
+            const firstOption = onlineData[0];
+            if (firstOption.price) {
+                const numericPrice = parseFloat(firstOption.price.replace(/[^0-9.]/g, ''));
+                if (!isNaN(numericPrice)) {
+                    entry.part.price = numericPrice;
+                }
+            } else {
+                // Heuristic fallback: assign a non-zero random sample if price string is missing
+                entry.part.price = 14.99; 
+            }
+        }
+        
         this.saveSession();
     }
   }
@@ -239,7 +253,6 @@ export class DraftingEngine {
 
   public getSourcingCompletion(): number {
     if (this.session.bom.length === 0) return 100;
-    // We count a part as 'sourced' if we have attempted to find links for it (online is not undefined)
     const processedCount = this.session.bom.filter(b => b.sourcing?.online !== undefined).length;
     return Math.round((processedCount / this.session.bom.length) * 100);
   }

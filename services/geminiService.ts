@@ -137,7 +137,7 @@ export class GeminiService implements AIService {
     try {
         const response = await this.ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Find purchase options for: ${query}. List specific store links.`,
+            contents: `Find specific purchase options and current pricing for: ${query}. For each item, list the title, store, and price if available.`,
             config: {
                 tools: [{ googleSearch: {} }],
             }
@@ -146,11 +146,17 @@ export class GeminiService implements AIService {
         const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
         return chunks
             .filter(chunk => chunk.web)
-            .map(chunk => ({
-                title: chunk.web?.title || "Sourcing Link",
-                url: chunk.web?.uri || "",
-                source: chunk.web?.uri ? new URL(chunk.web.uri).hostname : "Web Result"
-            }))
+            .map(chunk => {
+                const title = chunk.web?.title || "Sourcing Link";
+                // Heuristic: Extract price from title if grounding metadata doesn't provide it explicitly
+                const priceMatch = title.match(/\$\d+(\.\d{2})?/);
+                return {
+                    title: title,
+                    url: chunk.web?.uri || "",
+                    source: chunk.web?.uri ? new URL(chunk.web.uri).hostname : "Web Result",
+                    price: priceMatch ? priceMatch[0] : undefined
+                };
+            })
             .slice(0, 5);
     } catch (e) { return null; }
   }
@@ -173,12 +179,13 @@ export class GeminiService implements AIService {
 
   async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse> {
     try {
-        const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Ports: ${JSON.stringify(b.part.ports)}`).join('\n');
+        const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Price: $${b.part.price} - Description: ${b.part.description}`).join('\n');
         
         let prompt = `
         PERFORM A TECHNICAL AND PATENT AUDIT.
-        DESIGN GOALS: ${requirements}
-        CURRENT BOM:
+        DESIGN CONTEXT/REQUIREMENTS: ${requirements}
+        
+        CURRENT BILL OF MATERIALS:
         ${digest}
         `;
 
@@ -195,6 +202,9 @@ export class GeminiService implements AIService {
         }
 
         prompt += `
+        IMPORTANT: Pay attention to any parts the user mentioned they already own (zero price or explicitly stated in context). 
+        Do not recommend alternatives for user-owned hardware unless there is a critical safety or compatibility failure.
+
         TASK 1: TECHNICAL INTEGRITY (Human-readable report)
         TASK 2: PATENT INFRINGEMENT RISK (Human-readable report)
         TASK 3: CORRECTIONS (Tool Calls)

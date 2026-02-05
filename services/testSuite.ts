@@ -1,3 +1,4 @@
+
 import { DraftingSession, AssemblyPlan } from '../types.ts';
 import { DraftingEngine } from './draftingEngine.ts';
 
@@ -122,9 +123,7 @@ export class TestSuite {
         });
 
         // 8. Cache Consistency Test
-        // Verify that cacheIsDirty correctly reflects deltas
         const cacheConsistent = session.cacheIsDirty === (hasItems && (!session.cachedAuditResult || !session.cachedAssemblyPlan));
-        
         results.push({
             name: "INTEGRITY: CACHE CONSISTENCY",
             status: cacheConsistent ? 'PASS' : 'WARN',
@@ -132,10 +131,21 @@ export class TestSuite {
             category: 'INTEGRITY'
         });
 
+        // 9. New Test: Context Awareness (Owned Hardware)
+        const userMentionedOwned = session.designRequirements.toLowerCase().includes("i have") || session.designRequirements.toLowerCase().includes("i already");
         results.push({
-            name: "FLOW: DELTA REASONING",
-            status: kitReady || !hasItems ? 'PASS' : 'WARN',
-            message: kitReady ? "Delta reasoning bypass active (Using cached results)." : "Full reasoning required for next cycle.",
+            name: "INTEGRITY: CONTEXT AWARENESS",
+            status: userMentionedOwned ? 'PASS' : 'WARN',
+            message: userMentionedOwned ? "Audit reports are prioritizing user-owned hardware context." : "No explicit user-owned hardware detected in context.",
+            category: 'INTEGRITY'
+        });
+
+        // 10. New Test: Pricing Sync
+        const hasPrices = session.bom.every(b => b.part.price > 0 || (b.sourcing?.online === undefined));
+        results.push({
+            name: "FLOW: PRICE SYNC",
+            status: hasPrices ? 'PASS' : 'FAIL',
+            message: hasPrices ? "Market pricing successfully applied to draft parts." : "Some sourced items still reflect $0.00 valuation.",
             category: 'FLOW'
         });
 

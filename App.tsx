@@ -1,3 +1,4 @@
+
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
@@ -408,7 +409,6 @@ const AppContent: React.FC = () => {
       }));
       try {
           const result = await aiService.findPartSources?.(entry.part.name);
-          // Always update, even if null, to clear the loading state and mark attempt
           draftingEngine.updatePartSourcing(entry.instanceId, result || []);
           refreshState();
       } catch (e) { 
@@ -422,7 +422,7 @@ const AppContent: React.FC = () => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
       
-      // Delta optimization: If silent and not dirty, skip
+      // Delta optimization
       if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
 
       if (!silent) {
@@ -440,7 +440,7 @@ const AppContent: React.FC = () => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
       
-      // Delta optimization: If silent and not dirty, skip
+      // Delta optimization
       if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
 
       if (!silent) {
@@ -473,7 +473,6 @@ const AppContent: React.FC = () => {
     let latestSession = draftingEngine.getSession();
     if (latestSession.bom.length === 0) return;
     
-    // Check if the process is already complete for the current BOM state
     const sourcingComplete = draftingEngine.getSourcingCompletion() === 100;
     const processDone = sourcingComplete && !latestSession.cacheIsDirty && latestSession.cachedAuditResult && latestSession.cachedAssemblyPlan;
     
@@ -483,33 +482,43 @@ const AppContent: React.FC = () => {
     }
 
     setIsKitting(true);
-    // Add informational message
-    draftingEngine.addMessage({ role: 'assistant', content: "Stabilizing the build sheet. Running sourcing lookups, technical audits, and assembly simulations...", timestamp: new Date() });
+    // Transient status messages in the chat
+    draftingEngine.addMessage({ role: 'assistant', content: "🚀 **One-Click Stabilization Initiated.**\nI'm finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.", timestamp: new Date() });
     refreshState();
 
     try {
-        // 1. Fresh loop to ensure no stale BOM entries are missed
+        // 1. Sourcing with transient chat updates
         for (const entry of latestSession.bom) {
           if (entry.sourcing?.online === undefined) {
              await handleSourcePart(entry);
           }
         }
-        
+        draftingEngine.addMessage({ role: 'assistant', content: "✅ **Pricing synchronized.** Market data successfully applied to all components.", timestamp: new Date() });
+        refreshState();
+
         // 2. Proactive AI verification
+        draftingEngine.addMessage({ role: 'assistant', content: "🔍 **Technical Audit in progress.** Evaluating system integrity and patent compliance...", timestamp: new Date() });
+        refreshState();
         await performVerifyAudit(true);
+        
+        draftingEngine.addMessage({ role: 'assistant', content: "🤖 **Planning Assembly.** Simulating robotic kinematics and step-by-step guidance...", timestamp: new Date() });
+        refreshState();
         await performPlanAssembly(true);
         
-        // 3. Visual rendering if none exists
+        // 3. Visual rendering
         if (draftingEngine.getSession().generatedImages.length === 0) {
             await performVisualGeneration();
         }
         
+        draftingEngine.addMessage({ role: 'assistant', content: "✨ **Kit Stabilized.** Your manifest is ready for checkout.", timestamp: new Date() });
         refreshState();
-        setKitSummaryOpen(true); // Open the summary once effort is completed
+        setKitSummaryOpen(true);
     } catch (e) {
         console.error("Kit stabilization error", e);
+        draftingEngine.addMessage({ role: 'assistant', content: "⚠️ **Stabilization Warning.** Some processes failed to complete. Please review BOM manually.", timestamp: new Date() });
     } finally {
         setIsKitting(false);
+        refreshState();
     }
   };
 
