@@ -1,4 +1,3 @@
-
 import { DraftingSession, AssemblyPlan } from '../types.ts';
 import { DraftingEngine } from './draftingEngine.ts';
 
@@ -124,7 +123,6 @@ export class TestSuite {
 
         // 8. Cache Consistency Test
         // Verify that cacheIsDirty correctly reflects deltas
-        const hasUnknowns = session.bom.some(b => b.sourcing?.online && b.sourcing.online.length === 0);
         const cacheConsistent = session.cacheIsDirty === (hasItems && (!session.cachedAuditResult || !session.cachedAssemblyPlan));
         
         results.push({

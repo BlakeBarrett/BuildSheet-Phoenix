@@ -1,4 +1,3 @@
-
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
@@ -409,6 +408,7 @@ const AppContent: React.FC = () => {
       }));
       try {
           const result = await aiService.findPartSources?.(entry.part.name);
+          // Always update, even if null, to clear the loading state and mark attempt
           draftingEngine.updatePartSourcing(entry.instanceId, result || []);
           refreshState();
       } catch (e) { 
@@ -422,7 +422,7 @@ const AppContent: React.FC = () => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
       
-      // Delta optimization
+      // Delta optimization: If silent and not dirty, skip
       if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
 
       if (!silent) {
@@ -440,7 +440,7 @@ const AppContent: React.FC = () => {
       const currentSession = draftingEngine.getSession();
       if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
       
-      // Delta optimization
+      // Delta optimization: If silent and not dirty, skip
       if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
 
       if (!silent) {
@@ -473,6 +473,7 @@ const AppContent: React.FC = () => {
     let latestSession = draftingEngine.getSession();
     if (latestSession.bom.length === 0) return;
     
+    // Check if the process is already complete for the current BOM state
     const sourcingComplete = draftingEngine.getSourcingCompletion() === 100;
     const processDone = sourcingComplete && !latestSession.cacheIsDirty && latestSession.cachedAuditResult && latestSession.cachedAssemblyPlan;
     
@@ -498,13 +499,13 @@ const AppContent: React.FC = () => {
         await performVerifyAudit(true);
         await performPlanAssembly(true);
         
-        // 3. Visual rendering
+        // 3. Visual rendering if none exists
         if (draftingEngine.getSession().generatedImages.length === 0) {
             await performVisualGeneration();
         }
         
         refreshState();
-        setKitSummaryOpen(true);
+        setKitSummaryOpen(true); // Open the summary once effort is completed
     } catch (e) {
         console.error("Kit stabilization error", e);
     } finally {
