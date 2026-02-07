@@ -1,3 +1,4 @@
+
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
@@ -761,7 +762,10 @@ const AppContent: React.FC = () => {
             {session.messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] rounded-[24px] px-6 py-4 shadow-sm border border-transparent ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-[#F1F5F9] text-slate-800'}`}>
-                  <ReactMarkdown className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-800'}`}>{m.content}</ReactMarkdown>
+                  {/* Fix: Wrap ReactMarkdown in a div to apply styling, as the component no longer accepts className directly. */}
+                  <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-800'}`}>
+                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
             ))}
