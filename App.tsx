@@ -16,9 +16,12 @@ interface ErrorBoundaryProps { children?: React.ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, error: null };
+  public state: ErrorBoundaryState = { hasError: false, error: null };
+
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
+  
   componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Uncaught error:", error, errorInfo); }
+  
   render() {
     if (this.state.hasError) {
       return (
@@ -36,6 +39,55 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+// --- FAB COMPONENT ---
+const FabMenu: React.FC<{ 
+    onVerify: () => void;
+    onPlan: () => void; 
+    hasAudit: boolean;
+    hasPlan: boolean;
+    isDirty: boolean;
+}> = ({ onVerify, onPlan, hasAudit, hasPlan, isDirty }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <div className="fixed bottom-36 right-4 z-[60] md:hidden flex flex-col items-end gap-3 pointer-events-none">
+            {/* Expanded Actions */}
+            <div className={`flex flex-col items-end gap-3 transition-all duration-300 origin-bottom-right ${isOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-90 pointer-events-none'}`}>
+                <div className="pointer-events-auto flex items-center gap-3">
+                    <span className="text-xs font-bold text-slate-700 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl shadow-sm border border-white/50">Verify Design</span>
+                    <button 
+                        onClick={() => { onVerify(); setIsOpen(false); }}
+                        className={`w-12 h-12 rounded-full shadow-lg border-2 flex items-center justify-center transition-transform active:scale-90 ${hasAudit && !isDirty ? 'bg-emerald-100 border-emerald-200 text-emerald-600' : 'bg-white border-indigo-50 text-indigo-600'}`}
+                        aria-label="Verify Design"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                </div>
+                
+                <div className="pointer-events-auto flex items-center gap-3">
+                    <span className="text-xs font-bold text-slate-700 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl shadow-sm border border-white/50">Plan Assembly</span>
+                    <button 
+                        onClick={() => { onPlan(); setIsOpen(false); }}
+                        className={`w-12 h-12 rounded-full shadow-lg border-2 flex items-center justify-center transition-transform active:scale-90 ${hasPlan && !isDirty ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-white border-indigo-50 text-orange-500'}`}
+                        aria-label="Plan Assembly"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Toggle */}
+            <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                className={`pointer-events-auto w-14 h-14 rounded-[22px] shadow-xl shadow-indigo-500/20 flex items-center justify-center text-white transition-all duration-300 ${isOpen ? 'bg-slate-900 rotate-45' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-105'}`}
+                aria-label="Toggle Tools"
+            >
+                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            </button>
+        </div>
+    );
+};
+
 // --- MODAL COMPONENTS ---
 
 const ProjectNavigator: React.FC<{
@@ -46,11 +98,13 @@ const ProjectNavigator: React.FC<{
     onSelect: (id: string) => void;
     onDelete: (id: string) => void;
     onNewProject: () => void;
-}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject }) => {
+    onExport: () => void;
+    onValidate: () => void;
+}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate }) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="absolute left-0 top-0 bottom-0 w-[350px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
+            <div className="absolute left-0 top-0 bottom-0 w-[85vw] md:w-[350px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
                 <header className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFDFD]">
                     <div>
                         <h3 className="text-lg font-bold text-slate-800 leading-tight">Build History</h3>
@@ -105,6 +159,14 @@ const ProjectNavigator: React.FC<{
                         </div>
                     )}
                 </div>
+
+                <footer className="p-4 border-t border-gray-100 bg-[#FDFDFD] flex flex-col gap-2 pb-8 md:pb-4">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Project Tools</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-700 hover:bg-rose-100">Run Tests</Button>
+                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">Export JSON</Button>
+                    </div>
+                </footer>
             </div>
             <div className="flex-1" onClick={onClose} />
         </div>
@@ -295,7 +357,7 @@ const PartDetailModal: React.FC<{
 
                         {entry.sourcing?.loading ? (
                             <div className="p-8 flex flex-col items-center justify-center text-slate-400 space-y-3">
-                                <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                                <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
                                 <span className="text-xs font-medium uppercase tracking-widest">Finding vendors...</span>
                             </div>
                         ) : (
@@ -503,6 +565,9 @@ const AppContent: React.FC = () => {
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
   const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
 
+  // Mobile State
+  const [mobileTab, setMobileTab] = useState<'draft' | 'bom'>('draft');
+
   // Validation State
   const [validationOpen, setValidationOpen] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -510,7 +575,7 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session.messages]);
+  }, [session.messages, mobileTab]);
 
   const refreshState = () => {
     setSession(draftingEngine.getSession());
@@ -717,6 +782,14 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex h-[100dvh] w-full bg-[#F3F4F6] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row">
+      <FabMenu 
+        onVerify={handleVerifyAudit} 
+        onPlan={handlePlanAssembly} 
+        hasAudit={!!session.cachedAuditResult} 
+        hasPlan={!!session.cachedAssemblyPlan}
+        isDirty={session.cacheIsDirty}
+      />
+      
       <ProjectNavigator 
           isOpen={isNavigatorOpen} 
           onClose={() => setIsNavigatorOpen(false)} 
@@ -725,6 +798,8 @@ const AppContent: React.FC = () => {
           onSelect={(id) => { draftingEngine.loadProject(id); refreshState(); }} 
           onDelete={(id) => { draftingEngine.deleteProject(id); refreshState(); }} 
           onNewProject={() => { draftingEngine.createNewProject(); refreshState(); }}
+          onExport={handleExport}
+          onValidate={runValidationSuite}
       />
       <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
       <ValidationReportModal 
@@ -740,67 +815,190 @@ const AppContent: React.FC = () => {
       <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
       {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
-      <nav className="hidden md:flex w-[88px] border-r border-gray-200 bg-white flex-col items-center py-6 gap-6 z-20 shadow-sm">
+      {/* Desktop/Tablet Sidebar */}
+      <nav className="hidden md:flex w-[88px] border-r border-gray-200 bg-white flex-col items-center py-6 gap-6 z-20 shadow-sm shrink-0">
         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg" aria-hidden="true">B</div>
         <div className="flex flex-col gap-4 flex-1 items-center">
             <button onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="w-12 h-12 flex items-center justify-center text-slate-500 bg-slate-50 rounded-2xl hover:bg-slate-100 hover:text-slate-900 transition-colors focus:ring-2 ring-indigo-500 outline-none" aria-label="Open project navigator"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg></button>
             <button onClick={() => { draftingEngine.createNewProject(); refreshState(); }} className="w-12 h-12 flex items-center justify-center text-indigo-600 bg-indigo-50 rounded-2xl hover:bg-indigo-100 transition-colors focus:ring-2 ring-indigo-500 outline-none" aria-label="New project"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg></button>
+            
+            {/* One-Click Kit Button */}
+            <button 
+                onClick={handleOneClickKit}
+                disabled={isKitting || session.bom.length === 0}
+                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all shadow-sm outline-none focus:ring-2 ring-offset-2 ring-indigo-500 ${isKitting ? 'bg-indigo-50 text-indigo-400 cursor-wait' : 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white hover:shadow-md hover:scale-105'}`}
+                aria-label="One-Click Kit Stabilization"
+                title="One-Click Kit: Source, Audit, & Plan"
+            >
+                {isKitting ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+                ) : (
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                )}
+            </button>
+
+            {/* Verify Design Button - Moved from FAB */}
+            <button 
+                onClick={handleVerifyAudit}
+                disabled={session.bom.length === 0 || isAuditing}
+                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all shadow-sm outline-none focus:ring-2 ring-indigo-500 ${session.cachedAuditResult && !session.cacheIsDirty ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-50 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                aria-label="Verify Design"
+                title="Verify Design Integrity"
+            >
+                {isAuditing ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                ) : (
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                )}
+            </button>
+
+            {/* Plan Assembly Button - Moved from FAB */}
+            <button 
+                onClick={handlePlanAssembly}
+                disabled={session.bom.length === 0 || isPlanningAssembly}
+                className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all shadow-sm outline-none focus:ring-2 ring-blue-500 ${session.cachedAssemblyPlan && !session.cacheIsDirty ? 'bg-blue-100 text-blue-600' : 'bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600'}`}
+                aria-label="Plan Assembly"
+                title="Generate Assembly Plan"
+            >
+                {isPlanningAssembly ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                ) : (
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                )}
+            </button>
+
             <button onClick={handleExport} className="w-12 h-12 flex items-center justify-center text-emerald-600 bg-emerald-50 rounded-2xl hover:bg-emerald-100 transition-colors focus:ring-2 ring-emerald-500 outline-none" aria-label="Export manifest"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></button>
             <button onClick={runValidationSuite} className="w-12 h-12 flex items-center justify-center text-rose-600 bg-rose-50 rounded-2xl hover:bg-rose-100 transition-colors focus:ring-2 ring-rose-500 outline-none" aria-label="Run tests"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-7.618 3.040 12.02 12.02 0 00-3.131 8.903 12.01 12.01 0 007.97 10.743l.779.275.779-.275a12.01 12.01 0 007.97-10.743 12.02 12.02 0 00-3.131-8.903z"></path></svg></button>
         </div>
       </nav>
 
-      <main className="flex-1 flex overflow-hidden">
-        <section className="flex-1 flex flex-col border-r border-gray-200 bg-white" aria-label="Drafting Canvas">
-          <header className="px-8 py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
-            <h1 className="font-medium text-xl tracking-tight text-slate-900">{session.name || "Untitled Draft"}</h1>
-            <div className="flex gap-2 items-center">
-                {session.cacheIsDirty && session.bom.length > 0 && <Chip label="MODIFIED" color="bg-amber-100 text-amber-800 font-bold border-amber-200" />}
-                <button onClick={() => setIsBomOpen(!isBomOpen)} className="p-2 text-slate-400 hover:text-slate-800 transition-colors focus:ring-2 ring-slate-200 rounded-lg outline-none" aria-label={isBomOpen ? "Hide BOM" : "Show BOM"}><svg className={`w-5 h-5 transition-transform ${isBomOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
-            </div>
-          </header>
+      {/* Main Content Area */}
+      <main className="flex-1 flex overflow-hidden relative flex-col">
+        
+        {/* DRAFT TAB VIEW */}
+        <div className={`flex-1 flex flex-col h-full bg-white relative ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
+            <header className="px-4 py-3 md:px-6 md:py-5 border-b border-gray-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20 shrink-0">
+                {/* Mobile Menu Button - Hidden on Tablet+ */}
+                <button onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 transition-colors" aria-label="Open menu">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
 
-          <div className="bg-[#F8FAFC] border-b border-gray-200 p-4 h-[35%] overflow-hidden">
-             <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-white" aria-label="Conversation Feed">
-            {session.messages.length === 0 && (
-                <div className="text-center py-10 opacity-60">
-                    <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin drafting.</p>
+                <h1 className="font-medium text-base md:text-xl tracking-tight text-slate-900 flex-1 truncate text-center md:text-left">{session.name || "Untitled Draft"}</h1>
+                
+                <div className="flex gap-2 items-center">
+                    {session.cacheIsDirty && session.bom.length > 0 && <Chip label="MODIFIED" color="bg-amber-100 text-amber-800 font-bold border-amber-200" />}
+                    <button onClick={() => setIsBomOpen(!isBomOpen)} className="hidden lg:block p-2 text-slate-400 hover:text-slate-800 transition-colors focus:ring-2 ring-slate-200 rounded-lg outline-none" aria-label={isBomOpen ? "Hide BOM" : "Show BOM"}><svg className={`w-5 h-5 transition-transform ${isBomOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
                 </div>
-            )}
-            {session.messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-[24px] px-6 py-4 shadow-sm border border-transparent ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-[#F1F5F9] text-slate-800'}`}>
-                  <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-800'}`}>
-                    <ReactMarkdown>{m.content}</ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isThinking && <div className="flex justify-start"><div className="bg-[#F1F5F9] rounded-[24px] px-6 py-4 animate-pulse text-slate-500 text-sm font-medium border border-gray-100">Architect is reasoning...</div></div>}
-            <div ref={chatEndRef} />
-          </div>
+            </header>
 
-          <footer className="p-6 border-t border-gray-100 bg-white">
-            <div className="relative max-w-4xl mx-auto">
-                <textarea 
-                    value={input} 
-                    onChange={e => setInput(e.target.value)} 
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="E.g. Build a mechanical keyboard with linear switches..." 
-                    className="w-full pl-6 pr-16 py-4 bg-[#F1F5F9] border border-transparent rounded-[28px] text-sm text-slate-900 resize-none outline-none focus:ring-2 ring-indigo-500/20 focus:bg-white focus:border-indigo-100 transition-all" 
-                    rows={1} 
-                    aria-label="Instruction input"
-                />
-                <button onClick={handleSend} className="absolute right-2 top-2 w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center hover:bg-slate-800 transition-colors shadow-sm focus:ring-2 ring-indigo-500 outline-none" aria-label="Send message"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></button>
+            <div className="bg-[#F8FAFC] border-b border-gray-200 p-3 h-[30%] md:h-[35%] overflow-hidden shrink-0">
+                <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
             </div>
-          </footer>
-        </section>
 
-        {isBomOpen && (
-          <section className="w-[450px] flex flex-col bg-white border-l border-gray-200 shadow-lg animate-in slide-in-from-right duration-300" aria-label="BOM Panel">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6 bg-white pb-4 md:pb-8" aria-label="Conversation Feed">
+                {session.messages.length === 0 && (
+                    <div className="text-center py-10 opacity-60">
+                        <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin drafting.</p>
+                    </div>
+                )}
+                {session.messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[90%] md:max-w-[85%] rounded-[20px] px-5 py-3 shadow-sm border border-transparent text-sm ${m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-[#F1F5F9] text-slate-800'}`}>
+                    <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-800'}`}>
+                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                    </div>
+                    </div>
+                </div>
+                ))}
+                {isThinking && <div className="flex justify-start"><div className="bg-[#F1F5F9] rounded-[24px] px-6 py-4 animate-pulse text-slate-500 text-sm font-medium border border-gray-100">Architect is reasoning...</div></div>}
+                <div ref={chatEndRef} />
+            </div>
+
+            <footer className="p-4 md:p-6 border-t border-gray-100 bg-white shrink-0 z-20">
+                <div className="relative max-w-4xl mx-auto">
+                    <textarea 
+                        value={input} 
+                        onChange={e => setInput(e.target.value)} 
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                        placeholder="E.g. Build a mechanical keyboard..." 
+                        className="w-full pl-5 pr-14 py-3 bg-[#F1F5F9] border border-transparent rounded-[24px] text-sm text-slate-900 resize-none outline-none focus:ring-2 ring-indigo-500/20 focus:bg-white focus:border-indigo-100 transition-all shadow-sm" 
+                        rows={1} 
+                        aria-label="Instruction input"
+                    />
+                    <button onClick={handleSend} className="absolute right-2 top-2 w-9 h-9 bg-slate-900 text-white rounded-full flex items-center justify-center hover:bg-slate-800 transition-colors shadow-sm focus:ring-2 ring-indigo-500 outline-none" aria-label="Send message"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></button>
+                </div>
+            </footer>
+        </div>
+
+        {/* PARTS TAB VIEW (Mobile/Tablet Style - Hidden on Desktop) */}
+        <div className={`flex-1 flex-col h-full bg-white relative ${mobileTab === 'bom' ? 'flex' : 'hidden'} lg:hidden`}>
+             <header className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-white sticky top-0 z-20">
+                <div>
+                    <h2 className="font-bold text-lg text-slate-900">Bill of Materials</h2>
+                    <p className="text-xs text-slate-500">{session.bom.length} Components</p>
+                </div>
+                <div className="text-xl font-mono font-bold text-indigo-600" aria-label={`Total cost: ${draftingEngine.getTotalCost()}`}>${draftingEngine.getTotalCost().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+             </header>
+
+             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#FAFAFA] pb-4">
+                {session.bom.map(entry => (
+                    <Card key={entry.instanceId} className="p-4 active:scale-[0.98] transition-all border border-transparent active:border-indigo-200 bg-white shadow-sm" onClick={() => setSelectedPart(entry)} aria-label={`View ${entry.part.name}`}>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <div className="font-bold text-sm text-slate-800">{entry.part.name}</div>
+                            <div className="flex gap-2 items-center mt-1">
+                                <span className="text-[10px] text-slate-400 font-mono tracking-tighter">{entry.part.sku}</span>
+                                <span className="text-[10px] text-slate-500 font-medium">x{entry.quantity}</span>
+                                {entry.part.price === 0 ? <span className="text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Owned</span> : entry.sourcing?.online?.length ? <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Sourced</span> : entry.sourcing?.online !== undefined ? <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Custom</span> : <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Pending</span>}
+                            </div>
+                        </div>
+                        <div className="text-xs font-bold text-slate-900">${(entry.part.price * entry.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    </div>
+                    </Card>
+                ))}
+                {session.bom.length === 0 && (
+                    <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8">
+                        <svg className="w-12 h-12 mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <p className="text-sm font-medium text-slate-400">Describe your project in the Draft tab to generate a parts list.</p>
+                    </div>
+                )}
+             </div>
+
+             <div className="p-4 border-t border-gray-200 bg-white shrink-0 z-20">
+                <Button 
+                    variant={kitReady ? "primary" : "secondary"} 
+                    className={`w-full text-sm h-12 font-bold transition-all shadow-lg ${kitReady ? 'bg-indigo-600' : 'bg-indigo-50 text-indigo-700'}`} 
+                    onClick={handleOneClickKit} 
+                    disabled={isKitting}
+                >
+                    {isKitting ? 'Stabilizing Build...' : kitReady ? 'Checkout Kit' : 'One-Click Kit'}
+                </Button>
+             </div>
+        </div>
+
+        {/* Mobile/Tablet Bottom Navigation Bar - Hidden on Desktop (lg+) */}
+        <div className="lg:hidden bg-white border-t border-gray-200 flex justify-around items-center h-16 shrink-0 z-30 pb-safe">
+            <button 
+            onClick={() => setMobileTab('draft')} 
+            className={`flex flex-col items-center justify-center w-full h-full gap-1 active:bg-gray-50 ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-400'}`}
+            >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <span className="text-[10px] font-bold uppercase tracking-widest">Draft</span>
+            </button>
+            <button 
+            onClick={() => setMobileTab('bom')} 
+            className={`flex flex-col items-center justify-center w-full h-full gap-1 active:bg-gray-50 ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-400'}`}
+            >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <span className="text-[10px] font-bold uppercase tracking-widest">Parts ({session.bom.length})</span>
+            </button>
+        </div>
+
+      </main>
+
+      {/* Desktop BOM Sidebar (Hidden on Mobile/Tablet) */}
+      {isBomOpen && (
+          <section className="hidden lg:flex w-[450px] flex-col bg-white border-l border-gray-200 shadow-lg animate-in slide-in-from-right duration-300" aria-label="BOM Panel">
             <header className="px-6 py-6 border-b border-gray-200 flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <h2 className="font-bold text-xs uppercase tracking-widest text-slate-500">Bill of Materials</h2>
@@ -811,7 +1009,6 @@ const AppContent: React.FC = () => {
                 className={`w-full text-sm h-12 font-bold transition-all shadow-lg ${kitReady ? 'bg-indigo-600' : 'bg-indigo-50 text-indigo-700'}`} 
                 onClick={handleOneClickKit} 
                 disabled={isKitting}
-                aria-label={kitReady ? "Review and checkout" : "Source and validate build"}
               >
                 {isKitting ? (
                     <div className="flex items-center gap-3">
@@ -827,9 +1024,9 @@ const AppContent: React.FC = () => {
               </Button>
             </header>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#FAFAFA]" aria-label="Parts list">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#FAFAFA]">
               {session.bom.map(entry => (
-                <Card key={entry.instanceId} className="p-4 hover:shadow-md cursor-pointer transition-all border border-transparent hover:border-indigo-100 bg-white shadow-sm" onClick={() => setSelectedPart(entry)} aria-label={`View ${entry.part.name}`}>
+                <Card key={entry.instanceId} className="p-4 hover:shadow-md cursor-pointer transition-all border border-transparent hover:border-indigo-100 bg-white shadow-sm" onClick={() => setSelectedPart(entry)}>
                   <div className="flex justify-between items-center">
                     <div>
                         <div className="font-bold text-sm text-slate-800">{entry.part.name}</div>
@@ -845,7 +1042,7 @@ const AppContent: React.FC = () => {
               ))}
               {session.bom.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-center px-12 py-32">
-                    <svg className="w-16 h-16 mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg className="w-16 h-16 mb-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     <p className="text-sm font-medium text-slate-400">Describe your project to build the sheet.</p>
                   </div>
               )}
@@ -860,8 +1057,7 @@ const AppContent: React.FC = () => {
               </Button>
             </footer>
           </section>
-        )}
-      </main>
+      )}
     </div>
   );
 };
