@@ -13,7 +13,7 @@ export interface ProjectIndexEntry {
 
 export class DraftingEngine {
   private session: DraftingSession;
-  
+
   // Storage Keys
   private INDEX_KEY = 'buildsheet_projects_index';
   private ACTIVE_ID_KEY = 'buildsheet_active_project_id';
@@ -27,14 +27,14 @@ export class DraftingEngine {
   private loadInitialSession(): DraftingSession {
     const activeId = localStorage.getItem(this.ACTIVE_ID_KEY);
     if (activeId) {
-        const storedSession = localStorage.getItem(this.SESSION_PREFIX + activeId);
-        if (storedSession) {
-            try {
-                return this.hydrateSession(JSON.parse(storedSession));
-            } catch (e) {
-                console.error("Failed to parse active session", e);
-            }
+      const storedSession = localStorage.getItem(this.SESSION_PREFIX + activeId);
+      if (storedSession) {
+        try {
+          return this.hydrateSession(JSON.parse(storedSession));
+        } catch (e) {
+          console.error("Failed to parse active session", e);
         }
+      }
     }
 
     const newSession = this.createNewSessionTemplate();
@@ -43,23 +43,23 @@ export class DraftingEngine {
 
   private hydrateSession(data: any): DraftingSession {
     return {
-        ...data,
-        createdAt: new Date(data.createdAt),
-        lastModified: data.lastModified ? new Date(data.lastModified) : new Date(),
-        cacheIsDirty: data.cacheIsDirty ?? true,
-        cachedAuditResult: data.cachedAuditResult,
-        cachedAssemblyPlan: data.cachedAssemblyPlan ? {
-            ...data.cachedAssemblyPlan,
-            generatedAt: new Date(data.cachedAssemblyPlan.generatedAt)
-        } : undefined,
-        generatedImages: data.generatedImages?.map((img: any) => ({
-            ...img,
-            timestamp: new Date(img.timestamp)
-        })) || [],
-        messages: data.messages?.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-        })) || []
+      ...data,
+      createdAt: new Date(data.createdAt),
+      lastModified: data.lastModified ? new Date(data.lastModified) : new Date(),
+      cacheIsDirty: data.cacheIsDirty ?? true,
+      cachedAuditResult: data.cachedAuditResult,
+      cachedAssemblyPlan: data.cachedAssemblyPlan ? {
+        ...data.cachedAssemblyPlan,
+        generatedAt: new Date(data.cachedAssemblyPlan.generatedAt)
+      } : undefined,
+      generatedImages: data.generatedImages?.map((img: any) => ({
+        ...img,
+        timestamp: new Date(img.timestamp)
+      })) || [],
+      messages: data.messages?.map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      })) || []
     };
   }
 
@@ -68,7 +68,7 @@ export class DraftingEngine {
     const id = Math.random().toString(36).substr(2, 9);
     return {
       id,
-      slug: `build-${id.substr(0,4)}`,
+      slug: `build-${id.substr(0, 4)}`,
       ownerId: user?.id || 'anonymous',
       name: 'Untitled Assembly',
       designRequirements: '',
@@ -88,32 +88,55 @@ export class DraftingEngine {
 
   private saveSessionToStorage(session: DraftingSession) {
     try {
-        const key = this.SESSION_PREFIX + session.id;
-        localStorage.setItem(key, JSON.stringify(session));
-        this.updateProjectIndex(session);
-        localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
+      const key = this.SESSION_PREFIX + session.id;
+
+      // OPTIMIZATION: Only persist the latest image to save storage space.
+      // History is kept in memory (this.session) but not all written to disk.
+      const sessionWithRecentImageOnly = {
+        ...session,
+        generatedImages: session.generatedImages.slice(-1)
+      };
+
+      try {
+        localStorage.setItem(key, JSON.stringify(sessionWithRecentImageOnly));
+      } catch (e: any) {
+        // Fallback: If 1 image is still too big, save with NO images.
+        if (e.name === 'QuotaExceededError' || e.code === 22 || e.message?.includes('quota')) {
+          console.warn("Storage quota exceeded. Dropping all images for persistence.");
+          const sessionNoImages = {
+            ...session,
+            generatedImages: []
+          };
+          localStorage.setItem(key, JSON.stringify(sessionNoImages));
+        } else {
+          throw e;
+        }
+      }
+
+      this.updateProjectIndex(session);
+      localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
     } catch (e) {
-        console.error("Persistence failed", e);
+      console.error("Persistence failed", e);
     }
   }
 
   private updateProjectIndex(session: DraftingSession) {
-      try {
-          const indexRaw = localStorage.getItem(this.INDEX_KEY);
-          let index: any[] = indexRaw ? JSON.parse(indexRaw) : [];
-          // Clean duplicates
-          index = index.filter(i => i.id !== session.id);
-          index.unshift({
-              id: session.id,
-              name: session.name,
-              lastModified: session.lastModified,
-              preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft',
-              thumbnail: session.generatedImages.length > 0 ? session.generatedImages[session.generatedImages.length - 1].url : undefined
-          });
-          localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
-      } catch (e) {
-          console.warn("Failed to update project index", e);
-      }
+    try {
+      const indexRaw = localStorage.getItem(this.INDEX_KEY);
+      let index: any[] = indexRaw ? JSON.parse(indexRaw) : [];
+      // Clean duplicates
+      index = index.filter(i => i.id !== session.id);
+      index.unshift({
+        id: session.id,
+        name: session.name,
+        lastModified: session.lastModified,
+        preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft',
+        thumbnail: undefined // DISABLE THUMBNAILS to save space in the index
+      });
+      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+    } catch (e) {
+      console.warn("Failed to update project index", e);
+    }
   }
 
   public getProjectsList(): ProjectIndexEntry[] {
@@ -157,8 +180,8 @@ export class DraftingEngine {
   }
 
   public createNewProject() {
-      this.session = this.createNewSessionTemplate();
-      this.saveSession();
+    this.session = this.createNewSessionTemplate();
+    this.saveSession();
   }
 
   public addPart(partId: string, quantity: number = 1) {
@@ -175,23 +198,23 @@ export class DraftingEngine {
         brand: 'Design Placeholder',
         price: 0,
         description: 'Virtual component suggested by Gemini.',
-        ports: [] 
+        ports: []
       };
     }
 
     const existingEntry = this.session.bom.find(b => b.part.id === part!.id);
     if (existingEntry) {
-        this.updatePartQuantity(existingEntry.instanceId, existingEntry.quantity + quantity);
+      this.updatePartQuantity(existingEntry.instanceId, existingEntry.quantity + quantity);
     } else {
-        const entry: BOMEntry = {
-          instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
-          part: { ...part },
-          quantity,
-          isCompatible: true
-        };
-        this.session.bom.push(entry);
+      const entry: BOMEntry = {
+        instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
+        part: { ...part },
+        quantity,
+        isCompatible: true
+      };
+      this.session.bom.push(entry);
     }
-    
+
     this.session.cacheIsDirty = true;
     this.saveSession();
   }
@@ -199,9 +222,9 @@ export class DraftingEngine {
   public updatePartQuantity(instanceId: string, quantity: number) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
-        entry.quantity = Math.max(1, quantity);
-        this.session.cacheIsDirty = true;
-        this.saveSession();
+      entry.quantity = Math.max(1, quantity);
+      this.session.cacheIsDirty = true;
+      this.saveSession();
     }
   }
 
@@ -212,51 +235,51 @@ export class DraftingEngine {
   }
 
   public cacheAuditResult(result: string) {
-      this.session.cachedAuditResult = result;
-      if (this.session.cachedAssemblyPlan) {
-        this.session.cacheIsDirty = false;
-      }
-      this.saveSession();
+    this.session.cachedAuditResult = result;
+    if (this.session.cachedAssemblyPlan) {
+      this.session.cacheIsDirty = false;
+    }
+    this.saveSession();
   }
 
   public cacheAssemblyPlan(plan: AssemblyPlan) {
-      this.session.cachedAssemblyPlan = plan;
-      if (this.session.cachedAuditResult) {
-        this.session.cacheIsDirty = false;
-      }
-      this.saveSession();
+    this.session.cachedAssemblyPlan = plan;
+    if (this.session.cachedAuditResult) {
+      this.session.cacheIsDirty = false;
+    }
+    this.saveSession();
   }
 
   public updatePartSourcing(instanceId: string, onlineData: any, localData?: any) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
-        if (!entry.sourcing) entry.sourcing = {};
-        entry.sourcing.loading = false;
-        entry.sourcing.online = onlineData || [];
-        if (localData) entry.sourcing.local = localData;
-        entry.sourcing.lastUpdated = new Date();
+      if (!entry.sourcing) entry.sourcing = {};
+      entry.sourcing.loading = false;
+      entry.sourcing.online = onlineData || [];
+      if (localData) entry.sourcing.local = localData;
+      entry.sourcing.lastUpdated = new Date();
 
-        if (onlineData && onlineData.length > 0) {
-            const prices = onlineData
-                .map((opt: any) => {
-                    const str = (opt.price || opt.title || "").toString();
-                    const match = str.match(/(?:\$|)\s?(\d+[\d,.]*)/);
-                    if (match) {
-                        const val = parseFloat(match[1].replace(/,/g, ''));
-                        return isNaN(val) ? null : val;
-                    }
-                    return null;
-                })
-                .filter((p: number | null) => p !== null && p > 0);
-
-            if (prices.length > 0) {
-                entry.part.price = Math.min(...prices);
-            } else if (entry.part.price === 0) {
-                entry.part.price = 14.99;
+      if (onlineData && onlineData.length > 0) {
+        const prices = onlineData
+          .map((opt: any) => {
+            const str = (opt.price || opt.title || "").toString();
+            const match = str.match(/(?:\$|)\s?(\d+[\d,.]*)/);
+            if (match) {
+              const val = parseFloat(match[1].replace(/,/g, ''));
+              return isNaN(val) ? null : val;
             }
+            return null;
+          })
+          .filter((p: number | null) => p !== null && p > 0);
+
+        if (prices.length > 0) {
+          entry.part.price = Math.min(...prices);
+        } else if (entry.part.price === 0) {
+          entry.part.price = 14.99;
         }
-        
-        this.saveSession();
+      }
+
+      this.saveSession();
     }
   }
 
@@ -265,48 +288,48 @@ export class DraftingEngine {
   }
 
   public initialize(name: string, requirements: string) {
-      this.session.name = name;
-      this.session.designRequirements = requirements;
-      this.session.bom = [];
-      this.session.cacheIsDirty = true;
-      this.saveSession();
+    this.session.name = name;
+    this.session.designRequirements = requirements;
+    this.session.bom = [];
+    this.session.cacheIsDirty = true;
+    this.saveSession();
   }
 
   public addMessage(message: UserMessage) {
-      this.session.messages.push(message);
-      this.saveSession();
+    this.session.messages.push(message);
+    this.saveSession();
   }
 
   public addGeneratedImage(url: string, prompt: string) {
-      const img: GeneratedImage = {
-          id: Math.random().toString(36).substr(2, 9),
-          url,
-          prompt,
-          timestamp: new Date()
-      };
-      this.session.generatedImages.push(img);
-      
-      // Limit images to avoid localStorage limit (approx last 5)
-      if (this.session.generatedImages.length > 5) {
-          this.session.generatedImages = this.session.generatedImages.slice(-5);
-      }
-      
-      this.saveSession();
+    const img: GeneratedImage = {
+      id: Math.random().toString(36).substr(2, 9),
+      url,
+      prompt,
+      timestamp: new Date()
+    };
+    this.session.generatedImages.push(img);
+
+    // Limit images to avoid memory bloat
+    if (this.session.generatedImages.length > 3) {
+      this.session.generatedImages = this.session.generatedImages.slice(-3);
+    }
+
+    this.saveSession();
   }
 
   public updateOwner(ownerId: string) {
-      this.session.ownerId = ownerId;
-      this.saveSession();
+    this.session.ownerId = ownerId;
+    this.saveSession();
   }
 
   public exportManifest(): string {
     const manifest = {
-        ...this.session,
-        _exportMetadata: {
-            exportedAt: new Date().toISOString(),
-            version: "1.0",
-            integrityVerified: !this.session.cacheIsDirty
-        }
+      ...this.session,
+      _exportMetadata: {
+        exportedAt: new Date().toISOString(),
+        version: "1.0",
+        integrityVerified: !this.session.cacheIsDirty
+      }
     };
     return JSON.stringify(manifest, null, 2);
   }
@@ -318,12 +341,12 @@ export class DraftingEngine {
   }
 
   public hasActualLinks(): boolean {
-     return this.session.bom.some(b => b.sourcing?.online && b.sourcing.online.length > 0);
+    return this.session.bom.some(b => b.sourcing?.online && b.sourcing.online.length > 0);
   }
 }
 
 let instance: DraftingEngine | null = null;
 export const getDraftingEngine = () => {
-    if (!instance) instance = new DraftingEngine();
-    return instance;
+  if (!instance) instance = new DraftingEngine();
+  return instance;
 };

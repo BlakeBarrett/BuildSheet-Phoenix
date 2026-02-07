@@ -17,28 +17,28 @@ interface ErrorBoundaryProps { children?: React.ReactNode; }
 interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
+    public state: ErrorBoundaryState = { hasError: false, error: null };
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
-  
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Uncaught error:", error, errorInfo); }
-  
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-screen w-full flex items-center justify-center bg-[#1E1E1E] text-white p-8">
-            <div className="max-w-lg text-center">
-                <span className="material-symbols-rounded text-[64px] text-[#FFB4AB] mb-4" aria-hidden="true">error_med</span>
-                <h1 className="text-3xl font-bold text-[#FFB4AB] mb-2 tracking-tight">System Critical Failure</h1>
-                <p className="mb-6 text-[#E2E2E2] text-lg">The application encountered an unrecoverable error.</p>
-                <pre className="bg-black/30 p-6 rounded-[24px] text-xs font-mono overflow-auto border border-[#FFB4AB]/30 text-left leading-relaxed">{this.state.error?.message}</pre>
-                <Button onClick={() => window.location.reload()} variant="tonal" className="mt-8 w-full" icon="restart_alt">Reboot System</Button>
-            </div>
-        </div>
-      );
+    static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error }; }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Uncaught error:", error, errorInfo); }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="h-screen w-full flex items-center justify-center bg-[#1E1E1E] text-white p-8">
+                    <div className="max-w-lg text-center">
+                        <span className="material-symbols-rounded text-[64px] text-[#FFB4AB] mb-4" aria-hidden="true">error_med</span>
+                        <h1 className="text-3xl font-bold text-[#FFB4AB] mb-2 tracking-tight">System Critical Failure</h1>
+                        <p className="mb-6 text-[#E2E2E2] text-lg">The application encountered an unrecoverable error.</p>
+                        <pre className="bg-black/30 p-6 rounded-[24px] text-xs font-mono overflow-auto border border-[#FFB4AB]/30 text-left leading-relaxed">{this.state.error?.message}</pre>
+                        <Button onClick={() => window.location.reload()} variant="tonal" className="mt-8 w-full" icon="restart_alt">Reboot System</Button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
     }
-    return this.props.children;
-  }
 }
 
 // --- MODAL COMPONENTS ---
@@ -65,10 +65,10 @@ const ProjectNavigator: React.FC<{
                     </div>
                     <IconButton icon="close" onClick={onClose} title="Close Navigator" />
                 </header>
-                
+
                 <div className="p-4">
-                    <Button 
-                        variant="tonal" 
+                    <Button
+                        variant="tonal"
                         icon="add_circle"
                         onClick={() => { onNewProject(); onClose(); }}
                         className="w-full justify-start bg-white hover:bg-white/80 shadow-sm"
@@ -90,13 +90,13 @@ const ProjectNavigator: React.FC<{
                                     </div>
                                 )}
                             </div>
-                            
+
                             <div className="flex flex-col flex-1 min-w-0">
                                 <span className="font-bold text-base truncate pr-6">{p.name || 'Untitled Draft'}</span>
                                 <span className={`text-xs truncate ${p.id === currentId ? 'text-indigo-100' : 'text-slate-500'}`}>{p.preview}</span>
                             </div>
-                            
-                            <button 
+
+                            <button
                                 onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
                                 aria-label={`Delete ${p.name}`}
                                 className={`p-2 rounded-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity focus-visible:opacity-100 ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
@@ -107,7 +107,7 @@ const ProjectNavigator: React.FC<{
                     ))}
                     {projects.length === 0 && (
                         <div className="text-center py-20 opacity-40">
-                             <p className="text-sm font-medium text-slate-500">No project history found.</p>
+                            <p className="text-sm font-medium text-slate-500">No project history found.</p>
                         </div>
                     )}
                 </div>
@@ -227,7 +227,7 @@ const ValidationReportModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="validation-title">
-             <div className="bg-[#1E1E1E] text-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/10">
+            <div className="bg-[#1E1E1E] text-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/10">
                 <div className="p-6 border-b border-white/10 flex justify-between items-center">
                     <div className="flex flex-col">
                         <h3 id="validation-title" className="text-xl font-bold tracking-tight">System Integrity Suite</h3>
@@ -238,11 +238,11 @@ const ValidationReportModal: React.FC<{
                 <div className="flex-1 overflow-y-auto p-8 font-mono text-sm leading-relaxed text-indigo-100">
                     {(isRunning || isFixing) ? (
                         <div className="space-y-4" aria-live="polite">
-                             <div className="flex items-center gap-3 text-indigo-400">
-                                 <span className="material-symbols-rounded animate-spin" aria-hidden="true">settings</span>
-                                 <p className="animate-pulse">{'>>'} {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
-                             </div>
-                             <p className="text-indigo-300/50 delay-75 pl-9">{'>>'} ANALYZING BUILD SHEET INTEGRITY...</p>
+                            <div className="flex items-center gap-3 text-indigo-400">
+                                <span className="material-symbols-rounded animate-spin" aria-hidden="true">settings</span>
+                                <p className="animate-pulse">{'>>'} {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
+                            </div>
+                            <p className="text-indigo-300/50 delay-75 pl-9">{'>>'} ANALYZING BUILD SHEET INTEGRITY...</p>
                         </div>
                     ) : (
                         <div className="space-y-8">
@@ -272,7 +272,7 @@ const ValidationReportModal: React.FC<{
                     <Button onClick={onRunAgain} variant="ghost" disabled={isRunning || isFixing} className="text-indigo-200 hover:bg-white/5" icon="refresh">Rerun</Button>
                     <Button onClick={onClose} variant="secondary" disabled={isFixing || isRunning} className="bg-white text-black hover:bg-gray-200 border-none">Dismiss</Button>
                 </div>
-             </div>
+            </div>
         </div>
     );
 };
@@ -285,7 +285,7 @@ const PartDetailModal: React.FC<{
     if (!entry) return null;
     return (
         <div className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="part-title">
-             <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-[16px] bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl" aria-hidden="true">
@@ -303,7 +303,7 @@ const PartDetailModal: React.FC<{
                         <div className="bg-[#F0F4F9] p-4 rounded-[20px]">
                             <p className="text-sm text-slate-700 leading-relaxed">{entry.part.description}</p>
                         </div>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 border border-gray-100 rounded-[20px]">
                                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SKU</label>
@@ -373,7 +373,7 @@ const PartDetailModal: React.FC<{
                     <Button variant="tonal" onClick={() => onSource(entry)} disabled={entry.sourcing?.loading} icon="refresh">Update Sourcing</Button>
                     <Button variant="primary" onClick={onClose}>Close</Button>
                 </div>
-             </div>
+            </div>
         </div>
     );
 };
@@ -390,7 +390,7 @@ const AssemblyModal: React.FC<{
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[70] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="assembly-title">
-             <div className="bg-[#F4F7FC] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-[#F4F7FC] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-sm ${isRunning ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`} aria-hidden="true">
@@ -408,14 +408,14 @@ const AssemblyModal: React.FC<{
                     </div>
                     <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto px-6 py-6 font-sans text-sm leading-relaxed text-slate-600">
                     {isRunning ? (
                         <div className="flex flex-col items-center justify-center h-64 space-y-6">
-                             <div className="relative w-20 h-20">
+                            <div className="relative w-20 h-20">
                                 <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
                                 <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-                             </div>
+                            </div>
                             <p className="text-slate-500 font-medium animate-pulse">Calculating end-effector paths...</p>
                         </div>
                     ) : plan ? (
@@ -429,7 +429,7 @@ const AssemblyModal: React.FC<{
                                     <Button onClick={onRefresh} variant="tonal" className="text-xs h-8 px-3 bg-white text-red-700 hover:bg-red-50" icon="refresh">Refresh</Button>
                                 </div>
                             )}
-                            
+
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="p-4 bg-blue-50 rounded-[20px]">
                                     <div className="text-[10px] uppercase font-bold text-blue-400 mb-1 tracking-wider">Feasibility</div>
@@ -485,7 +485,7 @@ const AssemblyModal: React.FC<{
                         <Button onClick={onClose} variant="primary">Done</Button>
                     </div>
                 )}
-             </div>
+            </div>
         </div>
     );
 };
@@ -501,7 +501,7 @@ const AuditModal: React.FC<{
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="audit-title">
-             <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-sm ${isRunning ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'}`} aria-hidden="true">
@@ -511,7 +511,7 @@ const AuditModal: React.FC<{
                         </div>
                         <div>
                             <h3 id="audit-title" className="text-xl font-bold text-slate-800 tracking-tight">Technical Audit</h3>
-                             <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
                                 <span className="text-xs text-slate-600 font-medium">System Integrity Verification</span>
                                 {isDirty && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Stale</span>}
                             </div>
@@ -519,19 +519,19 @@ const AuditModal: React.FC<{
                     </div>
                     <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto px-6 py-6">
                     {isRunning ? (
-                         <div className="flex flex-col items-center justify-center h-64 space-y-6">
-                             <div className="relative w-20 h-20">
+                        <div className="flex flex-col items-center justify-center h-64 space-y-6">
+                            <div className="relative w-20 h-20">
                                 <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
                                 <div className="absolute inset-0 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
-                             </div>
+                            </div>
                             <p className="text-slate-500 font-medium animate-pulse">Analyzing BOM against requirements...</p>
                         </div>
                     ) : result ? (
                         <div className="prose prose-sm max-w-none text-slate-600">
-                             <ReactMarkdown>{result}</ReactMarkdown>
+                            <ReactMarkdown>{result}</ReactMarkdown>
                         </div>
                     ) : (
                         <div className="text-center text-gray-400 py-10">
@@ -539,507 +539,507 @@ const AuditModal: React.FC<{
                         </div>
                     )}
                 </div>
-                
+
                 <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                     <Button variant="tonal" onClick={onRefresh} disabled={isRunning} icon="refresh">Re-Run Audit</Button>
                     <Button variant="primary" onClick={onClose}>Done</Button>
                 </div>
-             </div>
+            </div>
         </div>
     );
 };
 
 const AppContent: React.FC = () => {
-  const { service: aiService } = useService();
-  const [draftingEngine] = useState(() => getDraftingEngine());
-  const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
-  const [input, setInput] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  
-  const [auditOpen, setAuditOpen] = useState(false);
-  const [isAuditing, setIsAuditing] = useState(false);
-  
-  const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
-  const [assemblyOpen, setAssemblyOpen] = useState(false);
-  const [isPlanningAssembly, setIsPlanningAssembly] = useState(false);
-  const [arOpen, setArOpen] = useState(false);
-  const [isVisualizing, setIsVisualizing] = useState(false);
-  const [isKitting, setIsKitting] = useState(false);
-  const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
-  
-  const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
-  const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
+    const { service: aiService } = useService();
+    const [draftingEngine] = useState(() => getDraftingEngine());
+    const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
+    const [input, setInput] = useState('');
+    const [isThinking, setIsThinking] = useState(false);
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Mobile State
-  const [mobileTab, setMobileTab] = useState<'draft' | 'bom'>('draft');
+    const [auditOpen, setAuditOpen] = useState(false);
+    const [isAuditing, setIsAuditing] = useState(false);
 
-  // Validation State
-  const [validationOpen, setValidationOpen] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationResults, setValidationResults] = useState<TestResult[]>([]);
+    const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
+    const [assemblyOpen, setAssemblyOpen] = useState(false);
+    const [isPlanningAssembly, setIsPlanningAssembly] = useState(false);
+    const [arOpen, setArOpen] = useState(false);
+    const [isVisualizing, setIsVisualizing] = useState(false);
+    const [isKitting, setIsKitting] = useState(false);
+    const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session.messages, mobileTab]);
+    const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
+    const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
 
-  const refreshState = () => {
-    setSession(draftingEngine.getSession());
-    setProjectsList(draftingEngine.getProjectsList());
-  };
+    // Mobile State
+    const [mobileTab, setMobileTab] = useState<'draft' | 'bom'>('draft');
 
-  useEffect(() => {
-    setProjectsList(draftingEngine.getProjectsList());
-  }, []);
+    // Validation State
+    const [validationOpen, setValidationOpen] = useState(false);
+    const [isValidating, setIsValidating] = useState(false);
+    const [validationResults, setValidationResults] = useState<TestResult[]>([]);
 
-  const handleSourcePart = async (entry: BOMEntry) => {
-      setSession(prev => ({
-          ...prev,
-          bom: prev.bom.map(b => b.instanceId === entry.instanceId ? { ...b, sourcing: { ...b.sourcing, loading: true } } : b)
-      }));
-      try {
-          const result = await aiService.findPartSources?.(entry.part.name);
-          const local = await aiService.findLocalSuppliers?.(entry.part.name);
-          draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
-          refreshState();
-      } catch (e) { 
-          console.error(e);
-          draftingEngine.updatePartSourcing(entry.instanceId, [], []);
-          refreshState();
-      }
-  };
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [session.messages, mobileTab]);
 
-  const performVerifyAudit = async (silent = false) => {
-      const currentSession = draftingEngine.getSession();
-      if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
-      if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
+    const refreshState = () => {
+        setSession(draftingEngine.getSession());
+        setProjectsList(draftingEngine.getProjectsList());
+    };
 
-      if (!silent) {
-        setAuditOpen(true);
-        setIsAuditing(true);
-      }
-      try {
-          const res = await aiService.verifyDesign(currentSession.bom, currentSession.designRequirements, currentSession.cachedAuditResult);
-          draftingEngine.cacheAuditResult(res.reasoning);
-          if (!silent) refreshState();
-      } catch (e) { console.error(e); } finally { if (!silent) setIsAuditing(false); }
-  }
+    useEffect(() => {
+        setProjectsList(draftingEngine.getProjectsList());
+    }, []);
 
-  const performPlanAssembly = async (silent = false) => {
-      const currentSession = draftingEngine.getSession();
-      if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
-      if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
-
-      if (!silent) {
-        setAssemblyOpen(true);
-        setIsPlanningAssembly(true);
-      }
-      try {
-          const plan = await aiService.generateAssemblyPlan(currentSession.bom, currentSession.cachedAssemblyPlan);
-          if (plan) {
-              draftingEngine.cacheAssemblyPlan(plan);
-              if (!silent) refreshState();
-          }
-      } catch (e) { console.error(e); } finally { if (!silent) setIsPlanningAssembly(false); }
-  }
-
-  const performVisualGeneration = async () => {
-      const currentSession = draftingEngine.getSession();
-      if (isVisualizing || currentSession.bom.length === 0) return;
-      setIsVisualizing(true);
-      try {
-          const requirements = currentSession.designRequirements || currentSession.name || "Hardware assembly";
-          const imageUrl = await aiService.generateProductImage(requirements);
-          if (imageUrl) {
-              draftingEngine.addGeneratedImage(imageUrl, `Design concept for: ${requirements}`);
-          }
-      } catch (e) { console.error(e); } finally { setIsVisualizing(false); }
-  }
-
-  const handleOneClickKit = async () => {
-    let latestSession = draftingEngine.getSession();
-    if (latestSession.bom.length === 0) return;
-    
-    const sourcingComplete = draftingEngine.getSourcingCompletion() === 100;
-    const processDone = sourcingComplete && !latestSession.cacheIsDirty && latestSession.cachedAuditResult && latestSession.cachedAssemblyPlan;
-    
-    if (processDone) {
-        setKitSummaryOpen(true);
-        return;
-    }
-
-    setIsKitting(true);
-    draftingEngine.addMessage({ role: 'assistant', content: "🚀 **One-Click Stabilization Initiated.**\nI'm finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.", timestamp: new Date() });
-    refreshState();
-
-    try {
-        for (const entry of latestSession.bom) {
-          if (entry.sourcing?.online === undefined) {
-             await handleSourcePart(entry);
-          }
-        }
-        draftingEngine.addMessage({ role: 'assistant', content: "✅ **Pricing synchronized.** Market data successfully applied to all components.", timestamp: new Date() });
-        refreshState();
-        
-        draftingEngine.addMessage({ role: 'assistant', content: "🔍 **Technical Audit in progress.** Evaluating system integrity and patent compliance...", timestamp: new Date() });
-        refreshState();
-        await performVerifyAudit(true);
-        
-        draftingEngine.addMessage({ role: 'assistant', content: "🤖 **Planning Assembly.** Simulating robotic kinematics and step-by-step guidance...", timestamp: new Date() });
-        refreshState();
-        await performPlanAssembly(true);
-        
-        if (draftingEngine.getSession().generatedImages.length === 0) {
-            await performVisualGeneration();
-        }
-        
-        draftingEngine.addMessage({ role: 'assistant', content: "✨ **Kit Stabilized.** Your manifest is ready for checkout.", timestamp: new Date() });
-        refreshState();
-        setKitSummaryOpen(true);
-    } catch (e) {
-        console.error("Kit stabilization error", e);
-        draftingEngine.addMessage({ role: 'assistant', content: "⚠️ **Stabilization Warning.** Some processes failed to complete. Please review BOM manually.", timestamp: new Date() });
-    } finally {
-        setIsKitting(false);
-        refreshState();
-    }
-  };
-
-  const handleVerifyAudit = async () => {
-      const currentSession = draftingEngine.getSession();
-      if (currentSession.cachedAuditResult && !currentSession.cacheIsDirty) {
-          setAuditOpen(true);
-          return;
-      }
-      await performVerifyAudit();
-  };
-
-  const handlePlanAssembly = async () => {
-      const currentSession = draftingEngine.getSession();
-      if (currentSession.cachedAssemblyPlan && !currentSession.cacheIsDirty) {
-          setAssemblyOpen(true);
-          return;
-      }
-      await performPlanAssembly();
-  };
-
-  const handleGenerateVisual = async () => {
-      await performVisualGeneration();
-      refreshState();
-  };
-
-  const handleExport = () => {
-    const manifest = draftingEngine.exportManifest();
-    const blob = new Blob([manifest], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `buildsheet-manifest-${session.id}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const runValidationSuite = async () => {
-      setValidationOpen(true);
-      setIsValidating(true);
-      await new Promise(r => setTimeout(r, 1200));
-      const results = await TestSuite.runAll(draftingEngine.getSession(), draftingEngine);
-      setValidationResults(results);
-      setIsValidating(false);
-  };
-
-  const handleSend = async () => {
-    if (!input.trim() || isThinking) return;
-    draftingEngine.addMessage({ role: 'user', content: input, timestamp: new Date() });
-    refreshState();
-    const tempInput = input;
-    setInput('');
-    setIsThinking(true);
-    try {
-        // Fix: Map 'assistant' role to 'model' for Gemini API compatibility
-        const history = session.messages.map(m => ({ 
-            role: m.role === 'user' ? 'user' : 'model', 
-            parts: [{ text: m.content }] 
+    const handleSourcePart = async (entry: BOMEntry) => {
+        setSession(prev => ({
+            ...prev,
+            bom: prev.bom.map(b => b.instanceId === entry.instanceId ? { ...b, sourcing: { ...b.sourcing, loading: true } } : b)
         }));
-        const architectResponse = await aiService.askArchitect(tempInput, history);
-        const parsed = aiService.parseArchitectResponse(architectResponse);
-        
-        let stateModified = false;
-        parsed.toolCalls.forEach(call => {
-            if (call.type === 'initializeDraft') { draftingEngine.initialize(call.name, call.reqs); stateModified = true; }
-            else if (call.type === 'addPart') { draftingEngine.addPart(call.partId, call.qty); stateModified = true; }
-            else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
-        });
-        
-        draftingEngine.addMessage({ role: 'assistant', content: parsed.reasoning || architectResponse, timestamp: new Date() });
-        if (stateModified) performVisualGeneration().then(() => refreshState());
+        try {
+            const result = await aiService.findPartSources?.(entry.part.name);
+            const local = await aiService.findLocalSuppliers?.(entry.part.name);
+            draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
+            refreshState();
+        } catch (e) {
+            console.error(e);
+            draftingEngine.updatePartSourcing(entry.instanceId, [], []);
+            refreshState();
+        }
+    };
+
+    const performVerifyAudit = async (silent = false) => {
+        const currentSession = draftingEngine.getSession();
+        if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
+        if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
+
+        if (!silent) {
+            setAuditOpen(true);
+            setIsAuditing(true);
+        }
+        try {
+            const res = await aiService.verifyDesign(currentSession.bom, currentSession.designRequirements, currentSession.cachedAuditResult);
+            draftingEngine.cacheAuditResult(res.reasoning);
+            if (!silent) refreshState();
+        } catch (e) { console.error(e); } finally { if (!silent) setIsAuditing(false); }
+    }
+
+    const performPlanAssembly = async (silent = false) => {
+        const currentSession = draftingEngine.getSession();
+        if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
+        if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
+
+        if (!silent) {
+            setAssemblyOpen(true);
+            setIsPlanningAssembly(true);
+        }
+        try {
+            const plan = await aiService.generateAssemblyPlan(currentSession.bom, currentSession.cachedAssemblyPlan);
+            if (plan) {
+                draftingEngine.cacheAssemblyPlan(plan);
+                if (!silent) refreshState();
+            }
+        } catch (e) { console.error(e); } finally { if (!silent) setIsPlanningAssembly(false); }
+    }
+
+    const performVisualGeneration = async () => {
+        const currentSession = draftingEngine.getSession();
+        if (isVisualizing || currentSession.bom.length === 0) return;
+        setIsVisualizing(true);
+        try {
+            const requirements = currentSession.designRequirements || currentSession.name || "Hardware assembly";
+            const imageUrl = await aiService.generateProductImage(requirements);
+            if (imageUrl) {
+                draftingEngine.addGeneratedImage(imageUrl, `Design concept for: ${requirements}`);
+            }
+        } catch (e) { console.error(e); } finally { setIsVisualizing(false); }
+    }
+
+    const handleOneClickKit = async () => {
+        let latestSession = draftingEngine.getSession();
+        if (latestSession.bom.length === 0) return;
+
+        const sourcingComplete = draftingEngine.getSourcingCompletion() === 100;
+        const processDone = sourcingComplete && !latestSession.cacheIsDirty && latestSession.cachedAuditResult && latestSession.cachedAssemblyPlan;
+
+        if (processDone) {
+            setKitSummaryOpen(true);
+            return;
+        }
+
+        setIsKitting(true);
+        draftingEngine.addMessage({ role: 'assistant', content: "🚀 **One-Click Stabilization Initiated.**\nI'm finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.", timestamp: new Date() });
         refreshState();
-    } catch (e: any) {
-        draftingEngine.addMessage({ role: 'assistant', content: `[ERROR] ${e.message}`, timestamp: new Date() });
+
+        try {
+            for (const entry of latestSession.bom) {
+                if (entry.sourcing?.online === undefined) {
+                    await handleSourcePart(entry);
+                }
+            }
+            draftingEngine.addMessage({ role: 'assistant', content: "✅ **Pricing synchronized.** Market data successfully applied to all components.", timestamp: new Date() });
+            refreshState();
+
+            draftingEngine.addMessage({ role: 'assistant', content: "🔍 **Technical Audit in progress.** Evaluating system integrity and patent compliance...", timestamp: new Date() });
+            refreshState();
+            await performVerifyAudit(true);
+
+            draftingEngine.addMessage({ role: 'assistant', content: "🤖 **Planning Assembly.** Simulating robotic kinematics and step-by-step guidance...", timestamp: new Date() });
+            refreshState();
+            await performPlanAssembly(true);
+
+            if (draftingEngine.getSession().generatedImages.length === 0) {
+                await performVisualGeneration();
+            }
+
+            draftingEngine.addMessage({ role: 'assistant', content: "✨ **Kit Stabilized.** Your manifest is ready for checkout.", timestamp: new Date() });
+            refreshState();
+            setKitSummaryOpen(true);
+        } catch (e) {
+            console.error("Kit stabilization error", e);
+            draftingEngine.addMessage({ role: 'assistant', content: "⚠️ **Stabilization Warning.** Some processes failed to complete. Please review BOM manually.", timestamp: new Date() });
+        } finally {
+            setIsKitting(false);
+            refreshState();
+        }
+    };
+
+    const handleVerifyAudit = async () => {
+        const currentSession = draftingEngine.getSession();
+        if (currentSession.cachedAuditResult && !currentSession.cacheIsDirty) {
+            setAuditOpen(true);
+            return;
+        }
+        await performVerifyAudit();
+    };
+
+    const handlePlanAssembly = async () => {
+        const currentSession = draftingEngine.getSession();
+        if (currentSession.cachedAssemblyPlan && !currentSession.cacheIsDirty) {
+            setAssemblyOpen(true);
+            return;
+        }
+        await performPlanAssembly();
+    };
+
+    const handleGenerateVisual = async () => {
+        await performVisualGeneration();
         refreshState();
-    } finally { setIsThinking(false); }
-  };
+    };
 
-  const kitReady = draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan;
+    const handleExport = () => {
+        const manifest = draftingEngine.exportManifest();
+        const blob = new Blob([manifest], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `buildsheet-manifest-${session.id}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
 
-  return (
-    <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row p-0 pb-[90px] md:p-3 md:pb-[90px] lg:pb-3 gap-3">
-      
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:px-6 focus:py-3 focus:bg-indigo-600 focus:text-white focus:rounded-full focus:shadow-xl focus:font-bold">Skip to Main Content</a>
+    const runValidationSuite = async () => {
+        setValidationOpen(true);
+        setIsValidating(true);
+        await new Promise(r => setTimeout(r, 1200));
+        const results = await TestSuite.runAll(draftingEngine.getSession(), draftingEngine);
+        setValidationResults(results);
+        setIsValidating(false);
+    };
 
-      <ProjectNavigator 
-          isOpen={isNavigatorOpen} 
-          onClose={() => setIsNavigatorOpen(false)} 
-          projects={projectsList} 
-          currentId={session.id} 
-          onSelect={(id) => { draftingEngine.loadProject(id); refreshState(); }} 
-          onDelete={(id) => { draftingEngine.deleteProject(id); refreshState(); }} 
-          onNewProject={() => { draftingEngine.createNewProject(); refreshState(); }}
-          onExport={handleExport}
-          onValidate={runValidationSuite}
-      />
-      <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
-      <ValidationReportModal 
-        isOpen={validationOpen} 
-        onClose={() => setValidationOpen(false)} 
-        results={validationResults} 
-        isRunning={isValidating} 
-        onRunAgain={runValidationSuite} 
-        onFixAll={handleOneClickKit} 
-      />
-      <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
-      <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
-      <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
-      {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
-      
-      <CookieConsent />
+    const handleSend = async () => {
+        if (!input.trim() || isThinking) return;
+        draftingEngine.addMessage({ role: 'user', content: input, timestamp: new Date() });
+        refreshState();
+        const tempInput = input;
+        setInput('');
+        setIsThinking(true);
+        try {
+            // Fix: Map 'assistant' role to 'model' for Gemini API compatibility
+            const history = session.messages.map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.content }]
+            }));
+            const architectResponse = await aiService.askArchitect(tempInput, history);
+            const parsed = aiService.parseArchitectResponse(architectResponse);
 
-      {/* M3 Navigation Rail (Floating on Desktop) */}
-      <nav className="hidden md:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100">
-        <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md">
-            <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
-        </div>
-        
-        <div className="flex flex-col gap-3 flex-1 items-center w-full">
-            <IconButton 
-                icon="folder_open" 
-                onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} 
-                title="Projects"
+            let stateModified = false;
+            parsed.toolCalls.forEach(call => {
+                if (call.type === 'initializeDraft') { draftingEngine.initialize(call.name, call.reqs); stateModified = true; }
+                else if (call.type === 'addPart') { draftingEngine.addPart(call.partId, call.qty); stateModified = true; }
+                else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
+            });
+
+            draftingEngine.addMessage({ role: 'assistant', content: parsed.reasoning || architectResponse, timestamp: new Date() });
+            if (stateModified) performVisualGeneration().then(() => refreshState());
+            refreshState();
+        } catch (e: any) {
+            draftingEngine.addMessage({ role: 'assistant', content: `[ERROR] ${e.message}`, timestamp: new Date() });
+            refreshState();
+        } finally { setIsThinking(false); }
+    };
+
+    const kitReady = draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan;
+
+    return (
+        <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row p-0 pb-[90px] md:p-3 md:pb-[90px] lg:pb-3 gap-3">
+
+            <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:px-6 focus:py-3 focus:bg-indigo-600 focus:text-white focus:rounded-full focus:shadow-xl focus:font-bold">Skip to Main Content</a>
+
+            <ProjectNavigator
+                isOpen={isNavigatorOpen}
+                onClose={() => setIsNavigatorOpen(false)}
+                projects={projectsList}
+                currentId={session.id}
+                onSelect={(id) => { draftingEngine.loadProject(id); refreshState(); }}
+                onDelete={(id) => { draftingEngine.deleteProject(id); refreshState(); }}
+                onNewProject={() => { draftingEngine.createNewProject(); refreshState(); }}
+                onExport={handleExport}
+                onValidate={runValidationSuite}
             />
-            <IconButton 
-                icon="add_box" 
-                onClick={() => { draftingEngine.createNewProject(); refreshState(); }} 
-                title="New Project"
+            <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
+            <ValidationReportModal
+                isOpen={validationOpen}
+                onClose={() => setValidationOpen(false)}
+                results={validationResults}
+                isRunning={isValidating}
+                onRunAgain={runValidationSuite}
+                onFixAll={handleOneClickKit}
             />
-            
-            <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
+            <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
+            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
+            <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
+            {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
-            <IconButton 
-                icon="health_and_safety"
-                onClick={runValidationSuite} 
-                className="text-rose-500 hover:bg-rose-50 hover:text-rose-700"
-                title="System Health"
-            />
-            <IconButton 
-                icon="output"
-                onClick={handleExport} 
-                className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                title="Export"
-            />
-        </div>
+            <CookieConsent />
 
-        <div className="pb-2">
-            <IconButton icon="account_circle" title="User Profile" />
-        </div>
-      </nav>
-
-      {/* Main Content Area - Split Pane Layout */}
-      <main id="main-content" className="flex-1 flex overflow-hidden relative gap-3 h-full">
-        
-        {/* PANE 1: DRAFTING TABLE (Chat & Vis) */}
-        <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
-            {/* Toolbar */}
-            <header className="px-6 py-4 flex justify-between items-center bg-white z-20 shrink-0">
-                <div className="flex items-center gap-3 md:hidden">
-                     <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden -ml-2" title="Menu" />
+            {/* M3 Navigation Rail (Floating on Desktop) */}
+            <nav className="hidden md:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100">
+                <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md">
+                    <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
                 </div>
-                
-                <div className="flex flex-col">
-                    <h1 className="font-bold text-lg md:text-xl tracking-tight text-slate-800 truncate">{session.name || "Untitled Draft"}</h1>
-                    <span className="text-xs text-slate-500 font-medium tracking-wide">BuildSheet Drafting Engine</span>
-                </div>
-                
-                <div className="flex gap-2 items-center">
-                    {session.cacheIsDirty && session.bom.length > 0 && <Chip label="Unsaved Changes" color="bg-amber-100 text-amber-900 border-transparent" />}
-                </div>
-            </header>
 
-            {/* Hero Visualizer */}
-            <div className="px-4 pb-2 h-[240px] md:h-[260px] shrink-0">
-                <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
-            </div>
-
-            {/* Conversation Feed */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed" tabIndex={0}>
-                {session.messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full opacity-60">
-                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                            <span className="material-symbols-rounded text-slate-300 text-3xl" aria-hidden="true">chat_bubble_outline</span>
-                        </div>
-                        <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin.</p>
-                    </div>
-                )}
-                {session.messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                    <div className={`
-                        max-w-[85%] px-6 py-4 text-sm leading-relaxed shadow-sm
-                        ${m.role === 'user' 
-                            ? 'bg-[#4F5DFF] text-white rounded-[24px] rounded-br-[4px]' 
-                            : 'bg-[#F2F6FC] text-[#1F1F1F] rounded-[24px] rounded-bl-[4px] border border-white'}
-                    `}>
-                    <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
-                        <ReactMarkdown>{m.content}</ReactMarkdown>
-                    </div>
-                    </div>
-                </div>
-                ))}
-                {isThinking && (
-                    <div className="flex justify-start">
-                        <div className="bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm flex items-center gap-2">
-                            <span className="material-symbols-rounded animate-spin text-indigo-500 text-sm" aria-hidden="true">hourglass_empty</span>
-                            <span className="text-xs font-bold text-indigo-500 uppercase tracking-wide">Reasoning</span>
-                        </div>
-                    </div>
-                )}
-                <div ref={chatEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <footer className="p-4 bg-white shrink-0 z-20">
-                <div className="relative bg-[#F2F6FC] rounded-[32px] transition-all hover:bg-[#EBF1F8] focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 focus-within:shadow-md">
-                    <textarea 
-                        value={input} 
-                        onChange={e => setInput(e.target.value)} 
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                        placeholder="Instruct Gemini to build..." 
-                        aria-label="Instruct Gemini to build"
-                        className="w-full pl-6 pr-14 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500" 
-                        rows={1} 
+                <div className="flex flex-col gap-3 flex-1 items-center w-full">
+                    <IconButton
+                        icon="folder_open"
+                        onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }}
+                        title="Projects"
                     />
-                    <button 
-                        onClick={handleSend} 
-                        disabled={!input.trim() || isThinking}
-                        aria-label="Send Message"
-                        className="absolute right-2 top-2 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-0 disabled:scale-50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none"
-                    >
-                        <span className="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
-                    </button>
-                </div>
-            </footer>
-        </div>
+                    <IconButton
+                        icon="add_box"
+                        onClick={() => { draftingEngine.createNewProject(); refreshState(); }}
+                        title="New Project"
+                    />
 
-        {/* PANE 2: BOM & ACTIONS (Right Sidebar) */}
-        <div className={`lg:w-[420px] xl:w-[460px] flex-col bg-[#F8FAFC] rounded-[32px] border border-gray-200 shadow-sm overflow-hidden ${mobileTab === 'bom' ? 'flex flex-1' : 'hidden lg:flex'}`}>
-             <header className="px-6 py-6 bg-white border-b border-gray-100 flex flex-col gap-4">
-                <div className="flex justify-between items-end">
-                    <div>
-                        <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Total Estimate</h2>
-                        <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${draftingEngine.getTotalCost()}`}>
-                            ${draftingEngine.getTotalCost().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
+
+                    <IconButton
+                        icon="health_and_safety"
+                        onClick={runValidationSuite}
+                        className="text-rose-500 hover:bg-rose-50 hover:text-rose-700"
+                        title="System Health"
+                    />
+                    <IconButton
+                        icon="output"
+                        onClick={handleExport}
+                        className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                        title="Export"
+                    />
+                </div>
+
+                <div className="pb-2">
+                    <IconButton icon="account_circle" title="User Profile" />
+                </div>
+            </nav>
+
+            {/* Main Content Area - Split Pane Layout */}
+            <main id="main-content" className="flex-1 flex overflow-hidden relative gap-3 h-full">
+
+                {/* PANE 1: DRAFTING TABLE (Chat & Vis) */}
+                <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
+                    {/* Toolbar */}
+                    <header className="px-6 py-4 flex justify-between items-center bg-white z-20 shrink-0">
+                        <div className="flex items-center gap-3 md:hidden">
+                            <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden -ml-2" title="Menu" />
                         </div>
+
+                        <div className="flex flex-col">
+                            <h1 className="font-bold text-lg md:text-xl tracking-tight text-slate-800 truncate">{session.name || "Untitled Draft"}</h1>
+                            <span className="text-xs text-slate-500 font-medium tracking-wide">BuildSheet Drafting Engine</span>
+                        </div>
+
+                        <div className="flex gap-2 items-center">
+                            {session.cacheIsDirty && session.bom.length > 0 && <Chip label="Unsaved Changes" color="bg-amber-100 text-amber-900 border-transparent" />}
+                        </div>
+                    </header>
+
+                    {/* Hero Visualizer */}
+                    <div className="px-4 pb-2 h-[40%] shrink-0">
+                        <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
                     </div>
-                    <div className="text-right">
-                        <span className="text-xs font-medium text-slate-500">{session.bom.length} Components</span>
+
+                    {/* Conversation Feed */}
+                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed" tabIndex={0}>
+                        {session.messages.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-full opacity-60">
+                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                    <span className="material-symbols-rounded text-slate-300 text-3xl" aria-hidden="true">chat_bubble_outline</span>
+                                </div>
+                                <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin.</p>
+                            </div>
+                        )}
+                        {session.messages.map((m, i) => (
+                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                                <div className={`
+                        max-w-[85%] px-6 py-4 text-sm leading-relaxed shadow-sm
+                        ${m.role === 'user'
+                                        ? 'bg-[#4F5DFF] text-white rounded-[24px] rounded-br-[4px]'
+                                        : 'bg-[#F2F6FC] text-[#1F1F1F] rounded-[24px] rounded-bl-[4px] border border-white'}
+                    `}>
+                                    <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
+                                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {isThinking && (
+                            <div className="flex justify-start">
+                                <div className="bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm flex items-center gap-2">
+                                    <span className="material-symbols-rounded animate-spin text-indigo-500 text-sm" aria-hidden="true">hourglass_empty</span>
+                                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-wide">Reasoning</span>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={chatEndRef} />
                     </div>
+
+                    {/* Input Area */}
+                    <footer className="p-4 bg-white shrink-0 z-20">
+                        <div className="relative bg-[#F2F6FC] rounded-[32px] transition-all hover:bg-[#EBF1F8] focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 focus-within:shadow-md">
+                            <textarea
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                                placeholder="Instruct Gemini to build..."
+                                aria-label="Instruct Gemini to build"
+                                className="w-full pl-6 pr-14 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500"
+                                rows={1}
+                            />
+                            <button
+                                onClick={handleSend}
+                                disabled={!input.trim() || isThinking}
+                                aria-label="Send Message"
+                                className="absolute right-2 top-2 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-0 disabled:scale-50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none"
+                            >
+                                <span className="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
+                            </button>
+                        </div>
+                    </footer>
                 </div>
 
-                <Button 
-                    variant={kitReady ? "primary" : "fab"} 
-                    className={`w-full h-14 text-sm font-bold shadow-lg transition-all ${kitReady ? 'bg-gradient-to-r from-indigo-600 to-violet-600' : ''}`} 
-                    onClick={handleOneClickKit} 
-                    disabled={isKitting}
-                    icon={isKitting ? "motion_mode" : kitReady ? "shopping_cart_checkout" : "magic_button"}
-                >
-                    {isKitting ? 'Stabilizing Kit...' : kitReady ? 'Checkout Kit' : 'One-Click Kit'}
-                </Button>
-             </header>
-
-             {/* Parts List */}
-             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {session.bom.map(entry => (
-                    <Card key={entry.instanceId} onClick={() => setSelectedPart(entry)} className="p-4 cursor-pointer group border border-transparent hover:border-indigo-100">
-                    <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                            <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors">{entry.part.name}</div>
-                            <div className="flex gap-2 items-center mt-2 flex-wrap">
-                                <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
-                                <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
-                                {entry.part.price === 0 
-                                    ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">Owned</span> 
-                                    : entry.sourcing?.online?.length 
-                                    ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
-                                    : <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Pending</span>
-                                }
+                {/* PANE 2: BOM & ACTIONS (Right Sidebar) */}
+                <div className={`lg:w-[420px] xl:w-[460px] flex-col bg-[#F8FAFC] rounded-[32px] border border-gray-200 shadow-sm overflow-hidden ${mobileTab === 'bom' ? 'flex flex-1' : 'hidden lg:flex'}`}>
+                    <header className="px-6 py-6 bg-white border-b border-gray-100 flex flex-col gap-4">
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Total Estimate</h2>
+                                <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${draftingEngine.getTotalCost()}`}>
+                                    ${draftingEngine.getTotalCost().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-xs font-medium text-slate-500">{session.bom.length} Components</span>
                             </div>
                         </div>
-                        <div className="text-sm font-bold text-slate-900 ml-4">${(entry.part.price * entry.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+
+                        <Button
+                            variant={kitReady ? "primary" : "fab"}
+                            className={`w-full h-14 text-sm font-bold shadow-lg transition-all ${kitReady ? 'bg-gradient-to-r from-indigo-600 to-violet-600' : ''}`}
+                            onClick={handleOneClickKit}
+                            disabled={isKitting}
+                            icon={isKitting ? "motion_mode" : kitReady ? "shopping_cart_checkout" : "magic_button"}
+                        >
+                            {isKitting ? 'Stabilizing Kit...' : kitReady ? 'Checkout Kit' : 'One-Click Kit'}
+                        </Button>
+                    </header>
+
+                    {/* Parts List */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        {session.bom.map(entry => (
+                            <Card key={entry.instanceId} onClick={() => setSelectedPart(entry)} className="p-4 cursor-pointer group border border-transparent hover:border-indigo-100">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors">{entry.part.name}</div>
+                                        <div className="flex gap-2 items-center mt-2 flex-wrap">
+                                            <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
+                                            <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
+                                            {entry.part.price === 0
+                                                ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">Owned</span>
+                                                : entry.sourcing?.online?.length
+                                                    ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
+                                                    : <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Pending</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-bold text-slate-900 ml-4">${(entry.part.price * entry.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                </div>
+                            </Card>
+                        ))}
+                        {session.bom.length === 0 && (
+                            <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8">
+                                <span className="material-symbols-rounded text-4xl text-slate-300 mb-2" aria-hidden="true">list_alt</span>
+                                <p className="text-sm font-medium text-slate-500">Bill of Materials is empty.</p>
+                            </div>
+                        )}
                     </div>
-                    </Card>
-                ))}
-                {session.bom.length === 0 && (
-                    <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8">
-                        <span className="material-symbols-rounded text-4xl text-slate-300 mb-2" aria-hidden="true">list_alt</span>
-                        <p className="text-sm font-medium text-slate-500">Bill of Materials is empty.</p>
+
+                    {/* Action Grid */}
+                    <div className="p-4 bg-white border-t border-gray-100 grid grid-cols-2 gap-3">
+                        <Button
+                            onClick={handleVerifyAudit}
+                            variant={session.cachedAuditResult && !session.cacheIsDirty ? "secondary" : "tonal"}
+                            className="h-12 text-xs"
+                            icon={session.cachedAuditResult && !session.cacheIsDirty ? "verified_user" : "policy"}
+                        >
+                            {session.cachedAuditResult && !session.cacheIsDirty ? 'View Audit' : 'Verify'}
+                        </Button>
+                        <Button
+                            onClick={handlePlanAssembly}
+                            variant={session.cachedAssemblyPlan && !session.cacheIsDirty ? "secondary" : "tonal"}
+                            className="h-12 text-xs"
+                            icon={session.cachedAssemblyPlan && !session.cacheIsDirty ? "precision_manufacturing" : "build"}
+                        >
+                            {session.cachedAssemblyPlan && !session.cacheIsDirty ? 'View Plan' : 'Plan'}
+                        </Button>
                     </div>
-                )}
-             </div>
-
-             {/* Action Grid */}
-             <div className="p-4 bg-white border-t border-gray-100 grid grid-cols-2 gap-3">
-                <Button 
-                    onClick={handleVerifyAudit} 
-                    variant={session.cachedAuditResult && !session.cacheIsDirty ? "secondary" : "tonal"} 
-                    className="h-12 text-xs"
-                    icon={session.cachedAuditResult && !session.cacheIsDirty ? "verified_user" : "policy"}
-                >
-                    {session.cachedAuditResult && !session.cacheIsDirty ? 'View Audit' : 'Verify'}
-                </Button>
-                <Button 
-                    onClick={handlePlanAssembly} 
-                    variant={session.cachedAssemblyPlan && !session.cacheIsDirty ? "secondary" : "tonal"}
-                    className="h-12 text-xs"
-                    icon={session.cachedAssemblyPlan && !session.cacheIsDirty ? "precision_manufacturing" : "build"}
-                >
-                    {session.cachedAssemblyPlan && !session.cacheIsDirty ? 'View Plan' : 'Plan'}
-                </Button>
-             </div>
-        </div>
-
-        {/* Mobile Bottom Navigation Bar */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-[80px] z-50 px-2 pb-4">
-            <button 
-                onClick={() => setMobileTab('draft')} 
-                className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-500'}`}
-            >
-                <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'draft' ? 'bg-indigo-100' : 'bg-transparent'}`}>
-                    <span className="material-symbols-rounded text-[24px]" aria-hidden="true">edit_note</span>
                 </div>
-                <span className="text-[11px] font-bold">Draft</span>
-            </button>
-            <button 
-                onClick={() => setMobileTab('bom')} 
-                className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-500'}`}
-            >
-                <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'bom' ? 'bg-indigo-100' : 'bg-transparent'}`}>
-                    <span className="material-symbols-rounded text-[24px]" aria-hidden="true">inventory_2</span>
-                </div>
-                <span className="text-[11px] font-bold">Parts</span>
-            </button>
-        </div>
 
-      </main>
-    </div>
-  );
+                {/* Mobile Bottom Navigation Bar */}
+                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-[80px] z-50 px-2 pb-4">
+                    <button
+                        onClick={() => setMobileTab('draft')}
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-500'}`}
+                    >
+                        <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'draft' ? 'bg-indigo-100' : 'bg-transparent'}`}>
+                            <span className="material-symbols-rounded text-[24px]" aria-hidden="true">edit_note</span>
+                        </div>
+                        <span className="text-[11px] font-bold">Draft</span>
+                    </button>
+                    <button
+                        onClick={() => setMobileTab('bom')}
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-500'}`}
+                    >
+                        <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'bom' ? 'bg-indigo-100' : 'bg-transparent'}`}>
+                            <span className="material-symbols-rounded text-[24px]" aria-hidden="true">inventory_2</span>
+                        </div>
+                        <span className="text-[11px] font-bold">Parts</span>
+                    </button>
+                </div>
+
+            </main>
+        </div>
+    );
 };
 
 const App: React.FC = () => (
