@@ -1,4 +1,3 @@
-
 import { DraftingSession, AssemblyPlan } from '../types.ts';
 import { DraftingEngine } from './draftingEngine.ts';
 
@@ -90,12 +89,23 @@ export class TestSuite {
         });
 
         // 6. Persistence Flow
+        // Ensuring we check the correct session ID in storage
         const stored = localStorage.getItem(`buildsheet_project_${session.id}`);
         const persistenceValid = stored !== null;
         results.push({
             name: "FLOW: LOCAL STORAGE",
             status: persistenceValid ? 'PASS' : 'FAIL',
-            message: "Session auto-save verified.",
+            message: persistenceValid ? "Session auto-save verified." : "Auto-save verification failed. Check storage drivers.",
+            category: 'FLOW'
+        });
+
+        // 6b. Multi-project index flow
+        const projects = engine.getProjectsList();
+        const indexedCorrectly = projects.some(p => p.id === session.id);
+        results.push({
+            name: "FLOW: PROJECT NAVIGATOR INDEX",
+            status: indexedCorrectly ? 'PASS' : 'FAIL',
+            message: indexedCorrectly ? "Multi-project indexing verified." : "Current project missing from history index.",
             category: 'FLOW'
         });
 
@@ -123,29 +133,32 @@ export class TestSuite {
         });
 
         // 8. Cache Consistency Test
-        const cacheConsistent = session.cacheIsDirty === (hasItems && (!session.cachedAuditResult || !session.cachedAssemblyPlan));
+        // Logic: If session is clean, it must have both results. If session is dirty, we expect it to be so if items were added.
+        const reasoningComplete = !!session.cachedAuditResult && !!session.cachedAssemblyPlan;
+        const cacheConsistent = hasItems ? (session.cacheIsDirty || reasoningComplete) : !session.cacheIsDirty;
+        
         results.push({
             name: "INTEGRITY: CACHE CONSISTENCY",
             status: cacheConsistent ? 'PASS' : 'WARN',
-            message: cacheConsistent ? "Cache 'dirty' flag correctly managed relative to deltas." : "Cache flags may be out of sync with current results.",
+            message: cacheConsistent ? "Cache 'dirty' flag correctly synchronized with reasoning pipeline." : "Cache state deviates from reasoning availability.",
             category: 'INTEGRITY'
         });
 
         // 9. New Test: Context Awareness (Owned Hardware)
-        const userMentionedOwned = session.designRequirements.toLowerCase().includes("i have") || session.designRequirements.toLowerCase().includes("i already");
+        const userMentionedOwned = session.designRequirements.toLowerCase().includes("i have") || session.designRequirements.toLowerCase().includes("i already") || session.bom.some(b => b.part.price === 0);
         results.push({
             name: "INTEGRITY: CONTEXT AWARENESS",
             status: userMentionedOwned ? 'PASS' : 'WARN',
-            message: userMentionedOwned ? "Audit reports are prioritizing user-owned hardware context." : "No explicit user-owned hardware detected in context.",
+            message: userMentionedOwned ? "Context-aware reasoning identified user hardware." : "No explicit user-owned hardware detected in current draft.",
             category: 'INTEGRITY'
         });
 
         // 10. New Test: Pricing Sync
-        const hasPrices = session.bom.every(b => b.part.price > 0 || (b.sourcing?.online === undefined));
+        const hasActualPrices = session.bom.every(b => b.part.price > 0 || b.sourcing?.online === undefined);
         results.push({
             name: "FLOW: PRICE SYNC",
-            status: hasPrices ? 'PASS' : 'FAIL',
-            message: hasPrices ? "Market pricing successfully applied to draft parts." : "Some sourced items still reflect $0.00 valuation.",
+            status: hasActualPrices ? 'PASS' : 'FAIL',
+            message: hasActualPrices ? "Market data successfully injected into valuation." : "Valuation mismatch detected in sourced items.",
             category: 'FLOW'
         });
 

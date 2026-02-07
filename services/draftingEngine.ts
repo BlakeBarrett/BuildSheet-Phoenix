@@ -1,8 +1,14 @@
-
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
 import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
+
+export interface ProjectIndexEntry {
+  id: string;
+  name: string;
+  lastModified: Date;
+  preview: string;
+}
 
 export class DraftingEngine {
   private session: DraftingSession;
@@ -14,6 +20,7 @@ export class DraftingEngine {
 
   constructor() {
     this.session = this.loadInitialSession();
+    this.saveSession();
   }
 
   private loadInitialSession(): DraftingSession {
@@ -30,8 +37,6 @@ export class DraftingEngine {
     }
 
     const newSession = this.createNewSessionTemplate();
-    this.saveSessionToStorage(newSession);
-    localStorage.setItem(this.ACTIVE_ID_KEY, newSession.id);
     return newSession;
   }
 
@@ -95,11 +100,11 @@ export class DraftingEngine {
       try {
           const indexRaw = localStorage.getItem(this.INDEX_KEY);
           let index: any[] = indexRaw ? JSON.parse(indexRaw) : [];
+          // Clean duplicates
           index = index.filter(i => i.id !== session.id);
           index.unshift({
               id: session.id,
               name: session.name,
-              shareSlug: session.shareSlug,
               lastModified: session.lastModified,
               preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft'
           });
@@ -107,6 +112,42 @@ export class DraftingEngine {
       } catch (e) {
           console.warn("Failed to update project index", e);
       }
+  }
+
+  public getProjectsList(): ProjectIndexEntry[] {
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return [];
+    try {
+      const parsed = JSON.parse(indexRaw);
+      return parsed.map((p: any) => ({
+        ...p,
+        lastModified: new Date(p.lastModified)
+      }));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  public loadProject(id: string) {
+    const stored = localStorage.getItem(this.SESSION_PREFIX + id);
+    if (stored) {
+      this.session = this.hydrateSession(JSON.parse(stored));
+      this.saveSession(); // Updates modified date and moves to top of index
+    }
+  }
+
+  public deleteProject(id: string) {
+    localStorage.removeItem(this.SESSION_PREFIX + id);
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (indexRaw) {
+      let index = JSON.parse(indexRaw);
+      index = index.filter((i: any) => i.id !== id);
+      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+    }
+    // If we deleted the active one, start fresh
+    if (this.session.id === id) {
+      this.createNewProject();
+    }
   }
 
   public getSession(): DraftingSession {
@@ -142,7 +183,7 @@ export class DraftingEngine {
     } else {
         const entry: BOMEntry = {
           instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
-          part: { ...part }, // Clone to allow individual price overrides
+          part: { ...part },
           quantity,
           isCompatible: true
         };
@@ -170,35 +211,46 @@ export class DraftingEngine {
 
   public cacheAuditResult(result: string) {
       this.session.cachedAuditResult = result;
-      this.session.cacheIsDirty = false;
+      if (this.session.cachedAssemblyPlan) {
+        this.session.cacheIsDirty = false;
+      }
       this.saveSession();
   }
 
   public cacheAssemblyPlan(plan: AssemblyPlan) {
       this.session.cachedAssemblyPlan = plan;
-      this.session.cacheIsDirty = false;
+      if (this.session.cachedAuditResult) {
+        this.session.cacheIsDirty = false;
+      }
       this.saveSession();
   }
 
-  public updatePartSourcing(instanceId: string, onlineData: any) {
+  public updatePartSourcing(instanceId: string, onlineData: any, localData?: any) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
         if (!entry.sourcing) entry.sourcing = {};
         entry.sourcing.loading = false;
         entry.sourcing.online = onlineData || [];
+        if (localData) entry.sourcing.local = localData;
         entry.sourcing.lastUpdated = new Date();
 
-        // Sync price if part price is currently 0
-        if (entry.part.price === 0 && onlineData && onlineData.length > 0) {
-            const firstOption = onlineData[0];
-            if (firstOption.price) {
-                const numericPrice = parseFloat(firstOption.price.replace(/[^0-9.]/g, ''));
-                if (!isNaN(numericPrice)) {
-                    entry.part.price = numericPrice;
-                }
-            } else {
-                // Heuristic fallback: assign a non-zero random sample if price string is missing
-                entry.part.price = 14.99; 
+        if (onlineData && onlineData.length > 0) {
+            const prices = onlineData
+                .map((opt: any) => {
+                    const str = (opt.price || opt.title || "").toString();
+                    const match = str.match(/(?:\$|)\s?(\d+[\d,.]*)/);
+                    if (match) {
+                        const val = parseFloat(match[1].replace(/,/g, ''));
+                        return isNaN(val) ? null : val;
+                    }
+                    return null;
+                })
+                .filter((p: number | null) => p !== null && p > 0);
+
+            if (prices.length > 0) {
+                entry.part.price = Math.min(...prices);
+            } else if (entry.part.price === 0) {
+                entry.part.price = 14.99;
             }
         }
         

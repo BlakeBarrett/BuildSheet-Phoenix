@@ -137,7 +137,7 @@ export class GeminiService implements AIService {
     try {
         const response = await this.ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `Find specific purchase options and current pricing for: ${query}. For each item, list the title, store, and price if available.`,
+            contents: `Find real-world purchase options and actual prices for: ${query}. For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
             config: {
                 tools: [{ googleSearch: {} }],
             }
@@ -148,8 +148,8 @@ export class GeminiService implements AIService {
             .filter(chunk => chunk.web)
             .map(chunk => {
                 const title = chunk.web?.title || "Sourcing Link";
-                // Heuristic: Extract price from title if grounding metadata doesn't provide it explicitly
-                const priceMatch = title.match(/\$\d+(\.\d{2})?/);
+                // Heuristic: Extract price from title or grounding metadata
+                const priceMatch = title.match(/\$\s?(\d+[\d,.]*)/);
                 return {
                     title: title,
                     url: chunk.web?.uri || "",
@@ -165,13 +165,13 @@ export class GeminiService implements AIService {
       try {
           const response = await this.ai.models.generateContent({
               model: 'gemini-2.5-flash',
-              contents: `Find local stores for: ${query}.`,
+              contents: `Find local hardware stores or specialized retailers for: ${query}.`,
               config: { tools: [{ googleMaps: {} }] }
           });
           const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
           return chunks.map(chunk => ({
-              name: chunk.maps?.title || chunk.web?.title || "Supplier",
-              address: "See Map",
+              name: chunk.maps?.title || chunk.web?.title || "Local Supplier",
+              address: "Check Maps Link",
               url: chunk.maps?.uri || chunk.web?.uri
           })).slice(0, 5);
       } catch (e) { return null; }
@@ -187,6 +187,11 @@ export class GeminiService implements AIService {
         
         CURRENT BILL OF MATERIALS:
         ${digest}
+        
+        IMPORTANT CONTEXT: 
+        If a part has a price of $0.00, it likely means the user already owns it. 
+        Analyze the conversation history or requirements for phrases like "I have a..." or "I own a...". 
+        Do not suggest replacing owned hardware unless there is a critical safety failure or physical impossibility.
         `;
 
         if (previousAudit) {
@@ -202,18 +207,14 @@ export class GeminiService implements AIService {
         }
 
         prompt += `
-        IMPORTANT: Pay attention to any parts the user mentioned they already own (zero price or explicitly stated in context). 
-        Do not recommend alternatives for user-owned hardware unless there is a critical safety or compatibility failure.
-
-        TASK 1: TECHNICAL INTEGRITY (Human-readable report)
-        TASK 2: PATENT INFRINGEMENT RISK (Human-readable report)
+        TASK 1: TECHNICAL INTEGRITY (Respect user-owned parts)
+        TASK 2: PATENT INFRINGEMENT RISK
         TASK 3: CORRECTIONS (Tool Calls)
         
         **CRITICAL INSTRUCTIONS:**
         1. Use Markdown for Task 1 and 2.
-        2. **DO NOT** use JSON for Task 3. 
-        3. Use ONLY string function format: \`addPart("id", quantity)\` or \`removePart("id")\`.
-        4. Place corrections at the absolute end of your response.
+        2. Use ONLY string function format: \`addPart("id", quantity)\` or \`removePart("id")\`.
+        3. Place corrections at the absolute end.
         `;
 
         const response = await this.ai.models.generateContent({
