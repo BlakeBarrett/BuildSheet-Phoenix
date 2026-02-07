@@ -1,33 +1,45 @@
 import React from 'react';
 
-// Added onClick prop to allow Card components to be interactive (fixes type error in App.tsx)
-export const Card: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void }> = ({ children, className, onClick }) => (
-  <div 
-    onClick={onClick}
-    className={`bg-white rounded-[20px] border border-gray-200 shadow-sm overflow-hidden ${className}`}
-  >
-    {children}
-  </div>
-);
+// M3 Card: Elevated or Filled surface with large corner radius
+export const Card: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void, variant?: 'elevated' | 'filled' | 'outlined' }> = ({ children, className, onClick, variant = 'elevated' }) => {
+  const baseStyles = "rounded-[24px] overflow-hidden transition-all duration-300";
+  const variants = {
+    elevated: "bg-white shadow-sm hover:shadow-md",
+    filled: "bg-[#F3F4F6] border-none", // Surface Container Highest
+    outlined: "bg-white border border-[#E0E2E7]"
+  };
 
-// Added disabled prop to Button component definition
+  return (
+    <div 
+      onClick={onClick}
+      className={`${baseStyles} ${variants[variant]} ${className}`}
+    >
+      {children}
+    </div>
+  );
+};
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'tonal';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'tonal' | 'fab';
+  icon?: string;
 }
 
+// M3 Button: Full pill shape, strict height metrics
 export const Button: React.FC<ButtonProps> = ({ 
   onClick, 
   variant = 'primary', 
   children, 
   className, 
   disabled,
+  icon,
   ...props 
 }) => {
   const styles = {
-    primary: 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-md',
-    secondary: 'bg-indigo-100 text-indigo-900 hover:bg-indigo-200',
-    tonal: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
-    ghost: 'bg-transparent text-gray-600 hover:bg-gray-100'
+    primary: 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm hover:shadow-md active:scale-[0.98]',
+    secondary: 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100 border border-indigo-100',
+    tonal: 'bg-[#E0E2E7] text-[#1F1F1F] hover:bg-[#D3D6DB] active:bg-[#C4C7C5]',
+    ghost: 'bg-transparent text-[#444746] hover:bg-[#F0F4F9]',
+    fab: 'bg-indigo-100 text-indigo-900 hover:bg-indigo-200 shadow-md rounded-[20px] h-14 min-w-[56px]'
   };
 
   const activeVariant = styles[variant as keyof typeof styles] || styles.primary;
@@ -36,18 +48,49 @@ export const Button: React.FC<ButtonProps> = ({
     <button 
       onClick={onClick}
       disabled={disabled}
-      className={`px-5 py-2.5 rounded-full font-medium transition-all duration-200 text-sm flex items-center justify-center gap-2 ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:scale-[0.98]'} ${activeVariant} ${className}`}
+      className={`
+        relative px-6 py-3 rounded-full font-medium text-sm tracking-wide 
+        flex items-center justify-center gap-2 transition-all duration-300
+        disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
+        ${activeVariant} ${className}
+      `}
       {...props}
     >
+      {icon && <span className="material-symbols-rounded text-[20px]">{icon}</span>}
       {children}
     </button>
   );
 };
 
-export const Chip: React.FC<{ label: string, color?: string }> = ({ label, color = 'bg-gray-100 text-gray-700' }) => (
-  <span className={`px-3 py-1 rounded-[8px] text-[11px] font-medium tracking-wide border border-transparent ${color}`}>
+// M3 Icon Button
+export const IconButton: React.FC<{ icon: string, onClick?: () => void, className?: string, active?: boolean, disabled?: boolean, title?: string }> = ({ icon, onClick, className, active, disabled, title }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className={`
+      w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200
+      disabled:opacity-30 disabled:cursor-not-allowed
+      ${active ? 'bg-indigo-100 text-indigo-800' : 'text-[#444746] hover:bg-[#F0F4F9] hover:text-[#1F1F1F]'}
+      ${className}
+    `}
+  >
+    <span className={`material-symbols-rounded ${active ? 'symbol-filled' : ''}`}>{icon}</span>
+  </button>
+);
+
+// M3 Chip: Assist or Filter style
+export const Chip: React.FC<{ label: string, color?: string, icon?: string, onClick?: () => void }> = ({ label, color, icon, onClick }) => (
+  <button 
+    onClick={onClick}
+    className={`
+      h-8 px-3 rounded-[8px] text-[11px] font-bold tracking-wider flex items-center gap-1.5 border
+      ${color ? color : 'bg-white border-[#C4C7C5] text-[#444746] hover:bg-[#F0F4F9]'}
+    `}
+  >
+    {icon && <span className="material-symbols-rounded text-[14px]">{icon}</span>}
     {label}
-  </span>
+  </button>
 );
 
 export const GoogleSignInButton: React.FC<{ onClick: () => void, label?: string, className?: string }> = ({ onClick, label = "Sign in with Google", className }) => (
@@ -56,6 +99,7 @@ export const GoogleSignInButton: React.FC<{ onClick: () => void, label?: string,
     className={`w-full flex items-center justify-center gap-3 bg-white text-[#1f1f1f] border border-[#747775] rounded-full px-4 py-2.5 text-sm font-medium hover:bg-[#F0F4F9] hover:border-[#1f1f1f] transition-all active:bg-[#E3E3E3] ${className}`}
     style={{ fontFamily: 'Roboto, sans-serif' }}
   >
+    {/* SVG retained for brand compliance */}
     <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       <g transform="matrix(1, 0, 0, 1, 0, 0)">
         <path fill="#4285F4" d="M23.49,12.27c0-0.79-0.07-1.54-0.19-2.27H12v4.51h6.47c-0.29,1.48-1.14,2.73-2.4,3.58v3h3.86 c2.26-2.09,3.56-5.17,3.56-8.82z"/>
