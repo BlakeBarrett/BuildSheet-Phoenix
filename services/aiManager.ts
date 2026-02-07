@@ -5,45 +5,15 @@ import { GeminiService } from './geminiService.ts';
 export class AIManager {
   
   /**
-   * Safe access to the API Key with strict validation.
-   * Checks multiple common environment locations and validates format.
+   * Safe access to the API Key.
+   * Strictly uses process.env.API_KEY as the source of truth per application guidelines.
    */
-  private static getApiKey(): string | undefined {
-    let key: string | undefined;
+  public static getApiKey(): string | undefined {
+    // @ts-ignore
+    const key = process.env.API_KEY;
 
-    try {
-      // 1. Check standard process.env (Build-time replacement)
-      // @ts-ignore
-      key = process.env.API_KEY;
-
-      // 2. Check Vite/Modern bundler standards if process.env failed
-      if (!key) {
-        // @ts-ignore
-        key = import.meta.env?.VITE_API_KEY || import.meta.env?.NEXT_PUBLIC_API_KEY;
-      }
-      
-      // 3. Check browser polyfill
-      if (!key) {
-        key = (window as any).process?.env?.API_KEY;
-      }
-
-    } catch (e) {
-      console.warn("Error accessing environment variables", e);
-    }
-
-    // VALIDATION LOGIC
-    if (!key) return undefined;
-    
-    // Reject common placeholders
-    if (key === 'GEMINI_API_KEY' || key.includes('YOUR_API_KEY') || key === 'TODO') {
-      console.warn("AIManager: Detected placeholder API Key.");
-      return undefined;
-    }
-
-    // Reject obviously invalid keys (Google Keys start with AIza and are approx 39 chars)
-    if (key.length < 30 || !key.startsWith('AIza')) {
-      console.warn("AIManager: API Key format looks invalid (too short or missing prefix).");
-      // We return undefined to force fallback, preventing 400 Bad Request errors
+    // Filter out obvious empty/placeholder values
+    if (!key || key === 'TODO' || key.includes('YOUR_API_KEY')) {
       return undefined;
     }
 
@@ -62,15 +32,15 @@ export class AIManager {
     const apiKey = this.getApiKey();
 
     if (!apiKey) {
-      console.warn("AIManager: No valid API Key found. Using Mock Service.");
+      console.warn("AIManager: No API Key found in process.env.API_KEY. Using Mock Service.");
       return { 
         service: new MockService(), 
-        error: "Missing or Invalid API Key (Must start with 'AIza'). Using Offline Simulation." 
+        error: "Missing API Key. Using Offline Simulation." 
       };
     }
 
     try {
-      const service = new GeminiService();
+      const service = new GeminiService(apiKey);
       return { service };
     } catch (error: any) {
       console.error("AIManager: Failed to instantiate GeminiService.", error);

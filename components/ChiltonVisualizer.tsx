@@ -63,7 +63,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] opacity-10"></div>
                         <img 
                             src={activeImage.url} 
-                            alt="Generated Design" 
+                            alt={activeImage.prompt || "Generated Design"} 
                             className="relative max-h-full max-w-full object-contain p-6 transition-transform duration-500 hover:scale-[1.02] drop-shadow-xl"
                         />
                         <div className="absolute bottom-4 left-4 right-4 text-center pointer-events-none">
@@ -108,7 +108,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                         activeImage?.id === img.id ? 'border-indigo-600 ring-2 ring-indigo-100 shadow-md' : 'border-transparent opacity-70 hover:opacity-100 hover:border-gray-200'
                     }`}
                 >
-                    <img src={img.url} alt="thumbnail" className="w-full h-full object-cover" />
+                    <img src={img.url} alt={`Thumbnail: ${img.prompt}`} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
                 </button>
             ))}

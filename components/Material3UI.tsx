@@ -9,10 +9,15 @@ export const Card: React.FC<{ children: React.ReactNode, className?: string, onC
     outlined: "bg-white border border-[#E0E2E7]"
   };
 
+  const interactiveStyles = onClick ? "cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none" : "";
+
   return (
     <div 
       onClick={onClick}
-      className={`${baseStyles} ${variants[variant]} ${className}`}
+      onKeyDown={(e) => { if(onClick && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(); } }}
+      tabIndex={onClick ? 0 : undefined}
+      role={onClick ? "button" : undefined}
+      className={`${baseStyles} ${variants[variant]} ${interactiveStyles} ${className}`}
     >
       {children}
     </div>
@@ -52,11 +57,12 @@ export const Button: React.FC<ButtonProps> = ({
         relative px-6 py-3 rounded-full font-medium text-sm tracking-wide 
         flex items-center justify-center gap-2 transition-all duration-300
         disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
+        focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none
         ${activeVariant} ${className}
       `}
       {...props}
     >
-      {icon && <span className="material-symbols-rounded text-[20px]">{icon}</span>}
+      {icon && <span className="material-symbols-rounded text-[20px]" aria-hidden="true">{icon}</span>}
       {children}
     </button>
   );
@@ -68,14 +74,16 @@ export const IconButton: React.FC<{ icon: string, onClick?: () => void, classNam
     onClick={onClick}
     disabled={disabled}
     title={title}
+    aria-label={title || icon}
     className={`
       w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200
       disabled:opacity-30 disabled:cursor-not-allowed
+      focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none
       ${active ? 'bg-indigo-100 text-indigo-800' : 'text-[#444746] hover:bg-[#F0F4F9] hover:text-[#1F1F1F]'}
       ${className}
     `}
   >
-    <span className={`material-symbols-rounded ${active ? 'symbol-filled' : ''}`}>{icon}</span>
+    <span className={`material-symbols-rounded ${active ? 'symbol-filled' : ''}`} aria-hidden="true">{icon}</span>
   </button>
 );
 
@@ -85,10 +93,11 @@ export const Chip: React.FC<{ label: string, color?: string, icon?: string, onCl
     onClick={onClick}
     className={`
       h-8 px-3 rounded-[8px] text-[11px] font-bold tracking-wider flex items-center gap-1.5 border
+      focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none
       ${color ? color : 'bg-white border-[#C4C7C5] text-[#444746] hover:bg-[#F0F4F9]'}
     `}
   >
-    {icon && <span className="material-symbols-rounded text-[14px]">{icon}</span>}
+    {icon && <span className="material-symbols-rounded text-[14px]" aria-hidden="true">{icon}</span>}
     {label}
   </button>
 );
@@ -96,11 +105,11 @@ export const Chip: React.FC<{ label: string, color?: string, icon?: string, onCl
 export const GoogleSignInButton: React.FC<{ onClick: () => void, label?: string, className?: string }> = ({ onClick, label = "Sign in with Google", className }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center justify-center gap-3 bg-white text-[#1f1f1f] border border-[#747775] rounded-full px-4 py-2.5 text-sm font-medium hover:bg-[#F0F4F9] hover:border-[#1f1f1f] transition-all active:bg-[#E3E3E3] ${className}`}
+    className={`w-full flex items-center justify-center gap-3 bg-white text-[#1f1f1f] border border-[#747775] rounded-full px-4 py-2.5 text-sm font-medium hover:bg-[#F0F4F9] hover:border-[#1f1f1f] transition-all active:bg-[#E3E3E3] focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${className}`}
     style={{ fontFamily: 'Roboto, sans-serif' }}
   >
     {/* SVG retained for brand compliance */}
-    <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <g transform="matrix(1, 0, 0, 1, 0, 0)">
         <path fill="#4285F4" d="M23.49,12.27c0-0.79-0.07-1.54-0.19-2.27H12v4.51h6.47c-0.29,1.48-1.14,2.73-2.4,3.58v3h3.86 c2.26-2.09,3.56-5.17,3.56-8.82z"/>
         <path fill="#34A853" d="M12,24c3.24,0,5.95-1.08,7.92-2.91l-3.86-3c-1.08,0.72-2.45,1.16-4.06,1.16c-3.13,0-5.78-2.11-6.73-4.96 H1.29v3.09C3.3,21.3,7.31,24,12,24z"/>

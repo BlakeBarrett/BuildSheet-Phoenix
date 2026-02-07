@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
@@ -37,9 +36,18 @@ export class GeminiService implements AIService {
   public name = "Gemini 3 Flash";
   public isOffline = false;
   private ai: GoogleGenAI;
+  private apiKey: string;
 
-  constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+    console.log(`[GeminiService] Initialized. Key: ${this.getApiKeyStatus()}`);
+    this.ai = new GoogleGenAI({ apiKey });
+  }
+
+  public getApiKeyStatus(): string {
+    if (!this.apiKey) return "MISSING";
+    const visible = this.apiKey.substring(0, 8);
+    return `${visible}... (Length: ${this.apiKey.length})`;
   }
 
   private cleanBase64(dataUrl: string): { mimeType: string, data: string } | null {
@@ -50,11 +58,37 @@ export class GeminiService implements AIService {
     } catch (e) { return null; }
   }
 
+  /**
+   * Sanitizes chat history to ensure strict User -> Model alternation.
+   * Merges consecutive messages from the same role.
+   */
+  private sanitizeHistory(history: any[]): any[] {
+    if (history.length === 0) return [];
+    
+    const sanitized: any[] = [];
+    let lastRole = "";
+
+    for (const msg of history) {
+        if (msg.role === lastRole) {
+            // Merge content with previous message
+            const prevMsg = sanitized[sanitized.length - 1];
+            if (prevMsg && prevMsg.parts && msg.parts) {
+                prevMsg.parts = [...prevMsg.parts, ...msg.parts];
+            }
+        } else {
+            sanitized.push(msg);
+            lastRole = msg.role;
+        }
+    }
+    return sanitized;
+  }
+
   async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     try {
-      const contents = [...history];
+      // 1. Sanitize incoming history to prevent 500 errors from consecutive roles
+      const sanitizedHistory = this.sanitizeHistory(history);
+
       const currentParts: any[] = [{ text: prompt }];
-      
       if (image) {
         const imageData = this.cleanBase64(image);
         if (imageData) {
@@ -62,7 +96,15 @@ export class GeminiService implements AIService {
         }
       }
 
-      contents.push({ role: 'user', parts: currentParts });
+      // 2. Append current user message
+      const contents = [...sanitizedHistory];
+      
+      // Safety check: If last message was user, we must merge, otherwise push
+      if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+         contents[contents.length - 1].parts.push(...currentParts);
+      } else {
+         contents.push({ role: 'user', parts: currentParts });
+      }
 
       const response: GenerateContentResponse = await this.ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -76,8 +118,8 @@ export class GeminiService implements AIService {
 
       return response.text || "Gemini provided no output.";
     } catch (error: any) {
-      console.error("Gemini SDK Error:", error);
-      throw new Error(`Gemini Service Error: ${error.message}`);
+      console.error("[GeminiService] API Call Failed:", JSON.stringify(error, null, 2));
+      throw new Error(`Gemini Service Error: ${JSON.stringify(error)}`);
     }
   }
 

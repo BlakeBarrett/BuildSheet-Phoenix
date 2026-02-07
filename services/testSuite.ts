@@ -1,11 +1,12 @@
 import { DraftingSession, AssemblyPlan } from '../types.ts';
 import { DraftingEngine } from './draftingEngine.ts';
+import { AIManager } from './aiManager.ts';
 
 export interface TestResult {
     name: string;
     status: 'PASS' | 'FAIL' | 'WARN';
     message: string;
-    category: 'INTEGRITY' | 'FLOW' | 'SYSTEM' | 'ACCESSIBILITY';
+    category: 'INTEGRITY' | 'FLOW' | 'SYSTEM' | 'ACCESSIBILITY' | 'UNIT TEST';
 }
 
 export class TestSuite {
@@ -156,7 +157,7 @@ export class TestSuite {
             category: 'INTEGRITY'
         });
 
-        // 9. New Test: Context Awareness (Owned Hardware)
+        // 9. Context Awareness (Owned Hardware)
         const userMentionedOwned = session.designRequirements.toLowerCase().includes("i have") || session.designRequirements.toLowerCase().includes("i already") || session.bom.some(b => b.part.price === 0);
         results.push({
             name: "INTEGRITY: CONTEXT AWARENESS",
@@ -165,13 +166,47 @@ export class TestSuite {
             category: 'INTEGRITY'
         });
 
-        // 10. New Test: Pricing Sync
+        // 10. Pricing Sync
         const hasActualPrices = session.bom.every(b => b.part.price > 0 || b.sourcing?.online === undefined);
         results.push({
             name: "FLOW: PRICE SYNC",
             status: hasActualPrices ? 'PASS' : 'FAIL',
             message: hasActualPrices ? "Market data successfully injected into valuation." : "Valuation mismatch detected in sourced items.",
             category: 'FLOW'
+        });
+
+        // --- SECTION 5: UNIT TESTS (API KEY INTEGRITY) ---
+        // Verify that the detected key matches the service key
+        const detectedKey = AIManager.getApiKey();
+        const { service } = await AIManager.createService();
+        const serviceStatus = service.getApiKeyStatus();
+        
+        let unitTestStatus: 'PASS' | 'FAIL' = 'FAIL';
+        let unitTestMsg = "Failed to retrieve API Key detected by Manager.";
+
+        if (!detectedKey) {
+            if (serviceStatus.includes("Mock") || serviceStatus.includes("N/A")) {
+                unitTestStatus = 'PASS';
+                unitTestMsg = "Graceful degradation verified: No Key -> Mock Service Active.";
+            } else {
+                 unitTestMsg = "Mismatch: No key detected, but Service reports active key.";
+            }
+        } else {
+            // Check if service status contains first few chars of detected key
+            const prefix = detectedKey.substring(0, 4);
+            if (serviceStatus.includes(prefix)) {
+                unitTestStatus = 'PASS';
+                unitTestMsg = `Key propagation verified. Manager(${prefix}...) == Service(${serviceStatus}).`;
+            } else {
+                 unitTestMsg = `Mismatch: Manager detected ${prefix}... but Service reports ${serviceStatus}.`;
+            }
+        }
+
+        results.push({
+            name: "UNIT TEST: API KEY PROPAGATION",
+            status: unitTestStatus,
+            message: unitTestMsg,
+            category: 'UNIT TEST'
         });
 
         return results;

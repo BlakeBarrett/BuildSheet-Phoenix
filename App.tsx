@@ -10,6 +10,7 @@ import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
 import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
+import { CookieConsent } from './components/CookieConsent.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -27,7 +28,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       return (
         <div className="h-screen w-full flex items-center justify-center bg-[#1E1E1E] text-white p-8">
             <div className="max-w-lg text-center">
-                <span className="material-symbols-rounded text-[64px] text-[#FFB4AB] mb-4">error_med</span>
+                <span className="material-symbols-rounded text-[64px] text-[#FFB4AB] mb-4" aria-hidden="true">error_med</span>
                 <h1 className="text-3xl font-bold text-[#FFB4AB] mb-2 tracking-tight">System Critical Failure</h1>
                 <p className="mb-6 text-[#E2E2E2] text-lg">The application encountered an unrecoverable error.</p>
                 <pre className="bg-black/30 p-6 rounded-[24px] text-xs font-mono overflow-auto border border-[#FFB4AB]/30 text-left leading-relaxed">{this.state.error?.message}</pre>
@@ -55,14 +56,14 @@ const ProjectNavigator: React.FC<{
 }> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate }) => {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="nav-title">
             <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden">
                 <header className="p-6 pb-2 flex justify-between items-center">
                     <div>
-                        <h3 className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">Build History</h3>
-                        <p className="text-sm text-slate-500 font-medium">Your Projects</p>
+                        <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">Build History</h3>
+                        <p className="text-sm text-slate-600 font-medium">Your Projects</p>
                     </div>
-                    <IconButton icon="close" onClick={onClose} />
+                    <IconButton icon="close" onClick={onClose} title="Close Navigator" />
                 </header>
                 
                 <div className="p-4">
@@ -78,14 +79,14 @@ const ProjectNavigator: React.FC<{
 
                 <div className="flex-1 overflow-y-auto px-4 space-y-2">
                     {projects.map((p) => (
-                        <div key={p.id} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { onSelect(p.id); onClose(); }}>
+                        <div key={p.id} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onSelect(p.id)} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { onSelect(p.id); onClose(); }}>
                             {/* Visual Thumbnail */}
                             <div className={`w-14 h-14 rounded-[16px] overflow-hidden flex-shrink-0 border ${p.id === currentId ? 'border-indigo-400' : 'border-gray-100'}`}>
                                 {p.thumbnail ? (
-                                    <img src={p.thumbnail} alt="preview" className="w-full h-full object-cover" />
+                                    <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                     <div className={`w-full h-full flex items-center justify-center ${p.id === currentId ? 'bg-indigo-700' : 'bg-slate-100'}`}>
-                                        <span className={`material-symbols-rounded ${p.id === currentId ? 'text-indigo-300' : 'text-slate-300'}`}>draft</span>
+                                        <span className={`material-symbols-rounded ${p.id === currentId ? 'text-indigo-300' : 'text-slate-300'}`} aria-hidden="true">draft</span>
                                     </div>
                                 )}
                             </div>
@@ -97,21 +98,22 @@ const ProjectNavigator: React.FC<{
                             
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
-                                className={`p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                aria-label={`Delete ${p.name}`}
+                                className={`p-2 rounded-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity focus-visible:opacity-100 ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
                             >
-                                <span className="material-symbols-rounded text-[20px]">delete</span>
+                                <span className="material-symbols-rounded text-[20px]" aria-hidden="true">delete</span>
                             </button>
                         </div>
                     ))}
                     {projects.length === 0 && (
                         <div className="text-center py-20 opacity-40">
-                             <p className="text-sm font-medium text-slate-400">No project history found.</p>
+                             <p className="text-sm font-medium text-slate-500">No project history found.</p>
                         </div>
                     )}
                 </div>
 
                 <footer className="p-4 bg-white/50 border-t border-gray-200/50">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-2">Project Tools</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">Project Tools</p>
                     <div className="grid grid-cols-2 gap-2">
                         <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-800 hover:bg-rose-100" icon="health_and_safety">Health Check</Button>
                         <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="output">Export</Button>
@@ -134,14 +136,14 @@ const KitSummaryModal: React.FC<{
     const totalCost = session.bom.reduce((acc, curr) => acc + (curr.part.price * curr.quantity), 0);
 
     return (
-        <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-labelledby="kit-title">
+        <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="kit-title">
             <div className="bg-[#F0F4F9] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
                         <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">Your Hardware Kit</h3>
-                        <p className="text-base text-slate-500 font-medium mt-1">Ready for fulfillment & assembly</p>
+                        <p className="text-base text-slate-600 font-medium mt-1">Ready for fulfillment & assembly</p>
                     </div>
-                    <IconButton icon="close" onClick={onClose} />
+                    <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6">
                     <div className="grid grid-cols-2 gap-4">
@@ -150,22 +152,22 @@ const KitSummaryModal: React.FC<{
                             <div className="text-4xl font-mono font-medium mt-1 tracking-tight">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         </div>
                         <div className="p-6 bg-indigo-100 rounded-[24px] text-indigo-900">
-                            <label className="text-[11px] font-bold uppercase tracking-widest text-indigo-400">Kit Progress</label>
+                            <label className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Kit Progress</label>
                             <div className="text-4xl font-medium mt-1 tracking-tight">{Math.round((sourcedParts.length / session.bom.length) * 100)}%</div>
                         </div>
                     </div>
 
                     <div>
-                        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 px-1">Verified Items ({sourcedParts.length})</h4>
+                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">Verified Items ({sourcedParts.length})</h4>
                         <div className="space-y-2">
                             {sourcedParts.map((b, i) => (
                                 <div key={i} className="flex items-center justify-between p-4 bg-white rounded-[20px] shadow-sm">
                                     <div className="flex-1">
-                                        <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-400 font-medium ml-2">x{b.quantity}</span></div>
+                                        <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
                                         <div className="flex gap-2 mt-2">
                                             {b.sourcing?.online?.slice(0, 1).map((s, idx) => (
                                                 <a key={idx} href={s.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors flex items-center gap-1">
-                                                    <span className="material-symbols-rounded text-[14px]">shopping_cart</span>
+                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">shopping_cart</span>
                                                     Buy on {s.source}
                                                 </a>
                                             ))}
@@ -180,7 +182,7 @@ const KitSummaryModal: React.FC<{
                     {missingParts.length > 0 && (
                         <div className="p-5 bg-amber-50 rounded-[24px] text-amber-900">
                             <p className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <span className="material-symbols-rounded text-[18px]">warning</span>
+                                <span className="material-symbols-rounded text-[18px]" aria-hidden="true">warning</span>
                                 Action Required
                             </p>
                             <p className="text-sm leading-relaxed">We couldn't find automatic purchase links for {missingParts.length} components. These items were still included in your technical audit and assembly plan.</p>
@@ -224,20 +226,20 @@ const ValidationReportModal: React.FC<{
     };
 
     return (
-        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-labelledby="validation-title">
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="validation-title">
              <div className="bg-[#1E1E1E] text-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/10">
                 <div className="p-6 border-b border-white/10 flex justify-between items-center">
                     <div className="flex flex-col">
                         <h3 id="validation-title" className="text-xl font-bold tracking-tight">System Integrity Suite</h3>
                         <p className="text-xs text-indigo-300 font-mono mt-1">BUILD: BS-STABLE-V2</p>
                     </div>
-                    <IconButton icon="close" onClick={onClose} className="text-white hover:bg-white/10" disabled={isFixing || isRunning} />
+                    <IconButton icon="close" onClick={onClose} className="text-white hover:bg-white/10" disabled={isFixing || isRunning} title="Close" />
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 font-mono text-sm leading-relaxed text-indigo-100">
                     {(isRunning || isFixing) ? (
                         <div className="space-y-4" aria-live="polite">
                              <div className="flex items-center gap-3 text-indigo-400">
-                                 <span className="material-symbols-rounded animate-spin">settings</span>
+                                 <span className="material-symbols-rounded animate-spin" aria-hidden="true">settings</span>
                                  <p className="animate-pulse">>> {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
                              </div>
                              <p className="text-indigo-300/50 delay-75 pl-9">>> ANALYZING BUILD SHEET INTEGRITY...</p>
@@ -282,7 +284,7 @@ const PartDetailModal: React.FC<{
 }> = ({ entry, onClose, onSource }) => {
     if (!entry) return null;
     return (
-        <div className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-labelledby="part-title">
+        <div className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="part-title">
              <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
@@ -291,10 +293,10 @@ const PartDetailModal: React.FC<{
                         </div>
                         <div>
                             <h3 id="part-title" className="text-xl font-bold text-slate-800 tracking-tight">{entry.part.name}</h3>
-                            <p className="text-xs text-slate-500 font-medium">{entry.part.brand}</p>
+                            <p className="text-xs text-slate-600 font-medium">{entry.part.brand}</p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} />
+                    <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     <div className="space-y-6">
@@ -304,18 +306,18 @@ const PartDetailModal: React.FC<{
                         
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">SKU</label>
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SKU</label>
                                 <p className="text-sm font-mono text-slate-900 mt-1">{entry.part.sku}</p>
                             </div>
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Target Price</label>
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Price</label>
                                 <p className="text-sm text-slate-900 mt-1 font-bold">${entry.part.price.toFixed(2)}</p>
                             </div>
                         </div>
 
                         {entry.sourcing?.loading ? (
-                            <div className="p-8 flex flex-col items-center justify-center text-slate-400 space-y-4 bg-white rounded-[20px] border border-dashed border-gray-200">
-                                <span className="material-symbols-rounded animate-spin text-3xl text-indigo-300">progress_activity</span>
+                            <div className="p-8 flex flex-col items-center justify-center text-slate-500 space-y-4 bg-white rounded-[20px] border border-dashed border-gray-200">
+                                <span className="material-symbols-rounded animate-spin text-3xl text-indigo-300" aria-hidden="true">progress_activity</span>
                                 <span className="text-xs font-medium uppercase tracking-widest">Finding vendors...</span>
                             </div>
                         ) : (
@@ -323,14 +325,14 @@ const PartDetailModal: React.FC<{
                                 {entry.sourcing?.online && entry.sourcing.online.length > 0 ? (
                                     <div>
                                         <div className="flex items-center gap-2 mb-3">
-                                            <span className="material-symbols-rounded text-indigo-600 text-[18px]">public</span>
+                                            <span className="material-symbols-rounded text-indigo-600 text-[18px]" aria-hidden="true">public</span>
                                             <label className="text-[11px] font-bold text-indigo-900 uppercase tracking-widest">Global Marketplace</label>
                                         </div>
                                         <div className="space-y-2">
                                             {entry.sourcing.online.map((s, i) => (
                                                 <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white rounded-[16px] border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all group" aria-label={`View at ${s.source}`}>
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">{s.source}</span>
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase">{s.source}</span>
                                                         <span className="text-sm font-medium text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{s.title}</span>
                                                     </div>
                                                     <span className="text-sm font-bold text-indigo-600 ml-4">{s.price || 'Market Rate'}</span>
@@ -340,14 +342,14 @@ const PartDetailModal: React.FC<{
                                     </div>
                                 ) : entry.sourcing?.online !== undefined && (
                                     <div className="p-4 bg-slate-50 rounded-[16px] text-center">
-                                        <span className="text-xs text-slate-400 font-medium">No online listings found. Re-trigger update to search again.</span>
+                                        <span className="text-xs text-slate-500 font-medium">No online listings found. Re-trigger update to search again.</span>
                                     </div>
                                 )}
 
                                 {entry.sourcing?.local && entry.sourcing.local.length > 0 && (
                                     <div className="mt-6">
                                         <div className="flex items-center gap-2 mb-3">
-                                            <span className="material-symbols-rounded text-emerald-600 text-[18px]">location_on</span>
+                                            <span className="material-symbols-rounded text-emerald-600 text-[18px]" aria-hidden="true">location_on</span>
                                             <label className="text-[11px] font-bold text-emerald-900 uppercase tracking-widest">Local Availability</label>
                                         </div>
                                         <div className="space-y-2">
@@ -357,7 +359,7 @@ const PartDetailModal: React.FC<{
                                                         <span className="text-sm font-bold text-slate-800">{s.name}</span>
                                                         <span className="text-[11px] text-emerald-700">{s.address}</span>
                                                     </div>
-                                                    <span className="material-symbols-rounded text-emerald-600">arrow_outward</span>
+                                                    <span className="material-symbols-rounded text-emerald-600" aria-hidden="true">arrow_outward</span>
                                                 </a>
                                             ))}
                                         </div>
@@ -387,24 +389,24 @@ const AssemblyModal: React.FC<{
 }> = ({ isOpen, onClose, plan, isRunning, isDirty, onLaunchAR, onRefresh }) => {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[70] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-labelledby="assembly-title">
+        <div className="fixed inset-0 z-[70] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="assembly-title">
              <div className="bg-[#F4F7FC] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-sm ${isRunning ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`} aria-hidden="true">
-                            <span className={`material-symbols-rounded text-[28px] ${isRunning ? 'animate-spin' : ''}`}>
+                            <span className={`material-symbols-rounded text-[28px] ${isRunning ? 'animate-spin' : ''}`} aria-hidden="true">
                                 {isRunning ? 'settings_motion_mode' : 'precision_manufacturing'}
                             </span>
                         </div>
                         <div>
                             <h3 id="assembly-title" className="text-xl font-bold text-slate-800 tracking-tight">Robotic Assembly Planner</h3>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-500 font-medium">Kinematic Solver Engine</span>
+                                <span className="text-xs text-slate-600 font-medium">Kinematic Solver Engine</span>
                                 {isDirty && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Stale</span>}
                             </div>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} />
+                    <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 
                 <div className="flex-1 overflow-y-auto px-6 py-6 font-sans text-sm leading-relaxed text-slate-600">
@@ -421,7 +423,7 @@ const AssemblyModal: React.FC<{
                             {isDirty && (
                                 <div className="bg-red-50 border border-red-100 p-4 rounded-[20px] flex justify-between items-center">
                                     <p className="text-sm text-red-800 font-medium flex items-center gap-2">
-                                        <span className="material-symbols-rounded text-[18px]">warning</span>
+                                        <span className="material-symbols-rounded text-[18px]" aria-hidden="true">warning</span>
                                         Draft changed. Plan may be invalid.
                                     </p>
                                     <Button onClick={onRefresh} variant="tonal" className="text-xs h-8 px-3 bg-white text-red-700 hover:bg-red-50" icon="refresh">Refresh</Button>
@@ -438,7 +440,7 @@ const AssemblyModal: React.FC<{
                                     <div className="text-2xl font-bold text-orange-900 tracking-tight">{plan.difficulty}</div>
                                 </div>
                                 <div className="p-4 bg-white rounded-[20px] border border-gray-100">
-                                    <div className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider">Est. Time</div>
+                                    <div className="text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">Est. Time</div>
                                     <div className="text-2xl font-bold text-slate-700 tracking-tight">{plan.totalTime}</div>
                                 </div>
                             </div>
@@ -464,10 +466,10 @@ const AssemblyModal: React.FC<{
                                                 <div className="font-medium text-slate-900 text-base mb-2">{step.description}</div>
                                                 <div className="flex flex-wrap gap-2">
                                                     <span className="px-2 py-1 bg-slate-100 rounded-[8px] text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
-                                                        <span className="material-symbols-rounded text-[14px]">build</span> {step.requiredTool}
+                                                        <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span> {step.requiredTool}
                                                     </span>
                                                     <span className="px-2 py-1 bg-slate-100 rounded-[8px] text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1">
-                                                        <span className="material-symbols-rounded text-[14px]">schedule</span> {step.estimatedTime}
+                                                        <span className="material-symbols-rounded text-[14px]" aria-hidden="true">schedule</span> {step.estimatedTime}
                                                     </span>
                                                 </div>
                                             </div>
@@ -498,24 +500,24 @@ const AuditModal: React.FC<{
 }> = ({ isOpen, onClose, result, isRunning, isDirty, onRefresh }) => {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-labelledby="audit-title">
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="audit-title">
              <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-sm ${isRunning ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'}`} aria-hidden="true">
-                            <span className={`material-symbols-rounded text-[28px] ${isRunning ? 'animate-spin' : ''}`}>
+                            <span className={`material-symbols-rounded text-[28px] ${isRunning ? 'animate-spin' : ''}`} aria-hidden="true">
                                 {isRunning ? 'refresh' : 'policy'}
                             </span>
                         </div>
                         <div>
                             <h3 id="audit-title" className="text-xl font-bold text-slate-800 tracking-tight">Technical Audit</h3>
                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-500 font-medium">System Integrity Verification</span>
+                                <span className="text-xs text-slate-600 font-medium">System Integrity Verification</span>
                                 {isDirty && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Stale</span>}
                             </div>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} />
+                    <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 
                 <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -754,7 +756,11 @@ const AppContent: React.FC = () => {
     setInput('');
     setIsThinking(true);
     try {
-        const history = session.messages.map(m => ({ role: m.role, parts: [{ text: m.content }] }));
+        // Fix: Map 'assistant' role to 'model' for Gemini API compatibility
+        const history = session.messages.map(m => ({ 
+            role: m.role === 'user' ? 'user' : 'model', 
+            parts: [{ text: m.content }] 
+        }));
         const architectResponse = await aiService.askArchitect(tempInput, history);
         const parsed = aiService.parseArchitectResponse(architectResponse);
         
@@ -779,6 +785,8 @@ const AppContent: React.FC = () => {
   return (
     <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row p-0 pb-[90px] md:p-3 md:pb-[90px] lg:pb-3 gap-3">
       
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:px-6 focus:py-3 focus:bg-indigo-600 focus:text-white focus:rounded-full focus:shadow-xl focus:font-bold">Skip to Main Content</a>
+
       <ProjectNavigator 
           isOpen={isNavigatorOpen} 
           onClose={() => setIsNavigatorOpen(false)} 
@@ -803,11 +811,13 @@ const AppContent: React.FC = () => {
       <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
       <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
       {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
+      
+      <CookieConsent />
 
       {/* M3 Navigation Rail (Floating on Desktop) */}
       <nav className="hidden md:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100">
         <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md">
-            <span className="material-symbols-rounded text-2xl">construction</span>
+            <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
         </div>
         
         <div className="flex flex-col gap-3 flex-1 items-center w-full">
@@ -839,24 +849,24 @@ const AppContent: React.FC = () => {
         </div>
 
         <div className="pb-2">
-            <IconButton icon="account_circle" />
+            <IconButton icon="account_circle" title="User Profile" />
         </div>
       </nav>
 
       {/* Main Content Area - Split Pane Layout */}
-      <main className="flex-1 flex overflow-hidden relative gap-3 h-full">
+      <main id="main-content" className="flex-1 flex overflow-hidden relative gap-3 h-full">
         
         {/* PANE 1: DRAFTING TABLE (Chat & Vis) */}
         <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
             {/* Toolbar */}
             <header className="px-6 py-4 flex justify-between items-center bg-white z-20 shrink-0">
                 <div className="flex items-center gap-3 md:hidden">
-                     <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden -ml-2" />
+                     <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden -ml-2" title="Menu" />
                 </div>
                 
                 <div className="flex flex-col">
                     <h1 className="font-bold text-lg md:text-xl tracking-tight text-slate-800 truncate">{session.name || "Untitled Draft"}</h1>
-                    <span className="text-xs text-slate-400 font-medium tracking-wide">BuildSheet Drafting Engine</span>
+                    <span className="text-xs text-slate-500 font-medium tracking-wide">BuildSheet Drafting Engine</span>
                 </div>
                 
                 <div className="flex gap-2 items-center">
@@ -870,11 +880,11 @@ const AppContent: React.FC = () => {
             </div>
 
             {/* Conversation Feed */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed" tabIndex={0}>
                 {session.messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full opacity-60">
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                            <span className="material-symbols-rounded text-slate-300 text-3xl">chat_bubble_outline</span>
+                            <span className="material-symbols-rounded text-slate-300 text-3xl" aria-hidden="true">chat_bubble_outline</span>
                         </div>
                         <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin.</p>
                     </div>
@@ -896,7 +906,7 @@ const AppContent: React.FC = () => {
                 {isThinking && (
                     <div className="flex justify-start">
                         <div className="bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm flex items-center gap-2">
-                            <span className="material-symbols-rounded animate-spin text-indigo-500 text-sm">hourglass_empty</span>
+                            <span className="material-symbols-rounded animate-spin text-indigo-500 text-sm" aria-hidden="true">hourglass_empty</span>
                             <span className="text-xs font-bold text-indigo-500 uppercase tracking-wide">Reasoning</span>
                         </div>
                     </div>
@@ -912,15 +922,17 @@ const AppContent: React.FC = () => {
                         onChange={e => setInput(e.target.value)} 
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                         placeholder="Instruct Gemini to build..." 
-                        className="w-full pl-6 pr-14 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-400" 
+                        aria-label="Instruct Gemini to build"
+                        className="w-full pl-6 pr-14 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500" 
                         rows={1} 
                     />
                     <button 
                         onClick={handleSend} 
                         disabled={!input.trim() || isThinking}
-                        className="absolute right-2 top-2 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-0 disabled:scale-50"
+                        aria-label="Send Message"
+                        className="absolute right-2 top-2 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-0 disabled:scale-50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none"
                     >
-                        <span className="material-symbols-rounded">arrow_upward</span>
+                        <span className="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
                     </button>
                 </div>
             </footer>
@@ -931,7 +943,7 @@ const AppContent: React.FC = () => {
              <header className="px-6 py-6 bg-white border-b border-gray-100 flex flex-col gap-4">
                 <div className="flex justify-between items-end">
                     <div>
-                        <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">Total Estimate</h2>
+                        <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Total Estimate</h2>
                         <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${draftingEngine.getTotalCost()}`}>
                             ${draftingEngine.getTotalCost().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
@@ -960,12 +972,12 @@ const AppContent: React.FC = () => {
                         <div className="flex-1">
                             <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors">{entry.part.name}</div>
                             <div className="flex gap-2 items-center mt-2 flex-wrap">
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
                                 <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
                                 {entry.part.price === 0 
                                     ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">Owned</span> 
                                     : entry.sourcing?.online?.length 
-                                    ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]">check</span>Sourced</span>
+                                    ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
                                     : <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Pending</span>
                                 }
                             </div>
@@ -976,8 +988,8 @@ const AppContent: React.FC = () => {
                 ))}
                 {session.bom.length === 0 && (
                     <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8">
-                        <span className="material-symbols-rounded text-4xl text-slate-300 mb-2">list_alt</span>
-                        <p className="text-sm font-medium text-slate-400">Bill of Materials is empty.</p>
+                        <span className="material-symbols-rounded text-4xl text-slate-300 mb-2" aria-hidden="true">list_alt</span>
+                        <p className="text-sm font-medium text-slate-500">Bill of Materials is empty.</p>
                     </div>
                 )}
              </div>
@@ -1010,7 +1022,7 @@ const AppContent: React.FC = () => {
                 className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-500'}`}
             >
                 <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'draft' ? 'bg-indigo-100' : 'bg-transparent'}`}>
-                    <span className="material-symbols-rounded text-[24px]">edit_note</span>
+                    <span className="material-symbols-rounded text-[24px]" aria-hidden="true">edit_note</span>
                 </div>
                 <span className="text-[11px] font-bold">Draft</span>
             </button>
@@ -1019,7 +1031,7 @@ const AppContent: React.FC = () => {
                 className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-500'}`}
             >
                 <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'bom' ? 'bg-indigo-100' : 'bg-transparent'}`}>
-                    <span className="material-symbols-rounded text-[24px]">inventory_2</span>
+                    <span className="material-symbols-rounded text-[24px]" aria-hidden="true">inventory_2</span>
                 </div>
                 <span className="text-[11px] font-bold">Parts</span>
             </button>

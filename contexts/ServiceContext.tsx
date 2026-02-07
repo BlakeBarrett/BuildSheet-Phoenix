@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AIService } from '../services/aiTypes.ts';
-import { GeminiService } from '../services/geminiService.ts';
 import { MockService } from '../services/mockService.ts';
+import { AIManager } from '../services/aiManager.ts';
 
 interface ServiceContextType {
   service: AIService;
@@ -17,29 +17,16 @@ export const ServiceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
-    const init = () => {
-      // 1. Check for API Key
-      // @ts-ignore
-      const apiKey = process.env.API_KEY;
-
-      if (!apiKey || apiKey.includes('YOUR_API_KEY')) {
-        console.warn("ServiceContext: No valid API Key found. Injecting MockService.");
-        setService(new MockService());
+    const init = async () => {
+      const { service: aiService, error: serviceError } = await AIManager.createService();
+      setService(aiService);
+      
+      if (serviceError) {
+        // If there was an error initializing (e.g. malformed key), we fall back to offline but show error
         setStatus('offline');
-        setError("Missing API Key. Running in Simulation Mode.");
-        return;
-      }
-
-      // 2. Inject GeminiService
-      try {
-        const gemini = new GeminiService();
-        setService(gemini);
-        setStatus('online');
-      } catch (e: any) {
-        console.error("ServiceContext: Failed to inject GeminiService", e);
-        setService(new MockService());
-        setStatus('offline');
-        setError(`Initialization Failed: ${e.message}`);
+        setError(serviceError);
+      } else {
+        setStatus(aiService.isOffline ? 'offline' : 'online');
       }
     };
 

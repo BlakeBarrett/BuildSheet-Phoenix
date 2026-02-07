@@ -11,6 +11,12 @@ export interface AIService {
   name: string;
   isOffline: boolean;
   
+  /**
+   * Returns a safe, masked status of the API key currently in use.
+   * Used for unit testing and diagnostics.
+   */
+  getApiKeyStatus(): string;
+
   askArchitect(prompt: string, history: any[], image?: string): Promise<string>;
 
   parseArchitectResponse(text: string): ArchitectResponse;

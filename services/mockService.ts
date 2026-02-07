@@ -6,6 +6,10 @@ export class MockService implements AIService {
   public name = "Simulation Engine (Offline)";
   public isOffline = true;
 
+  public getApiKeyStatus(): string {
+    return "N/A (Mock Mode)";
+  }
+
   async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     await new Promise(r => setTimeout(r, 800));
     const lower = prompt.toLowerCase();
