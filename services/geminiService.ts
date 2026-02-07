@@ -1,4 +1,5 @@
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
+
+import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
 import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
 import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
@@ -11,13 +12,16 @@ You are a FUNCTIONAL AGENT. Your primary job is to Manipulate the State of the d
 DO NOT just describe the build in text. You MUST call \`initializeDraft\` and \`addPart\` commands to actually create the BOM.
 
 CONTEXT:
-You have access to two inventory sources:
-1. **Local Registry (Preferred):** Physical parts currently in stock.
-2. **Global Catalog (Virtual):** The entire universe of hardware components.
+You have access to two sourcing references:
+1. **Verified Component Library (Preferred):** This is a list of standardized, high-reliability parts. You should prioritize these IDs for maximum compatibility and technical audit accuracy. **IMPORTANT:** These parts are NOT "in-stock" or owned by the user; they are simply the preferred building blocks for a new design.
+2. **Global Virtual Catalog:** If a specialized part is required that is not in the library, you may "infer" its existence. Use a descriptive ID (e.g., "high-torque-stepper-motor").
+
+USER-OWNED HARDWARE:
+If the user explicitly states they already possess certain hardware (e.g., "I have an Arduino Uno"), you MUST still add it to the draft using its ID, but acknowledge in your reasoning that these items are pre-existing and do not need to be purchased.
 
 BEHAVIOR:
 1. **START:** When a user asks to build something new, you MUST call \`initializeDraft(name, requirements)\` first.
-2. **SOURCING:** Invent the specification using Virtual Parts if Local ones don't exist.
+2. **SOURCING:** Invent the specification using Virtual Parts if the Library ones don't fulfill the engineering requirement.
 3. **OUTPUT FORMAT:** Provide a brief reasoning summary. Append Tool Calls at the end. 
    **CRITICAL:** Do NOT label the tool calls with "Tool Calls:" or "Corrections:". Just output the functions.
    Syntax: \`addPart("id", quantity)\`
@@ -28,26 +32,36 @@ TOOLS:
 - \`removePart(instanceId: string)\`
 
 ---
-LOCAL REGISTRY (Use these IDs if they match):
+VERIFIED COMPONENT LIBRARY (Use these IDs for standard builds):
 ${HARDWARE_REGISTRY ? HARDWARE_REGISTRY.map(p => `- ID: "${p.id}" | Name: "${p.name}"`).join('\n') : 'Registry Offline'}
 `;
 
 export class GeminiService implements AIService {
   public name = "Gemini 3 Flash";
   public isOffline = false;
-  private ai: GoogleGenAI;
-  private apiKey: string;
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-    console.log(`[GeminiService] Initialized. Key: ${this.getApiKeyStatus()}`);
-    this.ai = new GoogleGenAI({ apiKey });
+  constructor(private initialApiKey: string) {}
+
+  /**
+   * Internal helper to always get the freshest API key from the environment.
+   */
+  private getApiKey(): string {
+    // @ts-ignore
+    const key = (typeof process !== 'undefined' && process.env.API_KEY) ? process.env.API_KEY : this.initialApiKey;
+    return typeof key === 'string' ? key.trim().replace(/^['"](.*)['"]$/, '$1') : this.initialApiKey;
+  }
+
+  /**
+   * Creates a fresh SDK instance for a single operation.
+   */
+  private getClient(): GoogleGenAI {
+    return new GoogleGenAI({ apiKey: this.getApiKey() });
   }
 
   public getApiKeyStatus(): string {
-    if (!this.apiKey) return "MISSING";
-    const visible = this.apiKey.substring(0, 8);
-    return `${visible}... (Length: ${this.apiKey.length})`;
+    const key = this.getApiKey();
+    if (!key) return "MISSING";
+    return `${key.substring(0, 4)}... (Len: ${key.length})`;
   }
 
   private cleanBase64(dataUrl: string): { mimeType: string, data: string } | null {
@@ -58,68 +72,42 @@ export class GeminiService implements AIService {
     } catch (e) { return null; }
   }
 
-  /**
-   * Sanitizes chat history to ensure strict User -> Model alternation.
-   * Merges consecutive messages from the same role.
-   */
-  private sanitizeHistory(history: any[]): any[] {
-    if (history.length === 0) return [];
-    
-    const sanitized: any[] = [];
-    let lastRole = "";
-
-    for (const msg of history) {
-        if (msg.role === lastRole) {
-            // Merge content with previous message
-            const prevMsg = sanitized[sanitized.length - 1];
-            if (prevMsg && prevMsg.parts && msg.parts) {
-                prevMsg.parts = [...prevMsg.parts, ...msg.parts];
-            }
-        } else {
-            sanitized.push(msg);
-            lastRole = msg.role;
-        }
-    }
-    return sanitized;
-  }
-
   async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     try {
-      // 1. Sanitize incoming history to prevent 500 errors from consecutive roles
-      const sanitizedHistory = this.sanitizeHistory(history);
-
-      const currentParts: any[] = [{ text: prompt }];
+      const ai = this.getClient();
+      
+      // Prepare user parts
+      const userParts: any[] = [{ text: prompt }];
       if (image) {
         const imageData = this.cleanBase64(image);
         if (imageData) {
-            currentParts.push({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
+            userParts.push({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
         }
       }
 
-      // 2. Append current user message
-      const contents = [...sanitizedHistory];
-      
-      // Safety check: If last message was user, we must merge, otherwise push
-      if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-         contents[contents.length - 1].parts.push(...currentParts);
-      } else {
-         contents.push({ role: 'user', parts: currentParts });
-      }
+      // Construct contents array with history + current message
+      const contents = [
+        ...history,
+        { role: 'user', parts: userParts }
+      ];
 
-      const response: GenerateContentResponse = await this.ai.models.generateContent({
+      const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: contents,
+        contents,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
           temperature: 0.7,
-          topP: 0.9,
-        }
+        },
       });
 
       return response.text || "Gemini provided no output.";
     } catch (error: any) {
-      console.error("[GeminiService] API Call Failed:", JSON.stringify(error, null, 2));
-      throw new Error(`Gemini Service Error: ${JSON.stringify(error)}`);
+      console.error("[GeminiService] askArchitect Failed:", error);
+      // More specific error reporting for 400s
+      if (error.status === 400 || error.message?.includes('400')) {
+          throw new Error(`Gemini API Error (400): ${error.message}. Please check if the API key in Cloud Run environment is valid and has not expired.`);
+      }
+      throw new Error(`Gemini Service Error: ${error.message || JSON.stringify(error)}`);
     }
   }
 
@@ -147,6 +135,7 @@ export class GeminiService implements AIService {
         reasoning = reasoning.replace(m[0], '');
     });
 
+    // Cleanup artifacts from reasoning text
     reasoning = reasoning.replace(/(###?\s*(Tool Calls|Corrections|Actions|Functions|Tool\s*Commands|Correction|Correction\s*\(Tool\s*Calls\)).*)/gi, '');
     reasoning = reasoning.replace(/(Task\s*\d+:\s*(Correction|Tool Calls|Actions).*)/gi, '');
     reasoning = reasoning.replace(/```[a-z]*\s*[\s\S]*?(addPart|removePart|initializeDraft|tool|arguments)[\s\S]*?```/gi, '');
@@ -161,12 +150,13 @@ export class GeminiService implements AIService {
 
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     try {
+        const ai = this.getClient();
         const parts: any[] = [{ text: `Product design concept sketch: ${description}` }];
         if (referenceImage) {
             const imageData = this.cleanBase64(referenceImage);
             if (imageData) parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
         }
-        const response: GenerateContentResponse = await this.ai.models.generateContent({
+        const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts }
         });
@@ -177,7 +167,8 @@ export class GeminiService implements AIService {
 
   async findPartSources(query: string): Promise<ShoppingOption[] | null> {
     try {
-        const response = await this.ai.models.generateContent({
+        const ai = this.getClient();
+        const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: `Find real-world purchase options and actual prices for: ${query}. For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
             config: {
@@ -190,7 +181,6 @@ export class GeminiService implements AIService {
             .filter(chunk => chunk.web)
             .map(chunk => {
                 const title = chunk.web?.title || "Sourcing Link";
-                // Heuristic: Extract price from title or grounding metadata
                 const priceMatch = title.match(/\$\s?(\d+[\d,.]*)/);
                 return {
                     title: title,
@@ -205,8 +195,9 @@ export class GeminiService implements AIService {
 
   async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
       try {
-          const response = await this.ai.models.generateContent({
-              model: 'gemini-2.5-flash',
+          const ai = this.getClient();
+          const response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
               contents: `Find local hardware stores or specialized retailers for: ${query}.`,
               config: { tools: [{ googleMaps: {} }] }
           });
@@ -221,6 +212,7 @@ export class GeminiService implements AIService {
 
   async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse> {
     try {
+        const ai = this.getClient();
         const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Price: $${b.part.price} - Description: ${b.part.description}`).join('\n');
         
         let prompt = `
@@ -229,40 +221,19 @@ export class GeminiService implements AIService {
         
         CURRENT BILL OF MATERIALS:
         ${digest}
-        
-        IMPORTANT CONTEXT: 
-        If a part has a price of $0.00, it likely means the user already owns it. 
-        Analyze the conversation history or requirements for phrases like "I have a..." or "I own a...". 
-        Do not suggest replacing owned hardware unless there is a critical safety failure or physical impossibility.
         `;
 
         if (previousAudit) {
-            prompt += `
-            ---
-            PREVIOUS AUDIT RESULT:
-            ${previousAudit}
-            ---
-            TASK: The BOM or requirements have changed. Provide a DELTA AUDIT. 
-            Identify what has improved or what new risks have been introduced. 
-            Keep the response concise by referencing previous findings where still valid.
-            `;
+            prompt += `\nPREVIOUS AUDIT RESULT:\n${previousAudit}\n`;
         }
 
-        prompt += `
-        TASK 1: TECHNICAL INTEGRITY (Respect user-owned parts)
-        TASK 2: PATENT INFRINGEMENT RISK
-        TASK 3: CORRECTIONS (Tool Calls)
-        
-        **CRITICAL INSTRUCTIONS:**
-        1. Use Markdown for Task 1 and 2.
-        2. Use ONLY string function format: \`addPart("id", quantity)\` or \`removePart("id")\`.
-        3. Place corrections at the absolute end.
-        `;
-
-        const response = await this.ai.models.generateContent({
+        const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: prompt,
-            config: { thinkingConfig: { thinkingBudget: 4096 } }
+            config: { 
+                maxOutputTokens: 8192,
+                thinkingConfig: { thinkingBudget: 4096 } 
+            }
         });
 
         return this.parseArchitectResponse(response.text || "");
@@ -273,10 +244,14 @@ export class GeminiService implements AIService {
 
   async generateFabricationBrief(partName: string, context: string): Promise<string> {
     try {
-        const response = await this.ai.models.generateContent({
+        const ai = this.getClient();
+        const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Manufacturing specs for: ${partName}. Context: ${context}.`,
-            config: { thinkingConfig: { thinkingBudget: 2048 } }
+            config: { 
+                maxOutputTokens: 4096,
+                thinkingConfig: { thinkingBudget: 2048 } 
+            }
         });
         const img = await this.generateProductImage(`Engineering blueprint diagram of ${partName}. Orthographic projections.`);
         return (img ? `![Technical Blueprint](${img})\n\n` : "") + (response.text || "");
@@ -285,7 +260,8 @@ export class GeminiService implements AIService {
 
   async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
       try {
-          const response = await this.ai.models.generateContent({
+          const ai = this.getClient();
+          const response = await ai.models.generateContent({
               model: 'gemini-3-flash-preview',
               contents: `QA protocol for: ${partName}.`,
               config: {
@@ -295,8 +271,20 @@ export class GeminiService implements AIService {
                       properties: {
                           recommendedSensors: { type: Type.ARRAY, items: { type: Type.STRING } },
                           inspectionStrategy: { type: Type.STRING },
-                          defects: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, severity: { type: Type.STRING }, description: { type: Type.STRING } } } }
-                      }
+                          defects: { 
+                              type: Type.ARRAY, 
+                              items: { 
+                                  type: Type.OBJECT, 
+                                  properties: { 
+                                      name: { type: Type.STRING }, 
+                                      severity: { type: Type.STRING }, 
+                                      description: { type: Type.STRING } 
+                                  },
+                                  required: ['name', 'severity', 'description']
+                              } 
+                          }
+                      },
+                      required: ['recommendedSensors', 'inspectionStrategy', 'defects']
                   }
               }
           });
@@ -306,14 +294,15 @@ export class GeminiService implements AIService {
 
   async generateAssemblyPlan(bom: any[], previousPlan?: AssemblyPlan): Promise<AssemblyPlan | null> {
       try {
+          const ai = this.getClient();
           const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
           let prompt = `Generate an assembly plan for:\n${bomDigest}`;
           
           if (previousPlan) {
-              prompt += `\n\n--- PREVIOUS PLAN: ${JSON.stringify(previousPlan)} ---\nUpdate this plan based on the new BOM. Maintain the same structure.`;
+              prompt += `\n\n--- PREVIOUS PLAN ---\nUpdate this plan based on the new BOM.`;
           }
 
-          const response = await this.ai.models.generateContent({
+          const response = await ai.models.generateContent({
               model: 'gemini-3-pro-preview',
               contents: prompt,
               config: {
@@ -321,13 +310,26 @@ export class GeminiService implements AIService {
                   responseSchema: {
                       type: Type.OBJECT,
                       properties: {
-                          steps: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { stepNumber: { type: Type.INTEGER }, description: { type: Type.STRING }, requiredTool: { type: Type.STRING }, estimatedTime: { type: Type.STRING } } } },
+                          steps: { 
+                              type: Type.ARRAY, 
+                              items: { 
+                                  type: Type.OBJECT, 
+                                  properties: { 
+                                      stepNumber: { type: Type.INTEGER }, 
+                                      description: { type: Type.STRING }, 
+                                      requiredTool: { type: Type.STRING }, 
+                                      estimatedTime: { type: Type.STRING } 
+                                  },
+                                  required: ['stepNumber', 'description', 'requiredTool', 'estimatedTime']
+                              } 
+                          },
                           totalTime: { type: Type.STRING },
                           difficulty: { type: Type.STRING },
                           requiredEndEffectors: { type: Type.ARRAY, items: { type: Type.STRING } },
                           automationFeasibility: { type: Type.INTEGER },
                           notes: { type: Type.STRING }
-                      }
+                      },
+                      required: ['steps', 'totalTime', 'difficulty', 'automationFeasibility']
                   }
               }
           });
@@ -339,21 +341,24 @@ export class GeminiService implements AIService {
 
   async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {
     try {
+        const ai = this.getClient();
         const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
-        const response = await this.ai.models.generateContent({
+        const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Generate a 3D printable enclosure specification for this project. Context: ${context}. Components: ${bomDigest}`,
             config: {
-                thinkingConfig: { thinkingBudget: 4096 },
+                maxOutputTokens: 4096,
+                thinkingConfig: { thinkingBudget: 2048 },
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
                         material: { type: Type.STRING },
                         dimensions: { type: Type.STRING },
-                        openSCAD: { type: Type.STRING, description: "OpenSCAD script code for the enclosure" },
+                        openSCAD: { type: Type.STRING },
                         description: { type: Type.STRING }
-                    }
+                    },
+                    required: ['material', 'dimensions', 'description']
                 }
             }
         });
@@ -365,18 +370,17 @@ export class GeminiService implements AIService {
 
   async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
     try {
+        const ai = this.getClient();
         const step = plan.steps.find(s => s.stepNumber === currentStep);
         const imageData = this.cleanBase64(image);
         if (!imageData) return "Unable to process camera frame.";
 
-        const response = await this.ai.models.generateContent({
+        const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-native-audio-preview-12-2025',
             contents: {
                 parts: [
                     { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
-                    { text: `AR ASSEMBLY GUIDE: Current Step ${currentStep}: ${step?.description}. REQUIRED TOOL: ${step?.requiredTool}. 
-                    Analyze the camera frame. Are the correct parts visible? Are they oriented correctly? 
-                    Provide a concise instruction for the user. Keep it under 30 words.` }
+                    { text: `AR ASSEMBLY GUIDE: Current Step ${currentStep}: ${step?.description}. Analyzing frame...` }
                 ]
             }
         });
