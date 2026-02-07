@@ -44,23 +44,56 @@ export class GeminiService implements AIService {
 
   /**
    * Internal helper to always get the freshest API key from the environment.
+   * Includes robust sanitization for CI/CD pipeline quotes.
    */
   private getApiKey(): string {
     // @ts-ignore
-    const key = (typeof process !== 'undefined' && process.env.API_KEY) ? process.env.API_KEY : this.initialApiKey;
-    return typeof key === 'string' ? key.trim().replace(/^['"](.*)['"]$/, '$1') : this.initialApiKey;
+    let key = (typeof process !== 'undefined' && process.env.API_KEY) ? process.env.API_KEY : this.initialApiKey;
+    
+    // Fallback: Check for standard Vite env var if process.env failed
+    // @ts-ignore
+    if (!key && typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        key = import.meta.env.VITE_API_KEY;
+    }
+
+    // Fallback: Check for Runtime Injection (window._env_) common in Cloud Run
+    // @ts-ignore
+    if ((!key || key === 'UNUSED_PLACEHOLDER_FOR_API_KEY') && typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
+        // @ts-ignore
+        key = window._env_.API_KEY;
+    }
+
+    if (typeof key === 'string') {
+        // Aggressively strip start/end quotes (single or double) which often break cloud builds
+        key = key.trim().replace(/^['"]+|['"]+$/g, '');
+    }
+
+    // Validate
+    if (key === 'UNUSED_PLACEHOLDER_FOR_API_KEY') {
+        console.warn("[GeminiService] Blocked invalid placeholder key.");
+        return ""; // Return empty to trigger error/mock handling rather than 400
+    }
+
+    return key || this.initialApiKey;
   }
 
   /**
    * Creates a fresh SDK instance for a single operation.
    */
   private getClient(): GoogleGenAI {
-    return new GoogleGenAI({ apiKey: this.getApiKey() });
+    const key = this.getApiKey();
+    // Safety check to ensure we don't pass an empty string which causes vague 400s
+    if (!key || key.length < 10 || key === 'UNUSED_PLACEHOLDER_FOR_API_KEY') {
+        throw new Error("Invalid API Key configuration: Key is missing, too short, or is a placeholder.");
+    }
+    return new GoogleGenAI({ apiKey: key });
   }
 
   public getApiKeyStatus(): string {
     const key = this.getApiKey();
     if (!key) return "MISSING";
+    if (key === 'UNUSED_PLACEHOLDER_FOR_API_KEY') return "INVALID_PLACEHOLDER";
     return `${key.substring(0, 4)}... (Len: ${key.length})`;
   }
 
@@ -103,9 +136,11 @@ export class GeminiService implements AIService {
       return response.text || "Gemini provided no output.";
     } catch (error: any) {
       console.error("[GeminiService] askArchitect Failed:", error);
+      
+      const keyStatus = this.getApiKeyStatus();
       // More specific error reporting for 400s
       if (error.status === 400 || error.message?.includes('400')) {
-          throw new Error(`Gemini API Error (400): ${error.message}. Please check if the API key in Cloud Run environment is valid and has not expired.`);
+          throw new Error(`Gemini API Error (400): ${error.message}. (Key Used: ${keyStatus}). Please check if the API key in Cloud Run environment is valid, has not expired, and HTTP Referrers are configured.`);
       }
       throw new Error(`Gemini Service Error: ${error.message || JSON.stringify(error)}`);
     }

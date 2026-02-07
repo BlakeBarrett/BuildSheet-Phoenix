@@ -1,3 +1,4 @@
+
 import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
 import { GeminiService } from './geminiService.ts';
@@ -15,6 +16,13 @@ export class AIManager {
     // @ts-ignore
     let key = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
 
+    // Check for runtime injection (common in Cloud Run / Docker setups)
+    // @ts-ignore
+    if (!key && typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
+       // @ts-ignore
+       key = window._env_.API_KEY;
+    }
+
     if (!key) return undefined;
 
     // Clean potential quotes and whitespace from env injection
@@ -23,8 +31,23 @@ export class AIManager {
     }
 
     // Filter out obvious empty/placeholder values
-    if (!key || key === '' || key === 'TODO' || key === 'YOUR_API_KEY' || key.includes('YOUR_API_KEY')) {
+    const invalidKeys = [
+        '', 
+        'TODO', 
+        'YOUR_API_KEY', 
+        'UNUSED_PLACEHOLDER_FOR_API_KEY'
+    ];
+
+    if (invalidKeys.includes(key) || key.includes('YOUR_API_KEY')) {
       return undefined;
+    }
+
+    // Google API Keys typically start with "AIza"
+    if (!key.startsWith('AIza')) {
+        console.warn(`[AIManager] Detected potential API Key issue. Key does not start with 'AIza'. Value: ${key.substring(0, 5)}...`);
+        // We strictly reject the placeholder, but for other non-standard keys we might warn but allow, 
+        // however, the placeholder 'UNUSED_PLACEHOLDER_FOR_API_KEY' is definitely invalid.
+        if (key === 'UNUSED_PLACEHOLDER_FOR_API_KEY') return undefined;
     }
 
     return key;
