@@ -3,54 +3,69 @@ import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
 import { GeminiService } from './geminiService.ts';
 
+const INVALID_PLACEHOLDER = 'UNUSED_PLACEHOLDER_FOR_API_KEY';
+
 export class AIManager {
   
   /**
+   * Internal helper to validate if a string is a real API key.
+   */
+  private static isValidKey(key: any): key is string {
+    if (!key || typeof key !== 'string') return false;
+    
+    const cleaned = key.trim().replace(/^['"](.*)['"]$/, '$1');
+    
+    if (cleaned === '' || 
+        cleaned === INVALID_PLACEHOLDER || 
+        cleaned === 'undefined' || 
+        cleaned === 'null' || 
+        cleaned.includes('YOUR_API_KEY') ||
+        cleaned === 'TODO') {
+      return false;
+    }
+    
+    return cleaned.length > 10;
+  }
+
+  /**
    * Safe access to the API Key.
-   * Strictly uses process.env.API_KEY as the source of truth per application guidelines.
-   * Cleans potential artifacts like whitespace or surrounding quotes.
+   * Prioritizes Runtime Injection (window._env_) over Build-time (process.env).
    */
   public static getApiKey(): string | undefined {
-    // Attempt to access process.env.API_KEY directly.
-    // In many "applet" environments, this is injected globally.
-    // @ts-ignore
-    let key = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+    let key: any = undefined;
 
-    // Check for runtime injection (common in Cloud Run / Docker setups)
+    // 1. Priority: Runtime injection via /env-config.js (Cloud Run standard)
     // @ts-ignore
-    if (!key && typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
+    if (typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
        // @ts-ignore
-       key = window._env_.API_KEY;
+       const runtimeKey = window._env_.API_KEY;
+       if (this.isValidKey(runtimeKey)) {
+         key = runtimeKey;
+       }
+    }
+
+    // 2. Fallback: process.env (Vite define or manual injection)
+    if (!key) {
+      // @ts-ignore
+      const processKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+      if (this.isValidKey(processKey)) {
+        key = processKey;
+      }
+    }
+
+    // 3. Fallback: Vite import.meta.env
+    if (!key) {
+      // @ts-ignore
+      const metaKey = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env.VITE_API_KEY : undefined;
+      if (this.isValidKey(metaKey)) {
+        key = metaKey;
+      }
     }
 
     if (!key) return undefined;
 
-    // Clean potential quotes and whitespace from env injection
-    if (typeof key === 'string') {
-      key = key.trim().replace(/^['"](.*)['"]$/, '$1');
-    }
-
-    // Filter out obvious empty/placeholder values
-    const invalidKeys = [
-        '', 
-        'TODO', 
-        'YOUR_API_KEY', 
-        'UNUSED_PLACEHOLDER_FOR_API_KEY'
-    ];
-
-    if (invalidKeys.includes(key) || key.includes('YOUR_API_KEY')) {
-      return undefined;
-    }
-
-    // Google API Keys typically start with "AIza"
-    if (!key.startsWith('AIza')) {
-        console.warn(`[AIManager] Detected potential API Key issue. Key does not start with 'AIza'. Value: ${key.substring(0, 5)}...`);
-        // We strictly reject the placeholder, but for other non-standard keys we might warn but allow, 
-        // however, the placeholder 'UNUSED_PLACEHOLDER_FOR_API_KEY' is definitely invalid.
-        if (key === 'UNUSED_PLACEHOLDER_FOR_API_KEY') return undefined;
-    }
-
-    return key;
+    // Final Sanitization: Strip quotes often added by shell scripts
+    return key.trim().replace(/^['"](.*)['"]$/, '$1');
   }
 
   static hasApiKey(): boolean {
@@ -65,7 +80,7 @@ export class AIManager {
     const apiKey = this.getApiKey();
 
     if (!apiKey) {
-      console.warn("AIManager: No API Key found in process.env.API_KEY. Using Mock Service.");
+      console.warn("AIManager: No valid API Key found. Using Mock Service.");
       return { 
         service: new MockService(), 
         error: "Missing API Key. Using Offline Simulation." 
@@ -73,8 +88,6 @@ export class AIManager {
     }
 
     try {
-      // We pass the key, but GeminiService will also re-fetch from process.env 
-      // per call to ensure maximum reliability.
       const service = new GeminiService(apiKey);
       return { service };
     } catch (error: any) {
