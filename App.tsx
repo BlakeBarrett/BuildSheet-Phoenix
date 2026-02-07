@@ -240,9 +240,9 @@ const ValidationReportModal: React.FC<{
                         <div className="space-y-4" aria-live="polite">
                              <div className="flex items-center gap-3 text-indigo-400">
                                  <span className="material-symbols-rounded animate-spin" aria-hidden="true">settings</span>
-                                 <p className="animate-pulse">>> {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
+                                 <p className="animate-pulse">{'>>'} {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
                              </div>
-                             <p className="text-indigo-300/50 delay-75 pl-9">>> ANALYZING BUILD SHEET INTEGRITY...</p>
+                             <p className="text-indigo-300/50 delay-75 pl-9">{'>>'} ANALYZING BUILD SHEET INTEGRITY...</p>
                         </div>
                     ) : (
                         <div className="space-y-8">

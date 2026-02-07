@@ -1,0 +1,8 @@
+node_modules
+dist
+.git
+*.md
+test-docker-env.sh
+deploy.sh
+.env
+.env.*
