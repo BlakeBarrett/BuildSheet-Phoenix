@@ -109,6 +109,18 @@ export class TestSuite {
             category: 'FLOW'
         });
 
+        // 6c. Image persistence flow
+        const hasStoredImages = session.generatedImages.length > 0;
+        const currentProjectInList = projects.find(p => p.id === session.id);
+        const indexWithThumbnail = currentProjectInList?.thumbnail !== undefined;
+        
+        results.push({
+            name: "FLOW: IMAGE PERSISTENCE",
+            status: !hasStoredImages || indexWithThumbnail ? 'PASS' : 'WARN',
+            message: !hasStoredImages ? "Registry idle (no concepts to cache)." : (indexWithThumbnail ? "Visual previews successfully indexed." : "Project thumbnail missing from navigator index."),
+            category: 'FLOW'
+        });
+
         // --- SECTION 3: ACCESSIBILITY & ADA COMPLIANCE ---
         
         // 7. Text Contrast Audit (Simulation)

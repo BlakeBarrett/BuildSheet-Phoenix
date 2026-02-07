@@ -8,6 +8,7 @@ export interface ProjectIndexEntry {
   name: string;
   lastModified: Date;
   preview: string;
+  thumbnail?: string; // Latest generated image for the navigator
 }
 
 export class DraftingEngine {
@@ -106,7 +107,8 @@ export class DraftingEngine {
               id: session.id,
               name: session.name,
               lastModified: session.lastModified,
-              preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft'
+              preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft',
+              thumbnail: session.generatedImages.length > 0 ? session.generatedImages[session.generatedImages.length - 1].url : undefined
           });
           localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
       } catch (e) {
@@ -283,6 +285,12 @@ export class DraftingEngine {
           timestamp: new Date()
       };
       this.session.generatedImages.push(img);
+      
+      // Limit images to avoid localStorage limit (approx last 5)
+      if (this.session.generatedImages.length > 5) {
+          this.session.generatedImages = this.session.generatedImages.slice(-5);
+      }
+      
       this.saveSession();
   }
 
