@@ -17,6 +17,9 @@ RUN npm run build
 # Install a simple server that handles SPA routing
 RUN npm install -g serve
 
-# Start the server on port 8080 (Cloud Run's default)
-# The -s flag tells 'serve' to redirect all 404s to index.html (your slugs!)
-CMD ["serve", "-s", "dist", "-l", "8080"]
+# Copy the startup script
+COPY env.sh .
+RUN chmod +x env.sh
+
+# Start the server using the startup script
+CMD ["./env.sh"]
