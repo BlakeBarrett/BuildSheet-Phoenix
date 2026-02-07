@@ -1,4 +1,3 @@
-
 import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
 import { GeminiService } from './geminiService.ts';
@@ -24,6 +23,7 @@ export class AIManager {
       return false;
     }
     
+    // Google API Keys are typically much longer than 10 characters
     return cleaned.length > 10;
   }
 

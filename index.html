@@ -42,14 +42,17 @@
         }
     </style>
     <script>
-      // Polyfill process for browser environments to prevent crashes in libraries/code checking process.env
-      if (typeof process === 'undefined') {
-        window.process = { env: {} };
-      }
+      // Polyfill process for browser environments
+      window.process = window.process || { env: {} };
       
       // Initialize runtime env container for Cloud Run injection
-      window._env_ = window._env_ || {};
+      // This MUST happen before loading env-config.js
+      window._env_ = {
+        API_KEY: undefined,
+        GEMINI_API_KEY: undefined
+      };
     </script>
+    <!-- runtime config injected by env.sh -->
     <script src="/env-config.js"></script>
 
 <script type="importmap">
@@ -73,5 +76,8 @@
 </head>
 <body>
     <div id="root"></div>
+    <script type="module">
+        import './index.tsx';
+    </script>
 </body>
 </html>
