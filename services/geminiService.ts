@@ -60,7 +60,6 @@ export class GeminiService implements AIService {
         }
         return new GoogleGenAI({
             apiKey: key,
-            apiVersion: 'v1beta'
         });
     }
 

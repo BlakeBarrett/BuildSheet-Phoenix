@@ -20,7 +20,7 @@ test('visualizer takes up 40% of viewport height', async ({ page }) => {
     // </div>
 
     // We can find the ChiltonVisualizer text "Gemini Nano" or "Blank Canvas" and go up to the container.
-    const visualizerComponent = page.getByText('Gemini Nano').first();
+    const visualizerComponent = page.getByText('Nano Banana').first();
     await expect(visualizerComponent).toBeVisible();
 
     // The ChiltonVisualizer renders a div with "h-full w-full".

@@ -12,9 +12,9 @@ CONTAINER_NAME="buildsheet-env-test-run"
 HOST_PORT=8089
 CONTAINER_PORT=8080
 
-# Unique test keys (long enough to pass AIManager.isValidKey validation >10 chars)
-TEST_API_KEY="TEST_API_KEY_abc123xyz789_CANARY"
-TEST_GEMINI_KEY="TEST_GEMINI_KEY_def456uvw012_CANARY"
+# Use host env vars if set, otherwise use default canary keys
+TEST_API_KEY="${API_KEY:-TEST_API_KEY_abc123xyz789_CANARY}"
+TEST_GEMINI_KEY="${GEMINI_API_KEY:-TEST_GEMINI_KEY_def456uvw012_CANARY}"
 
 PASS=0
 FAIL=0
@@ -38,7 +38,8 @@ fail() {
 cleanup() {
   echo ""
   echo "🧹 Cleaning up..."
-  docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+  # docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+  echo "Container left running for manual inspection: $CONTAINER_NAME"
 }
 trap cleanup EXIT
 
@@ -46,7 +47,8 @@ trap cleanup EXIT
 echo "══════════════════════════════════════════════════════════════"
 echo "  Step 1: Building Docker image '$IMAGE_NAME'..."
 echo "══════════════════════════════════════════════════════════════"
-docker build -t "$IMAGE_NAME" . 2>&1 | tail -5
+# Removed tail -5 to see progress
+docker build -t "$IMAGE_NAME" .
 echo ""
 
 # ── Step 2: Run the container with test env vars ────────────────────────────
