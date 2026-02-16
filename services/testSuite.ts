@@ -209,6 +209,32 @@ export class TestSuite {
             category: 'UNIT TEST'
         });
 
+        // --- SECTION 6: AI PROVIDER INTEGRITY ---
+        // Verify AI provider configuration is working
+        const currentProvider = AIManager.getCurrentProvider();
+        const validProviders = ['gemini', 'ollama', 'local'];
+        const providerValid = validProviders.includes(currentProvider);
+        
+        results.push({
+            name: "UNIT TEST: AI PROVIDER CONFIGURATION",
+            status: providerValid ? 'PASS' : 'FAIL',
+            message: providerValid ? `AI Provider '${currentProvider}' is valid and recognized.` : `Invalid AI Provider detected: '${currentProvider}'`,
+            category: 'UNIT TEST'
+        });
+
+        // Test service interface compliance
+        const hasRequiredMethods = 
+            typeof service.askArchitect === 'function' &&
+            typeof service.parseArchitectResponse === 'function' &&
+            typeof service.generateProductImage === 'function';
+        
+        results.push({
+            name: "UNIT TEST: SERVICE INTERFACE COMPLIANCE",
+            status: hasRequiredMethods ? 'PASS' : 'FAIL',
+            message: hasRequiredMethods ? "AI Service implements required interface methods." : "AI Service is missing required interface methods.",
+            category: 'UNIT TEST'
+        });
+
         return results;
     }
 }

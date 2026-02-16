@@ -42,7 +42,19 @@ const resources = {
       "vis.generating": "Generating...",
       "vis.empty": "Generate a photorealistic concept of your assembly using the Gemini Nano Banana model.",
       "vis.new": "New",
-      "lang.select": "Language"
+      "lang.select": "Language",
+      "modelPicker.title": "AI Model",
+      "modelPicker.selectModel": "Select AI Model",
+      "modelPicker.current": "Current",
+      "modelPicker.refresh": "Refresh",
+      "modelPicker.loading": "Loading...",
+      "modelPicker.noModels": "No models available",
+      "modelPicker.vision": "Vision",
+      "modelPicker.visionCapable": "Vision capable - supports images",
+      "modelPicker.selected": "Selected",
+      "modelPicker.visionLegend": "Vision models support image analysis",
+      "modelPicker.error.title": "Error",
+      "modelPicker.error.fetchFailed": "Failed to fetch models"
     }
   },
   es: {
@@ -84,7 +96,19 @@ const resources = {
       "vis.generating": "Generando...",
       "vis.empty": "Genera un concepto fotorrealista de tu ensamblaje usando el modelo Gemini Nano Banana.",
       "vis.new": "Nuevo",
-      "lang.select": "Idioma"
+      "lang.select": "Idioma",
+      "modelPicker.title": "Modelo de IA",
+      "modelPicker.selectModel": "Seleccionar Modelo de IA",
+      "modelPicker.current": "Actual",
+      "modelPicker.refresh": "Actualizar",
+      "modelPicker.loading": "Cargando...",
+      "modelPicker.noModels": "No hay modelos disponibles",
+      "modelPicker.vision": "Visión",
+      "modelPicker.visionCapable": "Capacidad de visión: admite imágenes",
+      "modelPicker.selected": "Seleccionado",
+      "modelPicker.visionLegend": "Los modelos de visión admiten el análisis de imágenes",
+      "modelPicker.error.title": "Error",
+      "modelPicker.error.fetchFailed": "Error al obtener modelos"
     }
   },
   pt: {
@@ -126,7 +150,19 @@ const resources = {
       "vis.generating": "Gerando...",
       "vis.empty": "Gere um conceito fotorrealista da sua montagem usando o modelo Gemini Nano Banana.",
       "vis.new": "Novo",
-      "lang.select": "Idioma"
+      "lang.select": "Idioma",
+      "modelPicker.title": "Modelo de IA",
+      "modelPicker.selectModel": "Selecionar Modelo de IA",
+      "modelPicker.current": "Atual",
+      "modelPicker.refresh": "Atualizar",
+      "modelPicker.loading": "Carregando...",
+      "modelPicker.noModels": "Nenhum modelo disponível",
+      "modelPicker.vision": "Visão",
+      "modelPicker.visionCapable": "Capaz de visão - suporta imagens",
+      "modelPicker.selected": "Selecionado",
+      "modelPicker.visionLegend": "Modelos de visão suportam análise de imagens",
+      "modelPicker.error.title": "Erro",
+      "modelPicker.error.fetchFailed": "Falha ao buscar modelos"
     }
   },
   de: {
@@ -168,7 +204,19 @@ const resources = {
       "vis.generating": "Generieren...",
       "vis.empty": "Erstellen Sie ein fotorealistisches Konzept Ihrer Montage mit dem Gemini Nano Banana Modell.",
       "vis.new": "Neu",
-      "lang.select": "Sprache"
+      "lang.select": "Sprache",
+      "modelPicker.title": "KI-Modell",
+      "modelPicker.selectModel": "KI-Modell auswählen",
+      "modelPicker.current": "Aktuell",
+      "modelPicker.refresh": "Aktualisieren",
+      "modelPicker.loading": "Laden...",
+      "modelPicker.noModels": "Keine Modelle verfügbar",
+      "modelPicker.vision": "Vision",
+      "modelPicker.visionCapable": "Vision-fähig - unterstützt Bilder",
+      "modelPicker.selected": "Ausgewählt",
+      "modelPicker.visionLegend": "Vision-Modelle unterstützen Bildanalyse",
+      "modelPicker.error.title": "Fehler",
+      "modelPicker.error.fetchFailed": "Modelle konnten nicht geladen werden"
     }
   },
   fr: {
@@ -210,7 +258,19 @@ const resources = {
       "vis.generating": "Génération...",
       "vis.empty": "Générez un concept photoréaliste de votre assemblage à l'aide du modèle Gemini Nano Banana.",
       "vis.new": "Nouveau",
-      "lang.select": "Langue"
+      "lang.select": "Langue",
+      "modelPicker.title": "Modèle d'IA",
+      "modelPicker.selectModel": "Sélectionner le modèle d'IA",
+      "modelPicker.current": "Actuel",
+      "modelPicker.refresh": "Actualiser",
+      "modelPicker.loading": "Chargement...",
+      "modelPicker.noModels": "Aucun modèle disponible",
+      "modelPicker.vision": "Vision",
+      "modelPicker.visionCapable": "Capacité visuelle - supporte les images",
+      "modelPicker.selected": "Sélectionné",
+      "modelPicker.visionLegend": "Les modèles de vision supportent l'analyse d'images",
+      "modelPicker.error.title": "Erreur",
+      "modelPicker.error.fetchFailed": "Échec du chargement des modèles"
     }
   },
   hi: {
@@ -252,7 +312,19 @@ const resources = {
       "vis.generating": "उत्पन्न हो रहा है...",
       "vis.empty": "जेमिनी नैनो बनाना मॉडल का उपयोग करके अपनी असेंबली का एक फोटोरिलिस्टिक कॉन्सेप्ट उत्पन्न करें।",
       "vis.new": "नया",
-      "lang.select": "भाषा"
+      "lang.select": "भाषा",
+      "modelPicker.title": "AI मॉडल",
+      "modelPicker.selectModel": "AI मॉडल चुनें",
+      "modelPicker.current": "वर्तमान",
+      "modelPicker.refresh": "ताज़ा करें",
+      "modelPicker.loading": "लोड हो रहा है...",
+      "modelPicker.noModels": "कोई मॉडल उपलब्ध नहीं",
+      "modelPicker.vision": "दृष्टि",
+      "modelPicker.visionCapable": "दृष्टि सक्षम - छवियों का समर्थन",
+      "modelPicker.selected": "चयनित",
+      "modelPicker.visionLegend": "दृष्टि मॉडल छवि विश्लेषण का समर्थन करते हैं",
+      "modelPicker.error.title": "त्रुटि",
+      "modelPicker.error.fetchFailed": "मॉडल लोड करने में विफल"
     }
   }
 };

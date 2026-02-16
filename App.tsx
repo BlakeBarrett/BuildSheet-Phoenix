@@ -11,6 +11,8 @@ import { useService } from './contexts/ServiceContext.tsx';
 import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent } from './components/CookieConsent.tsx';
+import { AIManager, AIProvider } from './services/aiManager.ts';
+import { LocalAIService, LocalAIConfig } from './services/localAIService.ts';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -549,6 +551,239 @@ const AuditModal: React.FC<{
     );
 };
 
+// --- AI SETTINGS MODAL ---
+
+const AISettingsModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    currentProvider: AIProvider;
+    onProviderChange: (provider: AIProvider) => void;
+}> = ({ isOpen, onClose, currentProvider, onProviderChange }) => {
+    const [provider, setProvider] = useState<AIProvider>(currentProvider);
+    const [localUrl, setLocalUrl] = useState('http://localhost:11434');
+    const [localModel, setLocalModel] = useState('llama3.2');
+    const [localKey, setLocalKey] = useState('');
+    const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+    const [testMessage, setTestMessage] = useState('');
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
+
+    useEffect(() => {
+        // Load current configuration
+        const config = AIManager.getAIConfig();
+        if (config.localConfig) {
+            setLocalUrl(config.localConfig.baseUrl);
+            setLocalModel(config.localConfig.model);
+            setLocalKey(config.localConfig.apiKey || '');
+        }
+        setProvider(config.provider);
+    }, [isOpen]);
+
+    const handleTestConnection = async () => {
+        setTestStatus('testing');
+        setTestMessage('Testing connection...');
+        setAvailableModels([]);
+
+        const config: LocalAIConfig = {
+            baseUrl: localUrl,
+            model: localModel,
+            apiKey: localKey || undefined
+        };
+
+        const service = new LocalAIService(config);
+        const result = await service.testConnection();
+
+        if (result.success) {
+            setTestStatus('success');
+            setTestMessage(`Connected successfully! Found ${result.models?.length || 0} models.`);
+            setAvailableModels(result.models || []);
+        } else {
+            setTestStatus('error');
+            setTestMessage(result.error || 'Connection failed');
+        }
+    };
+
+    const handleSave = async () => {
+        const config: LocalAIConfig = {
+            baseUrl: localUrl,
+            model: localModel,
+            apiKey: localKey || undefined
+        };
+
+        const { service, error } = await AIManager.switchProvider(provider, config);
+        if (!error) {
+            onProviderChange(provider);
+            onClose();
+            // Reload to apply changes
+            window.location.reload();
+        } else {
+            setTestStatus('error');
+            setTestMessage(error);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 pb-2 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-[16px] bg-indigo-100 text-indigo-600 flex items-center justify-center" aria-hidden="true">
+                            <span className="material-symbols-rounded text-[28px]">smart_toy</span>
+                        </div>
+                        <div>
+                            <h3 id="ai-settings-title" className="text-xl font-bold text-slate-800 tracking-tight">AI Configuration</h3>
+                            <span className="text-xs text-slate-600 font-medium">Choose your AI provider</span>
+                        </div>
+                    </div>
+                    <IconButton icon="close" onClick={onClose} title="Close" />
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                    {/* Provider Selection */}
+                    <div className="space-y-3">
+                        <label className="text-sm font-bold text-slate-700">AI Provider</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setProvider('gemini')}
+                                className={`p-4 rounded-[20px] border-2 transition-all text-left ${
+                                    provider === 'gemini' 
+                                        ? 'border-indigo-600 bg-indigo-50' 
+                                        : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className="font-bold text-slate-800 mb-1">Google Gemini</div>
+                                <div className="text-xs text-slate-500">Cloud-based, full features</div>
+                            </button>
+                            <button
+                                onClick={() => setProvider('ollama')}
+                                className={`p-4 rounded-[20px] border-2 transition-all text-left ${
+                                    provider === 'ollama' || provider === 'local'
+                                        ? 'border-indigo-600 bg-indigo-50' 
+                                        : 'border-gray-200 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className="font-bold text-slate-800 mb-1">Local AI (Ollama)</div>
+                                <div className="text-xs text-slate-500">Private, local network</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Local AI Configuration */}
+                    {(provider === 'ollama' || provider === 'local') && (
+                        <div className="space-y-4 p-4 bg-slate-50 rounded-[20px]">
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Server URL</label>
+                                <input
+                                    type="text"
+                                    value={localUrl}
+                                    onChange={(e) => setLocalUrl(e.target.value)}
+                                    placeholder="http://localhost:11434"
+                                    className="w-full px-4 py-3 rounded-[16px] border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                                />
+                                <p className="text-xs text-slate-500">Ollama API endpoint (e.g., http://192.168.1.100:11434)</p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">Model Name</label>
+                                <input
+                                    type="text"
+                                    value={localModel}
+                                    onChange={(e) => setLocalModel(e.target.value)}
+                                    placeholder="llama3.2"
+                                    className="w-full px-4 py-3 rounded-[16px] border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                                />
+                                <p className="text-xs text-slate-500">Model must support vision for AR features (e.g., llava, llama3.2-vision)</p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-slate-700">API Key (Optional)</label>
+                                <input
+                                    type="password"
+                                    value={localKey}
+                                    onChange={(e) => setLocalKey(e.target.value)}
+                                    placeholder="Leave empty for no auth"
+                                    className="w-full px-4 py-3 rounded-[16px] border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                                />
+                            </div>
+
+                            {/* Test Connection */}
+                            <div className="pt-2">
+                                <Button
+                                    variant="tonal"
+                                    onClick={handleTestConnection}
+                                    disabled={testStatus === 'testing'}
+                                    icon={testStatus === 'testing' ? 'progress_activity' : 'network_check'}
+                                    className="w-full"
+                                >
+                                    {testStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                                </Button>
+
+                                {testStatus !== 'idle' && testStatus !== 'testing' && (
+                                    <div className={`mt-3 p-3 rounded-[12px] text-sm ${
+                                        testStatus === 'success' 
+                                            ? 'bg-emerald-100 text-emerald-800' 
+                                            : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className="material-symbols-rounded">
+                                                {testStatus === 'success' ? 'check_circle' : 'error'}
+                                            </span>
+                                            {testMessage}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Available Models */}
+                                {availableModels.length > 0 && (
+                                    <div className="mt-3">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Available Models</label>
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {availableModels.slice(0, 10).map((model) => (
+                                                <button
+                                                    key={model}
+                                                    onClick={() => setLocalModel(model)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                                                        localModel === model
+                                                            ? 'bg-indigo-600 text-white'
+                                                            : 'bg-white border border-gray-200 text-slate-600 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {model}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Gemini Info */}
+                    {provider === 'gemini' && (
+                        <div className="p-4 bg-slate-50 rounded-[20px]">
+                            <div className="flex items-start gap-3">
+                                <span className="material-symbols-rounded text-indigo-600">info</span>
+                                <div>
+                                    <p className="text-sm text-slate-700 font-medium">Using Google Gemini API</p>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        API key is configured via environment variables. All features including web search, maps, and image generation are available.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button variant="primary" onClick={handleSave} icon="save">Save & Apply</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
     const { service: aiService } = useService();
     const [draftingEngine] = useState(() => getDraftingEngine());
@@ -578,6 +813,10 @@ const AppContent: React.FC = () => {
     const [validationOpen, setValidationOpen] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
     const [validationResults, setValidationResults] = useState<TestResult[]>([]);
+
+    // AI Settings State
+    const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+    const [currentProvider, setCurrentProvider] = useState<AIProvider>(AIManager.getCurrentProvider());
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -810,6 +1049,12 @@ const AppContent: React.FC = () => {
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
             <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
             <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
+            <AISettingsModal 
+                isOpen={aiSettingsOpen} 
+                onClose={() => setAiSettingsOpen(false)} 
+                currentProvider={currentProvider}
+                onProviderChange={setCurrentProvider}
+            />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
             <CookieConsent />
@@ -845,6 +1090,15 @@ const AppContent: React.FC = () => {
                         onClick={handleExport}
                         className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                         title="Export"
+                    />
+
+                    <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
+
+                    <IconButton
+                        icon="settings"
+                        onClick={() => setAiSettingsOpen(true)}
+                        className="text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                        title="AI Settings"
                     />
                 </div>
 
