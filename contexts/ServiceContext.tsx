@@ -7,6 +7,7 @@ interface ServiceContextType {
   service: AIService;
   status: 'connecting' | 'online' | 'offline';
   error?: string;
+  updateLocalProvider: (provider: any) => void;
 }
 
 const ServiceContext = createContext<ServiceContextType | null>(null);
@@ -33,8 +34,26 @@ export const ServiceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     init();
   }, []);
 
+  const updateLocalProvider = (provider: any) => {
+    if (provider) {
+      localStorage.setItem('localArchitectProvider', JSON.stringify(provider));
+    } else {
+      localStorage.removeItem('localArchitectProvider');
+    }
+    // Re-initialize service
+    AIManager.createService().then(({ service: aiService, error: serviceError }) => {
+      setService(aiService);
+      if (serviceError) {
+        setStatus('offline');
+        setError(serviceError);
+      } else {
+        setStatus(aiService.isOffline ? 'offline' : 'online');
+      }
+    });
+  };
+
   return (
-    <ServiceContext.Provider value={{ service, status, error }}>
+    <ServiceContext.Provider value={{ service, status, error, updateLocalProvider }}>
       {children}
     </ServiceContext.Provider>
   );

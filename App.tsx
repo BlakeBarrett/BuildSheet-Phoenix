@@ -11,6 +11,7 @@ import { useService } from './contexts/ServiceContext.tsx';
 import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent } from './components/CookieConsent.tsx';
+import { SettingsModal } from './components/SettingsModal.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -619,6 +620,7 @@ const AppContent: React.FC = () => {
     const [isHydrating, setIsHydrating] = useState(false);
 
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
 
     // Mobile State
@@ -882,6 +884,7 @@ const AppContent: React.FC = () => {
             <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} onHydrate={handleHydratePart} isHydrating={isHydrating} />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
             <CookieConsent />
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
@@ -919,7 +922,7 @@ const AppContent: React.FC = () => {
                 </div>
 
                 <div className="pb-2">
-                    <IconButton icon="account_circle" title="User Profile" />
+                    <IconButton icon="tune" title="Settings" onClick={() => setIsSettingsOpen(true)} />
                 </div>
             </nav>
 

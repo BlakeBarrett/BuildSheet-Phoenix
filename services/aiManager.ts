@@ -1,6 +1,7 @@
 import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
-import { GeminiService } from './geminiService.ts';
+import { HybridAIService } from './hybridAiService.ts';
+import { LocalModelProvider } from './localAiService.ts';
 
 const INVALID_PLACEHOLDER = 'UNUSED_PLACEHOLDER_FOR_API_KEY';
 
@@ -97,10 +98,22 @@ export class AIManager {
     }
 
     try {
-      const service = new GeminiService(apiKey);
+      const service = new HybridAIService(apiKey);
+      
+      // Attempt to load previously selected local model from localStorage
+      try {
+        const savedProviderHtml = localStorage.getItem('localArchitectProvider');
+        if (savedProviderHtml) {
+          const provider: LocalModelProvider = JSON.parse(savedProviderHtml);
+          service.setLocalArchitect(provider);
+        }
+      } catch (e) {
+        console.warn("Could not load local provider from localStorage", e);
+      }
+
       return { service };
     } catch (error: any) {
-      console.error("AIManager: Failed to instantiate GeminiService.", error);
+      console.error("AIManager: Failed to instantiate HybridAIService.", error);
       return {
         service: new MockService(),
         error: `Service Initialization Failed: ${error.message}`
