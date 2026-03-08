@@ -5,13 +5,15 @@ import { GeneratedImage } from '../types.ts';
 
 interface ChiltonVisualizerProps {
     images: GeneratedImage[];
-    onGenerate: () => void;
+    onGenerate: (customPrompt?: string) => void;
     isGenerating: boolean;
     hasItems: boolean;
 }
 
 export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, onGenerate, isGenerating, hasItems }) => {
     const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+    const [editablePrompt, setEditablePrompt] = useState('');
+    const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const { t, i18n } = useTranslation();
 
     // Automatically select the latest image when the image list changes
@@ -24,6 +26,13 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
     const activeImage = selectedImageId
         ? images.find(img => img.id === selectedImageId)
         : images[images.length - 1];
+
+    useEffect(() => {
+        if (activeImage) {
+            setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || '');
+            setIsEditingPrompt(false);
+        }
+    }, [activeImage?.id]);
 
     const handleDownload = () => {
         if (!activeImage) return;
@@ -67,8 +76,41 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                                 className="relative max-h-full max-w-full object-contain p-6 transition-transform duration-500 hover:scale-[1.02] drop-shadow-xl"
                             />
                             <div className="absolute bottom-4 left-4 right-4 text-center pointer-events-none">
-                                <div className="inline-block bg-black/60 backdrop-blur-md text-white px-4 py-2 rounded-full text-xs font-medium max-w-[90%] truncate">
-                                    {activeImage.prompt}
+                                <div className="inline-block bg-black/60 backdrop-blur-md text-white px-4 py-2 rounded-full text-xs font-medium max-w-[90%] pointer-events-auto flex items-center justify-between gap-2 shadow-lg w-max mx-auto">
+                                    {isEditingPrompt ? (
+                                        <div className="flex items-center gap-2 w-full">
+                                            <input 
+                                                type="text" 
+                                                value={editablePrompt} 
+                                                onChange={(e) => setEditablePrompt(e.target.value)}
+                                                className="bg-transparent border-none text-white outline-none w-full min-w-[250px] font-mono text-xs placeholder:text-white/40"
+                                                placeholder="Enter custom prompt..."
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        setIsEditingPrompt(false);
+                                                        onGenerate(editablePrompt);
+                                                    } else if (e.key === 'Escape') {
+                                                        setIsEditingPrompt(false);
+                                                        setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || '');
+                                                    }
+                                                }}
+                                            />
+                                            <button onClick={() => { setIsEditingPrompt(false); onGenerate(editablePrompt); }} className="text-white hover:text-indigo-300 ml-1 p-1 flex items-center justify-center bg-white/20 rounded-full transition-colors" title="Regenerate with new prompt">
+                                                <span className="material-symbols-rounded text-[14px]">refresh</span>
+                                            </button>
+                                            <button onClick={() => { setIsEditingPrompt(false); setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || ''); }} className="text-white/60 hover:text-white p-1" title="Cancel">
+                                                <span className="material-symbols-rounded text-[14px]">close</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 w-full">
+                                            <span className="truncate">{activeImage.prompt}</span>
+                                            <button onClick={() => setIsEditingPrompt(true)} className="text-white/60 hover:text-white ml-2 p-1 flex items-center justify-center" title="Edit Prompt & Regenerate">
+                                                <span className="material-symbols-rounded text-[14px]">edit</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </>

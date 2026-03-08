@@ -715,15 +715,16 @@ const AppContent: React.FC = () => {
         } catch (e) { console.error(e); } finally { if (!silent) setIsPlanningAssembly(false); }
     }
 
-    const performVisualGeneration = async () => {
+    const performVisualGeneration = async (customPrompt?: string) => {
         const currentSession = draftingEngine.getSession();
         if (isVisualizing || currentSession.bom.length === 0) return;
         setIsVisualizing(true);
         try {
-            const requirements = currentSession.designRequirements || currentSession.name || "Hardware assembly";
+            const requirements = customPrompt || currentSession.designRequirements || currentSession.name || "Hardware assembly";
             const imageUrl = await aiService.generateProductImage(requirements);
             if (imageUrl) {
-                draftingEngine.addGeneratedImage(imageUrl, `Design concept for: ${requirements}`);
+                const promptLabel = customPrompt ? customPrompt : `Design concept for: ${requirements}`;
+                draftingEngine.addGeneratedImage(imageUrl, promptLabel);
             }
         } catch (e) { console.error(e); } finally { setIsVisualizing(false); }
     }
@@ -795,8 +796,8 @@ const AppContent: React.FC = () => {
         await performPlanAssembly();
     };
 
-    const handleGenerateVisual = async () => {
-        await performVisualGeneration();
+    const handleGenerateVisual = async (customPrompt?: string) => {
+        await performVisualGeneration(customPrompt);
         refreshState();
     };
 
