@@ -1,4 +1,4 @@
-import { AIService, ArchitectResponse } from "./aiTypes.ts";
+import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { GeminiService } from "./geminiService.ts";
 import { LocalArchitectService, LocalModelProvider } from "./localAiService.ts";
 import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
@@ -33,7 +33,7 @@ export class HybridAIService implements AIService {
 
     // --- DELEGATED HYBRID FUNCTIONS ---
 
-    async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
+    async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         if (this.localService) {
             return this.localService.askArchitect(prompt, history, image);
         }

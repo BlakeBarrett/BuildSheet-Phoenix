@@ -7,6 +7,15 @@ export interface ArchitectResponse {
   visualization?: VisualManifest;
 }
 
+export interface AskArchitectResult {
+  text: string;
+  metadata?: {
+    model?: string;
+    tokens?: number;
+    [key: string]: any;
+  };
+}
+
 export interface AIService {
   name: string;
   isOffline: boolean;
@@ -17,7 +26,7 @@ export interface AIService {
    */
   getApiKeyStatus(): string;
 
-  askArchitect(prompt: string, history: any[], image?: string): Promise<string>;
+  askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult>;
 
   parseArchitectResponse(text: string): ArchitectResponse;
 

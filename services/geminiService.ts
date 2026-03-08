@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
-import { AIService, ArchitectResponse } from "./aiTypes.ts";
+import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 
@@ -88,7 +88,7 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
+    async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
             const ai = this.getClient();
 
@@ -114,7 +114,13 @@ export class GeminiService implements AIService {
                 },
             });
 
-            return response.text || "Gemini provided no output.";
+            return {
+                text: response.text || "Gemini provided no output.",
+                metadata: {
+                    model: 'gemini-3-flash-preview',
+                    tokens: response.usageMetadata?.totalTokenCount
+                }
+            };
         } catch (error: any) {
             console.error("[GeminiService] askArchitect Failed:", error);
             const keyStatus = this.getApiKeyStatus();

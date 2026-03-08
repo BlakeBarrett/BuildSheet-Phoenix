@@ -1,4 +1,4 @@
-import { AIService, ArchitectResponse } from "./aiTypes.ts";
+import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { GeminiService } from "./geminiService.ts";
 
 export interface LocalModelProvider {
@@ -22,7 +22,7 @@ export class LocalArchitectService {
         return `Local URL: ${this.provider.endpointUrl}`;
     }
 
-    async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
+    async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
             // Reformat history from Gemini's {role: 'user'|'model', parts: [{text: ...}]}
             // to OpenAI's {role: 'user'|'assistant', content: ...}
@@ -91,7 +91,13 @@ TOOLS:
             }
 
             const data = await response.json();
-            return data.choices?.[0]?.message?.content || "Local model provided no output.";
+            return {
+                text: data.choices?.[0]?.message?.content || "Local model provided no output.",
+                metadata: {
+                    model: this.provider.id,
+                    tokens: data.usage?.total_tokens
+                }
+            };
         } catch (error: any) {
             console.error("[LocalArchitectService] askArchitect Failed:", error);
             throw new Error(`Local Service Error: ${error.message || JSON.stringify(error)}`);

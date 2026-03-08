@@ -302,8 +302,99 @@ export class DraftingEngine {
   }
 
   public addMessage(message: UserMessage) {
+    if (!message.stateSnapshotJSON) {
+      message.stateSnapshotJSON = JSON.stringify({
+        name: this.session.name,
+        designRequirements: this.session.designRequirements,
+        bom: this.session.bom
+      });
+    }
     this.session.messages.push(message);
     this.saveSession();
+  }
+
+  public revertToMessage(messageIndex: number) {
+    if (messageIndex < -1 || messageIndex >= this.session.messages.length) return;
+    
+    if (messageIndex === -1) {
+      this.session.name = 'Untitled Assembly';
+      this.session.designRequirements = '';
+      this.session.bom = [];
+      this.session.cacheIsDirty = true;
+      this.session.cachedAssemblyPlan = undefined;
+      this.session.cachedAuditResult = undefined;
+      this.session.messages = [];
+      this.saveSession();
+      return;
+    }
+
+    const targetMsg = this.session.messages[messageIndex];
+    if (targetMsg.stateSnapshotJSON) {
+      try {
+        const snapshot = JSON.parse(targetMsg.stateSnapshotJSON);
+        this.session.name = snapshot.name;
+        this.session.designRequirements = snapshot.designRequirements;
+        this.session.bom = snapshot.bom;
+        this.session.cacheIsDirty = true;
+        this.session.cachedAssemblyPlan = undefined;
+        this.session.cachedAuditResult = undefined;
+      } catch (e) {
+        console.error("Failed to parse message state snapshot", e);
+      }
+    }
+    
+    // Truncate messages after this point
+    this.session.messages = this.session.messages.slice(0, messageIndex + 1);
+    this.saveSession();
+  }
+
+  public forkFromMessage(messageIndex: number): string {
+    if (messageIndex < -1 || messageIndex >= this.session.messages.length) return this.session.id;
+    
+    if (messageIndex === -1) {
+       this.createNewProject();
+       return this.session.id;
+    }
+
+    const targetMsg = this.session.messages[messageIndex];
+    const user = UserService.getCurrentUser();
+    const id = Math.random().toString(36).substr(2, 9);
+    
+    let state = {
+        name: this.session.name + ' (Fork)',
+        designRequirements: this.session.designRequirements,
+        bom: JSON.parse(JSON.stringify(this.session.bom))
+    };
+    
+    if (targetMsg.stateSnapshotJSON) {
+        try {
+            let snapshot = JSON.parse(targetMsg.stateSnapshotJSON);
+            state.name = snapshot.name + ' (Fork)';
+            state.designRequirements = snapshot.designRequirements;
+            state.bom = snapshot.bom;
+        } catch (e) {}
+    }
+
+    const forkedSession: DraftingSession = {
+      id,
+      slug: `build-${id.substr(0, 4)}`,
+      ownerId: user?.id || 'anonymous',
+      name: state.name,
+      designRequirements: state.designRequirements,
+      bom: state.bom,
+      generatedImages: [],
+      messages: JSON.parse(JSON.stringify(this.session.messages.slice(0, messageIndex + 1))),
+      createdAt: new Date(),
+      lastModified: new Date(),
+      cacheIsDirty: true
+    };
+    
+    // Rehydrate dates
+    forkedSession.messages.forEach(m => m.timestamp = new Date(m.timestamp));
+
+    this.session = forkedSession;
+    this.saveSession();
+    return id;
   }
 
   public addGeneratedImage(url: string, prompt: string) {

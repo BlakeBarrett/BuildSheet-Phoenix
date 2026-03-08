@@ -833,8 +833,10 @@ const AppContent: React.FC = () => {
                 role: m.role === 'user' ? 'user' : 'model',
                 parts: [{ text: m.content }]
             }));
+            const startTime = Date.now();
             const architectResponse = await aiService.askArchitect(tempInput, history);
-            const parsed = aiService.parseArchitectResponse(architectResponse);
+            const latencyMs = Date.now() - startTime;
+            const parsed = aiService.parseArchitectResponse(architectResponse.text);
 
             let stateModified = false;
             parsed.toolCalls.forEach(call => {
@@ -843,7 +845,15 @@ const AppContent: React.FC = () => {
                 else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
             });
 
-            draftingEngine.addMessage({ role: 'assistant', content: parsed.reasoning || architectResponse, timestamp: new Date() });
+            draftingEngine.addMessage({ 
+                role: 'assistant', 
+                content: parsed.reasoning || architectResponse.text, 
+                timestamp: new Date(),
+                metadata: {
+                    ...architectResponse.metadata,
+                    latencyMs
+                }
+            });
             if (stateModified) performVisualGeneration().then(() => refreshState());
             refreshState();
         } catch (e: any) {
@@ -963,16 +973,66 @@ const AppContent: React.FC = () => {
                             </div>
                         )}
                         {session.messages.map((m, i) => (
-                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300 group`}>
                                 <div className={`
-                        max-w-[85%] px-6 py-4 text-sm leading-relaxed shadow-sm
+                        max-w-[85%] text-sm leading-relaxed shadow-sm flex flex-col relative
                         ${m.role === 'user'
                                         ? 'bg-[#4F5DFF] text-white rounded-[24px] rounded-br-[4px]'
                                         : 'bg-[#F2F6FC] text-[#1F1F1F] rounded-[24px] rounded-bl-[4px] border border-white'}
                     `}>
-                                    <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
+                                    <div className={`px-6 py-4 prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
                                         <ReactMarkdown>{m.content}</ReactMarkdown>
                                     </div>
+                                    {m.role === 'user' && (
+                                        <div className="absolute top-full right-0 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex gap-2 pr-2 z-10 items-center">
+                                            <button onClick={() => { 
+                                                draftingEngine.revertToMessage(i - 1); 
+                                                setInput(m.content);
+                                                refreshState(); 
+                                            }} title="Edit message" className="text-indigo-400 hover:text-indigo-600 bg-white/90 backdrop-blur-sm shadow-sm border border-slate-200 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">edit</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                    {m.role === 'assistant' && (
+                                        <div className="absolute top-full left-0 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex gap-2 pl-2 z-10 items-center">
+                                            {i < session.messages.length - 1 && (
+                                                <button onClick={() => { draftingEngine.revertToMessage(i); refreshState(); }} title="Revert to here" className="text-slate-400 hover:text-rose-500 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500">
+                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">restore</span>
+                                                </button>
+                                            )}
+                                            <button onClick={() => { 
+                                                const newId = draftingEngine.forkFromMessage(i); 
+                                                draftingEngine.loadProject(newId); 
+                                                refreshState(); 
+                                            }} title="Fork from here" className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">call_split</span>
+                                            </button>
+                                            
+                                            {m.metadata && (
+                                                <div className="flex bg-white/80 backdrop-blur-sm border border-slate-200/50 shadow-sm rounded-full px-3 py-1 items-center gap-3 text-[10px] text-slate-500 font-mono ml-1">
+                                                    {m.metadata.model && (
+                                                        <span className="flex items-center gap-1" title="Model Used">
+                                                            <span className="material-symbols-rounded text-[12px] text-indigo-400" aria-hidden="true">memory</span>
+                                                            {m.metadata.model.replace('gemini-', '')}
+                                                        </span>
+                                                    )}
+                                                    {m.metadata.tokens !== undefined && (
+                                                        <span className="flex items-center gap-1" title="Tokens Processed">
+                                                            <span className="material-symbols-rounded text-[12px] text-emerald-400" aria-hidden="true">segment</span>
+                                                            {m.metadata.tokens}
+                                                        </span>
+                                                    )}
+                                                    {m.metadata.latencyMs !== undefined && (
+                                                        <span className="flex items-center gap-1" title="Processing Time">
+                                                            <span className="material-symbols-rounded text-[12px] text-amber-400" aria-hidden="true">timer</span>
+                                                            {(m.metadata.latencyMs / 1000).toFixed(1)}s
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}

@@ -1,5 +1,5 @@
 
-import { AIService, ArchitectResponse } from './aiTypes.ts';
+import { AIService, ArchitectResponse, AskArchitectResult } from './aiTypes.ts';
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, PortType, Gender } from '../types.ts';
 
 export class MockService implements AIService {
@@ -10,27 +10,27 @@ export class MockService implements AIService {
     return "N/A (Mock Mode)";
   }
 
-  async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
+  async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
     await new Promise(r => setTimeout(r, 800));
     const lower = prompt.toLowerCase();
 
     if (image) {
-      return `[SIMULATION MODE] Image Analysis...\n\nI see the reference image you uploaded. Based on the visual cues and your request "${prompt}", I am adjusting the draft accordingly.\n\naddPart("inferred-component-from-image", "Inferred Component", "Component", 1)`;
+      return { text: `[SIMULATION MODE] Image Analysis...\n\nI see the reference image you uploaded. Based on the visual cues and your request "${prompt}", I am adjusting the draft accordingly.\n\naddPart("inferred-component-from-image", "Inferred Component", "Component", 1)`, metadata: { model: 'simulation-engine' } };
     }
 
     if (lower.includes('truck') || lower.includes('engine') || lower.includes('chevy')) {
-      return `[SIMULATION MODE] Analyzing Heavy Duty Requirements...\n\nBased on the request for a powertrain system, I am initializing a truck configuration.\n\ninitializeDraft("Chevy Truck Config", "Heavy duty application")\naddPart("chevy-ls-v8", "GM 5.3L LS V8 (Aluminum Block)", "Engine", 1)\naddPart("4l60e-transmission", "4L60E Automatic Transmission", "Transmission", 1)`;
+      return { text: `[SIMULATION MODE] Analyzing Heavy Duty Requirements...\n\nBased on the request for a powertrain system, I am initializing a truck configuration.\n\ninitializeDraft("Chevy Truck Config", "Heavy duty application")\naddPart("chevy-ls-v8", "GM 5.3L LS V8 (Aluminum Block)", "Engine", 1)\naddPart("4l60e-transmission", "4L60E Automatic Transmission", "Transmission", 1)`, metadata: { model: 'simulation-engine' } };
     }
 
     if (lower.includes('gaming') || lower.includes('pc') || lower.includes('computer')) {
-      return `[SIMULATION MODE] Analyzing Compute Requirements...\n\nI have drafted a high-performance gaming configuration.\n\ninitializeDraft("Gaming Rig", "High Performance, Liquid Cooled")\naddPart("cpu-flagship", "Flagship Desktop CPU", "Processor", 1)\naddPart("gpu-rtx-4090", "NVIDIA RTX 4090 GPU", "Graphics Card", 1)\naddPart("case-atx-tower", "ATX Full Tower Case", "Case", 1)`;
+      return { text: `[SIMULATION MODE] Analyzing Compute Requirements...\n\nI have drafted a high-performance gaming configuration.\n\ninitializeDraft("Gaming Rig", "High Performance, Liquid Cooled")\naddPart("cpu-flagship", "Flagship Desktop CPU", "Processor", 1)\naddPart("gpu-rtx-4090", "NVIDIA RTX 4090 GPU", "Graphics Card", 1)\naddPart("case-atx-tower", "ATX Full Tower Case", "Case", 1)`, metadata: { model: 'simulation-engine' } };
     }
 
     if (lower.includes('flashlight') || lower.includes('torch') || lower.includes('led')) {
-      return `[SIMULATION MODE] Analyzing Optoelectronics...\n\nI have drafted a handheld LED flashlight using standard components.\n\ninitializeDraft("C8 LED Flashlight", "High-Throw Handheld")\naddPart("c8-aluminum-host", "C8 Aluminum Host", "Chassis", 1)\naddPart("cree-xpl-hi-emitter", "Cree XP-L HI Emitter", "Light Engine", 1)\naddPart("17mm-constant-current-driver", "17mm Constant Current Driver", "Controller", 1)\naddPart("panasonic-18650", "Panasonic 18650 Battery", "Power", 1)`;
+      return { text: `[SIMULATION MODE] Analyzing Optoelectronics...\n\nI have drafted a handheld LED flashlight using standard components.\n\ninitializeDraft("C8 LED Flashlight", "High-Throw Handheld")\naddPart("c8-aluminum-host", "C8 Aluminum Host", "Chassis", 1)\naddPart("cree-xpl-hi-emitter", "Cree XP-L HI Emitter", "Light Engine", 1)\naddPart("17mm-constant-current-driver", "17mm Constant Current Driver", "Controller", 1)\naddPart("panasonic-18650", "Panasonic 18650 Battery", "Power", 1)`, metadata: { model: 'simulation-engine' } };
     }
 
-    return `[SIMULATION MODE] Analyzing Input Device Requirements...\n\nI have drafted a standard 65% mechanical keyboard layout based on your request.\n\ninitializeDraft("Custom Keyboard", "65% Layout, Linear Switches")\naddPart("65-hotswap-pcb", "65% Hot-swap PCB", "Keyboard PCB", 1)\naddPart("gateron-yellow-switches", "Gateron Milky Yellow Linear Switches", "Switch", 68)\naddPart("tofu65-aluminum-case", "Tofu65 Aluminum Case", "Case", 1)`;
+    return { text: `[SIMULATION MODE] Analyzing Input Device Requirements...\n\nI have drafted a standard 65% mechanical keyboard layout based on your request.\n\ninitializeDraft("Custom Keyboard", "65% Layout, Linear Switches")\naddPart("65-hotswap-pcb", "65% Hot-swap PCB", "Keyboard PCB", 1)\naddPart("gateron-yellow-switches", "Gateron Milky Yellow Linear Switches", "Switch", 68)\naddPart("tofu65-aluminum-case", "Tofu65 Aluminum Case", "Case", 1)`, metadata: { model: 'simulation-engine' } };
   }
 
   parseArchitectResponse(text: string): ArchitectResponse {
