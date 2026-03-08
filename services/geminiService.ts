@@ -1,8 +1,7 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
-import { HARDWARE_REGISTRY } from "../data/seedData.ts";
 import { AIService, ArchitectResponse } from "./aiTypes.ts";
-import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
+import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 
 const SYSTEM_INSTRUCTION = `
@@ -13,28 +12,40 @@ You are a FUNCTIONAL AGENT. Your primary job is to Manipulate the State of the d
 DO NOT just describe the build in text. You MUST call \`initializeDraft\` and \`addPart\` commands to actually create the BOM.
 
 CONTEXT:
-You have access to two sourcing references:
-1. **Verified Component Library (Preferred):** This is a list of standardized, high-reliability parts. You should prioritize these IDs for maximum compatibility and technical audit accuracy. **IMPORTANT:** These parts are NOT "in-stock" or owned by the user; they are simply the preferred building blocks for a new design.
-2. **Global Virtual Catalog:** If a specialized part is required that is not in the library, you may "infer" its existence. Use a descriptive ID (e.g., "high-torque-stepper-motor").
+You are an expert hardware architect. When the user describes a project, you select real-world components from your knowledge of electronics, robotics, automotive, and maker ecosystems. Use your training knowledge to pick specific, commonly available parts.
+
+PART SCHEMA:
+Each part you add must conform to this schema:
+- **id**: A descriptive kebab-case identifier (e.g. "esp32-wroom-32d", "nema17-stepper-motor").
+- **name**: The full human-readable product name (e.g. "ESP32-WROOM-32D Development Board").
+- **category**: The part category (e.g. "Microcontroller", "Brushless Motor", "Sensor", "Connector", "Battery").
+- **ports**: Each part has connectors/interfaces. A port has:
+  - name: Human-readable label (e.g. "USB-C Power", "Motor Mount 16x16", "GPIO Header")
+  - type: MECHANICAL | ELECTRICAL | DATA | FLUID
+  - gender: MALE | FEMALE | NEUTRAL
+  - spec: A compatibility key — parts connect when specs match and genders are opposite (e.g. "usb-c", "m3-30x30", "xt60", "2.54mm-pitch")
+
+When selecting parts, REASON about port compatibility in your summary. For example:
+- A motor with spec "m3-16x16" mounts to a frame with matching "m3-16x16" spec.
+- An XT60 battery connector (FEMALE) mates with an XT60 ESC connector (MALE).
+- An I2C sensor (MALE) plugs into a microcontroller I2C header (FEMALE).
+
+Example: \`addPart("esp32-wroom-32d", "ESP32-WROOM-32D Development Board", "Microcontroller", 1)\`
 
 USER-OWNED HARDWARE:
-If the user explicitly states they already possess certain hardware (e.g., "I have an Arduino Uno"), you MUST still add it to the draft using its ID, but acknowledge in your reasoning that these items are pre-existing and do not need to be purchased.
+If the user explicitly states they already possess certain hardware (e.g., "I have an Arduino Uno"), you MUST still add it to the draft, but acknowledge in your reasoning that these items are pre-existing and do not need to be purchased.
 
 BEHAVIOR:
 1. **START:** When a user asks to build something new, you MUST call \`initializeDraft(name, requirements)\` first.
-2. **SOURCING:** Invent the specification using Virtual Parts if the Library ones don't fulfill the engineering requirement.
+2. **SOURCING:** Use real-world parts from your knowledge. Choose commonly available components from well-known manufacturers.
 3. **OUTPUT FORMAT:** Provide a brief reasoning summary. Append Tool Calls at the end. 
    **CRITICAL:** Do NOT label the tool calls with "Tool Calls:" or "Corrections:". Just output the functions.
-   Syntax: \`addPart("id", quantity)\`
+   Syntax: \`addPart("id", "name", "category", quantity)\`
 
 TOOLS:
 - \`initializeDraft(name: string, requirements: string)\`
-- \`addPart(partId: string, quantity: number)\`
+- \`addPart(id: string, name: string, category: string, quantity: number)\`
 - \`removePart(instanceId: string)\`
-
----
-VERIFIED COMPONENT LIBRARY (Use these IDs for standard builds):
-${HARDWARE_REGISTRY ? HARDWARE_REGISTRY.map(p => `- ID: "${p.id}" | Name: "${p.name}"`).join('\n') : 'Registry Offline'}
 `;
 
 export class GeminiService implements AIService {
@@ -126,9 +137,9 @@ export class GeminiService implements AIService {
             reasoning = reasoning.replace(initMatch[0], '');
         }
 
-        const addMatches = [...text.matchAll(/addPart\s*\(\s*["']?([^"',\s]+)["']?\s*,\s*(\d+)\s*\)\s*;?/g)];
+        const addMatches = [...text.matchAll(/addPart\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*(\d+)\s*\)\s*;?/g)];
         addMatches.forEach(m => {
-            toolCalls.push({ type: 'addPart', partId: m[1], qty: parseInt(m[2]) });
+            toolCalls.push({ type: 'addPart', partId: m[1], name: m[2], category: m[3], qty: parseInt(m[4]) });
             reasoning = reasoning.replace(m[0], '');
         });
 
@@ -193,6 +204,58 @@ export class GeminiService implements AIService {
                 })
                 .slice(0, 5);
         } catch (e) { return null; }
+    }
+
+    async hydratePartDetails(name: string, category: string): Promise<Partial<Part> | null> {
+        try {
+            const ai = this.getClient();
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: `Look up the real-world hardware component: "${name}" (category: ${category}). Return its manufacturer/brand, a brief technical description, typical retail price in USD, and its physical/electrical connectors (ports). Use current market data.`,
+                config: {
+                    tools: [{ googleSearch: {} }],
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            brand: { type: Type.STRING },
+                            description: { type: Type.STRING },
+                            price: { type: Type.NUMBER },
+                            sku: { type: Type.STRING },
+                            ports: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        id: { type: Type.STRING },
+                                        name: { type: Type.STRING },
+                                        type: { type: Type.STRING },
+                                        gender: { type: Type.STRING },
+                                        spec: { type: Type.STRING }
+                                    },
+                                    required: ['id', 'name', 'type', 'gender', 'spec']
+                                }
+                            }
+                        },
+                        required: ['brand', 'description', 'price', 'ports']
+                    }
+                }
+            });
+            const data = JSON.parse(response.text || "null");
+            if (!data) return null;
+            // Normalize port type/gender enums
+            if (data.ports) {
+                data.ports = data.ports.map((p: any) => ({
+                    ...p,
+                    type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL') as PortType,
+                    gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL') as Gender
+                }));
+            }
+            return data;
+        } catch (e) {
+            console.error('[GeminiService] hydratePartDetails failed:', e);
+            return null;
+        }
     }
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {

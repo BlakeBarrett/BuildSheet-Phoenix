@@ -1,6 +1,6 @@
 
 import { AIService, ArchitectResponse } from './aiTypes.ts';
-import { ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan } from '../types.ts';
+import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, PortType, Gender } from '../types.ts';
 
 export class MockService implements AIService {
   public name = "Simulation Engine (Offline)";
@@ -13,51 +13,51 @@ export class MockService implements AIService {
   async askArchitect(prompt: string, history: any[], image?: string): Promise<string> {
     await new Promise(r => setTimeout(r, 800));
     const lower = prompt.toLowerCase();
-    
+
     if (image) {
-        return `[SIMULATION MODE] Image Analysis...\n\nI see the reference image you uploaded. Based on the visual cues and your request "${prompt}", I am adjusting the draft accordingly.\n\naddPart("inferred-component-from-image", 1)`;
+      return `[SIMULATION MODE] Image Analysis...\n\nI see the reference image you uploaded. Based on the visual cues and your request "${prompt}", I am adjusting the draft accordingly.\n\naddPart("inferred-component-from-image", "Inferred Component", "Component", 1)`;
     }
 
     if (lower.includes('truck') || lower.includes('engine') || lower.includes('chevy')) {
-        return `[SIMULATION MODE] Analyzing Heavy Duty Requirements...\n\nBased on the request for a powertrain system, I am initializing a truck configuration.\n\ninitializeDraft("Chevy Truck Config", "Heavy duty application")\naddPart("truck-eng-1", 1)\naddPart("truck-trans-1", 1)`;
+      return `[SIMULATION MODE] Analyzing Heavy Duty Requirements...\n\nBased on the request for a powertrain system, I am initializing a truck configuration.\n\ninitializeDraft("Chevy Truck Config", "Heavy duty application")\naddPart("chevy-ls-v8", "GM 5.3L LS V8 (Aluminum Block)", "Engine", 1)\naddPart("4l60e-transmission", "4L60E Automatic Transmission", "Transmission", 1)`;
     }
 
     if (lower.includes('gaming') || lower.includes('pc') || lower.includes('computer')) {
-         return `[SIMULATION MODE] Analyzing Compute Requirements...\n\nI have drafted a high-performance gaming configuration.\n\ninitializeDraft("Gaming Rig", "High Performance, Liquid Cooled")\naddPart("cpu-flagship", 1)\naddPart("gpu-rtx-4090", 1)\naddPart("case-atx-tower", 1)`;
+      return `[SIMULATION MODE] Analyzing Compute Requirements...\n\nI have drafted a high-performance gaming configuration.\n\ninitializeDraft("Gaming Rig", "High Performance, Liquid Cooled")\naddPart("cpu-flagship", "Flagship Desktop CPU", "Processor", 1)\naddPart("gpu-rtx-4090", "NVIDIA RTX 4090 GPU", "Graphics Card", 1)\naddPart("case-atx-tower", "ATX Full Tower Case", "Case", 1)`;
     }
 
     if (lower.includes('flashlight') || lower.includes('torch') || lower.includes('led')) {
-         return `[SIMULATION MODE] Analyzing Optoelectronics...\n\nI have drafted a handheld LED flashlight using standard components found in the registry.\n\ninitializeDraft("C8 LED Flashlight", "High-Throw Handheld")\naddPart("flashlight-body", 1)\naddPart("led-emitter", 1)\naddPart("led-driver-ic", 1)\naddPart("batt-18650", 1)`;
+      return `[SIMULATION MODE] Analyzing Optoelectronics...\n\nI have drafted a handheld LED flashlight using standard components.\n\ninitializeDraft("C8 LED Flashlight", "High-Throw Handheld")\naddPart("c8-aluminum-host", "C8 Aluminum Host", "Chassis", 1)\naddPart("cree-xpl-hi-emitter", "Cree XP-L HI Emitter", "Light Engine", 1)\naddPart("17mm-constant-current-driver", "17mm Constant Current Driver", "Controller", 1)\naddPart("panasonic-18650", "Panasonic 18650 Battery", "Power", 1)`;
     }
-    
-    return `[SIMULATION MODE] Analyzing Input Device Requirements...\n\nI have drafted a standard 65% mechanical keyboard layout based on your request.\n\ninitializeDraft("Custom Keyboard", "65% Layout, Linear Switches")\naddPart("kb-pcb-1", 1)\naddPart("kb-sw-1", 68)\naddPart("kb-case-1", 1)`;
+
+    return `[SIMULATION MODE] Analyzing Input Device Requirements...\n\nI have drafted a standard 65% mechanical keyboard layout based on your request.\n\ninitializeDraft("Custom Keyboard", "65% Layout, Linear Switches")\naddPart("65-hotswap-pcb", "65% Hot-swap PCB", "Keyboard PCB", 1)\naddPart("gateron-yellow-switches", "Gateron Milky Yellow Linear Switches", "Switch", 68)\naddPart("tofu65-aluminum-case", "Tofu65 Aluminum Case", "Case", 1)`;
   }
 
   parseArchitectResponse(text: string): ArchitectResponse {
     const toolCalls: any[] = [];
     if (!text) return { reasoning: "Architect provided no output.", toolCalls };
-    
+
     let reasoning = text;
-    
+
     // Parse initializeDraft
     const initMatch = text.match(/initializeDraft\s*\(\s*['"](.+?)['"]\s*,\s*['"](.+?)['"]\s*\)/);
     if (initMatch) {
       toolCalls.push({ type: 'initializeDraft', name: initMatch[1], reqs: initMatch[2] });
       reasoning = reasoning.replace(initMatch[0], '');
     }
-    
+
     // Parse addPart and removePart using matchAll
     try {
-      const addMatches = [...text.matchAll(/addPart\s*\(\s*['"](.+?)['"]\s*,\s*(\d+)\s*\)/g)];
+      const addMatches = [...text.matchAll(/addPart\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*(\d+)\s*\)/g)];
       addMatches.forEach(m => {
-          toolCalls.push({ type: 'addPart', partId: m[1], qty: parseInt(m[2]) });
-          reasoning = reasoning.replace(m[0], '');
+        toolCalls.push({ type: 'addPart', partId: m[1], name: m[2], category: m[3], qty: parseInt(m[4]) });
+        reasoning = reasoning.replace(m[0], '');
       });
-      
+
       const removeMatches = [...text.matchAll(/removePart\s*\(\s*['"](.+?)['"]\s*\)/g)];
       removeMatches.forEach(m => {
-          toolCalls.push({ type: 'removePart', instanceId: m[1] });
-          reasoning = reasoning.replace(m[0], '');
+        toolCalls.push({ type: 'removePart', instanceId: m[1] });
+        reasoning = reasoning.replace(m[0], '');
       });
     } catch (e) { console.error("Regex parsing error", e); }
 
@@ -75,33 +75,33 @@ export class MockService implements AIService {
   }
 
   async findPartSources(query: string): Promise<ShoppingOption[]> {
-      await new Promise(r => setTimeout(r, 1000));
-      return [
-          { title: "Mouser Electronics - Fast Ship", url: "https://www.mouser.com", source: "Mouser", price: "$12.99" },
-          { title: "DigiKey - In Stock", url: "https://www.digikey.com", source: "DigiKey", price: "$11.50" },
-          { title: "Adafruit Industries", url: "https://www.adafruit.com", source: "Adafruit", price: "$14.00" }
-      ];
+    await new Promise(r => setTimeout(r, 1000));
+    return [
+      { title: "Mouser Electronics - Fast Ship", url: "https://www.mouser.com", source: "Mouser", price: "$12.99" },
+      { title: "DigiKey - In Stock", url: "https://www.digikey.com", source: "DigiKey", price: "$11.50" },
+      { title: "Adafruit Industries", url: "https://www.adafruit.com", source: "Adafruit", price: "$14.00" }
+    ];
   }
 
   async findLocalSuppliers(query: string, location?: any): Promise<LocalSupplier[]> {
-      await new Promise(r => setTimeout(r, 1000));
-      return [
-          { name: "Micro Center", address: "Local Tech Hub", openNow: true },
-          { name: "Best Buy", address: "City Center", openNow: true },
-          { name: "Al's Electronics Repair", address: "Main St", openNow: false }
-      ];
+    await new Promise(r => setTimeout(r, 1000));
+    return [
+      { name: "Micro Center", address: "Local Tech Hub", openNow: true },
+      { name: "Best Buy", address: "City Center", openNow: true },
+      { name: "Al's Electronics Repair", address: "Main St", openNow: false }
+    ];
   }
 
   async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
     await new Promise(r => setTimeout(r, 2000));
-    
+
     // Simple check for simulation mode consistency
     const hasBattery = bom.some((b: any) => b.part.category === 'Power');
     const hasLoad = bom.some((b: any) => b.part.category === 'Light Engine' || b.part.category === 'Keyboard PCB');
-    
+
     let reasoning = "";
     if (hasBattery && hasLoad) {
-         reasoning = `## 🛠️ Technical Verification
+      reasoning = `## 🛠️ Technical Verification
     
 **Status: Pass**
 
@@ -117,7 +117,7 @@ export class MockService implements AIService {
 *   **Freedom to Operate:** No specific proprietary mechanisms detected that would infringe on major active utility patents in this domain.
 *   **Advisory:** Ensure the specific "C8 Host" form factor sourced does not violate active design patents (e.g., SureFire or Maglite trade dress).`;
     } else {
-        reasoning = `## 🛠️ Technical Verification
+      reasoning = `## 🛠️ Technical Verification
     
 **Status: Provisional Pass**
 
@@ -135,8 +135,8 @@ export class MockService implements AIService {
     }
 
     return {
-        reasoning,
-        toolCalls: []
+      reasoning,
+      toolCalls: []
     };
   }
 
@@ -165,33 +165,47 @@ export class MockService implements AIService {
   }
 
   async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol> {
-      await new Promise(r => setTimeout(r, 1500));
-      return {
-          recommendedSensors: ["High-Res RGB Camera (50mm Lens)", "Ring Light Illuminator"],
-          inspectionStrategy: "Inspect 100% of units at station 3.",
-          defects: [
-              { name: "Bent Pins", severity: 'Critical', description: "Any deviation > 5 degrees on connector pins." },
-              { name: "Surface Scratches", severity: 'Minor', description: "Visible scratches > 2mm on top face." },
-              { name: "Missing Component", severity: 'Critical', description: "Absence of required mounting screws." }
-          ]
-      };
+    await new Promise(r => setTimeout(r, 1500));
+    return {
+      recommendedSensors: ["High-Res RGB Camera (50mm Lens)", "Ring Light Illuminator"],
+      inspectionStrategy: "Inspect 100% of units at station 3.",
+      defects: [
+        { name: "Bent Pins", severity: 'Critical', description: "Any deviation > 5 degrees on connector pins." },
+        { name: "Surface Scratches", severity: 'Minor', description: "Visible scratches > 2mm on top face." },
+        { name: "Missing Component", severity: 'Critical', description: "Absence of required mounting screws." }
+      ]
+    };
   }
 
   // Fixed: Added generatedAt: new Date() to satisfy AssemblyPlan interface requirement
   async generateAssemblyPlan(bom: any[]): Promise<AssemblyPlan | null> {
-      await new Promise(r => setTimeout(r, 1500));
-      return {
-          steps: [
-              { stepNumber: 1, description: "Secure base chassis to fixture.", requiredTool: "Vacuum Gripper", estimatedTime: "5s" },
-              { stepNumber: 2, description: "Insert main PCB into chassis guides.", requiredTool: "Parallel Gripper", estimatedTime: "12s" },
-              { stepNumber: 3, description: "Fasten 4x M2.5 screws.", requiredTool: "Electric Screwdriver", estimatedTime: "20s" }
-          ],
-          totalTime: "37s",
-          difficulty: "Easy",
-          requiredEndEffectors: ["Vacuum Gripper", "Parallel Gripper", "Electric Screwdriver"],
-          automationFeasibility: 95,
-          notes: "Standard pick-and-place operation. High automation potential.",
-          generatedAt: new Date()
-      };
+    await new Promise(r => setTimeout(r, 1500));
+    return {
+      steps: [
+        { stepNumber: 1, description: "Secure base chassis to fixture.", requiredTool: "Vacuum Gripper", estimatedTime: "5s" },
+        { stepNumber: 2, description: "Insert main PCB into chassis guides.", requiredTool: "Parallel Gripper", estimatedTime: "12s" },
+        { stepNumber: 3, description: "Fasten 4x M2.5 screws.", requiredTool: "Electric Screwdriver", estimatedTime: "20s" }
+      ],
+      totalTime: "37s",
+      difficulty: "Easy",
+      requiredEndEffectors: ["Vacuum Gripper", "Parallel Gripper", "Electric Screwdriver"],
+      automationFeasibility: 95,
+      notes: "Standard pick-and-place operation. High automation potential.",
+      generatedAt: new Date()
+    };
+  }
+
+  async hydratePartDetails(name: string, category: string): Promise<Partial<Part> | null> {
+    await new Promise(r => setTimeout(r, 1500));
+    return {
+      brand: 'Simulated Brand',
+      description: `High-quality ${category.toLowerCase()} component. ${name} — verified specification from simulation engine.`,
+      price: 24.99,
+      sku: `SIM-${name.replace(/\s+/g, '-').toUpperCase().slice(0, 12)}`,
+      ports: [
+        { id: 'p1', name: 'Primary Interface', type: PortType.ELECTRICAL, gender: Gender.MALE, spec: 'standard-pin' },
+        { id: 'p2', name: 'Mounting Point', type: PortType.MECHANICAL, gender: Gender.FEMALE, spec: 'm3-thread' }
+      ]
+    };
   }
 }

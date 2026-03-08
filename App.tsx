@@ -281,25 +281,51 @@ const PartDetailModal: React.FC<{
     entry: BOMEntry | null;
     onClose: () => void;
     onSource: (entry: BOMEntry) => void;
-}> = ({ entry, onClose, onSource }) => {
+    onHydrate: (entry: BOMEntry) => void;
+    isHydrating?: boolean;
+}> = ({ entry, onClose, onSource, onHydrate, isHydrating }) => {
     if (!entry) return null;
+    const isVirtual = entry.part.brand === 'TBD';
     return (
         <div className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="part-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-[16px] bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl" aria-hidden="true">
+                        <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center font-bold text-xl ${isVirtual ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`} aria-hidden="true">
                             {entry.part.category[0] || 'P'}
                         </div>
                         <div>
                             <h3 id="part-title" className="text-xl font-bold text-slate-800 tracking-tight">{entry.part.name}</h3>
-                            <p className="text-xs text-slate-600 font-medium">{entry.part.brand}</p>
+                            <p className="text-xs text-slate-600 font-medium flex items-center gap-2">
+                                {entry.part.brand}
+                                {isVirtual && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Unverified</span>}
+                            </p>
                         </div>
                     </div>
                     <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     <div className="space-y-6">
+                        {isVirtual && (
+                            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-[20px] border border-amber-200">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <h4 className="font-bold text-sm text-amber-900 mb-1">Virtual Component</h4>
+                                        <p className="text-xs text-amber-700 leading-relaxed">This part was added by the architect but hasn't been verified yet. Search to fill in real specs, pricing, and connectors.</p>
+                                    </div>
+                                    <Button
+                                        onClick={() => onHydrate(entry)}
+                                        disabled={isHydrating}
+                                        variant="tonal"
+                                        className="shrink-0 bg-amber-500 text-white hover:bg-amber-600 border-none shadow-md"
+                                        icon={isHydrating ? "progress_activity" : "travel_explore"}
+                                    >
+                                        {isHydrating ? 'Searching...' : 'Search'}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="bg-[#F0F4F9] p-4 rounded-[20px]">
                             <p className="text-sm text-slate-700 leading-relaxed">{entry.part.description}</p>
                         </div>
@@ -314,6 +340,29 @@ const PartDetailModal: React.FC<{
                                 <p className="text-sm text-slate-900 mt-1 font-bold">${entry.part.price.toFixed(2)}</p>
                             </div>
                         </div>
+
+                        {entry.part.ports && entry.part.ports.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="material-symbols-rounded text-violet-600 text-[18px]" aria-hidden="true">cable</span>
+                                    <label className="text-[11px] font-bold text-violet-900 uppercase tracking-widest">Ports & Connectors</label>
+                                </div>
+                                <div className="space-y-2">
+                                    {entry.part.ports.map((port, i) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-violet-50 rounded-[12px] border border-violet-100">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-slate-800">{port.name}</span>
+                                                <span className="text-[10px] text-violet-600 font-mono">{port.spec}</span>
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white text-slate-500 border border-violet-100">{port.type}</span>
+                                                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white text-slate-500 border border-violet-100">{port.gender}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {entry.sourcing?.loading ? (
                             <div className="p-8 flex flex-col items-center justify-center text-slate-500 space-y-4 bg-white rounded-[20px] border border-dashed border-gray-200">
@@ -567,6 +616,7 @@ const AppContent: React.FC = () => {
     const [isVisualizing, setIsVisualizing] = useState(false);
     const [isKitting, setIsKitting] = useState(false);
     const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
+    const [isHydrating, setIsHydrating] = useState(false);
 
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
     const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
@@ -606,6 +656,26 @@ const AppContent: React.FC = () => {
             console.error(e);
             draftingEngine.updatePartSourcing(entry.instanceId, [], []);
             refreshState();
+        }
+    };
+
+    const handleHydratePart = async (entry: BOMEntry) => {
+        if (!aiService.hydratePartDetails || isHydrating) return;
+        setIsHydrating(true);
+        try {
+            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category);
+            if (details) {
+                draftingEngine.updatePartDetails(entry.instanceId, details);
+                refreshState();
+                // Re-select the part to show updated data in the modal
+                const updatedSession = draftingEngine.getSession();
+                const updatedEntry = updatedSession.bom.find(b => b.instanceId === entry.instanceId);
+                if (updatedEntry) setSelectedPart(updatedEntry);
+            }
+        } catch (e) {
+            console.error('Hydration failed:', e);
+        } finally {
+            setIsHydrating(false);
         }
     };
 
@@ -767,7 +837,7 @@ const AppContent: React.FC = () => {
             let stateModified = false;
             parsed.toolCalls.forEach(call => {
                 if (call.type === 'initializeDraft') { draftingEngine.initialize(call.name, call.reqs); stateModified = true; }
-                else if (call.type === 'addPart') { draftingEngine.addPart(call.partId, call.qty); stateModified = true; }
+                else if (call.type === 'addPart') { draftingEngine.addPart(call.partId, call.name, call.category, call.qty); stateModified = true; }
                 else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
             });
 
@@ -809,7 +879,7 @@ const AppContent: React.FC = () => {
             />
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
             <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
-            <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} />
+            <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} onHydrate={handleHydratePart} isHydrating={isHydrating} />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
             <CookieConsent />

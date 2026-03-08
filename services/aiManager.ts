@@ -5,24 +5,24 @@ import { GeminiService } from './geminiService.ts';
 const INVALID_PLACEHOLDER = 'UNUSED_PLACEHOLDER_FOR_API_KEY';
 
 export class AIManager {
-  
+
   /**
    * Internal helper to validate if a string is a real API key.
    */
   private static isValidKey(key: any): key is string {
     if (!key || typeof key !== 'string') return false;
-    
+
     const cleaned = key.trim().replace(/^['"](.*)['"]$/, '$1');
-    
-    if (cleaned === '' || 
-        cleaned === INVALID_PLACEHOLDER || 
-        cleaned === 'undefined' || 
-        cleaned === 'null' || 
-        cleaned.includes('YOUR_API_KEY') ||
-        cleaned === 'TODO') {
+
+    if (cleaned === '' ||
+      cleaned === INVALID_PLACEHOLDER ||
+      cleaned === 'undefined' ||
+      cleaned === 'null' ||
+      cleaned.includes('YOUR_API_KEY') ||
+      cleaned === 'TODO') {
       return false;
     }
-    
+
     // Google API Keys are typically much longer than 10 characters
     return cleaned.length > 10;
   }
@@ -37,11 +37,11 @@ export class AIManager {
     // 1. Priority: Runtime injection via /env-config.js (Cloud Run standard)
     // @ts-ignore
     if (typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
-       // @ts-ignore
-       const runtimeKey = window._env_.API_KEY;
-       if (this.isValidKey(runtimeKey)) {
-         key = runtimeKey;
-       }
+      // @ts-ignore
+      const runtimeKey = window._env_.API_KEY;
+      if (this.isValidKey(runtimeKey)) {
+        key = runtimeKey;
+      }
     }
 
     // 2. Fallback: process.env (Vite define or manual injection)
@@ -50,6 +50,15 @@ export class AIManager {
       const processKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
       if (this.isValidKey(processKey)) {
         key = processKey;
+      }
+    }
+
+    // 2b. Fallback: process.env.GEMINI_API_KEY
+    if (!key) {
+      // @ts-ignore
+      const geminiKey = (typeof process !== 'undefined' && process.env) ? process.env.GEMINI_API_KEY : undefined;
+      if (this.isValidKey(geminiKey)) {
+        key = geminiKey;
       }
     }
 
@@ -81,9 +90,9 @@ export class AIManager {
 
     if (!apiKey) {
       console.warn("AIManager: No valid API Key found. Using Mock Service.");
-      return { 
-        service: new MockService(), 
-        error: "Missing API Key. Using Offline Simulation." 
+      return {
+        service: new MockService(),
+        error: "Missing API Key. Using Offline Simulation."
       };
     }
 
@@ -92,9 +101,9 @@ export class AIManager {
       return { service };
     } catch (error: any) {
       console.error("AIManager: Failed to instantiate GeminiService.", error);
-      return { 
-        service: new MockService(), 
-        error: `Service Initialization Failed: ${error.message}` 
+      return {
+        service: new MockService(),
+        error: `Service Initialization Failed: ${error.message}`
       };
     }
   }

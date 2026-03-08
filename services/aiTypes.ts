@@ -1,5 +1,5 @@
 
-import { VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec } from '../types.ts';
+import { Part, VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec } from '../types.ts';
 
 export interface ArchitectResponse {
   reasoning: string;
@@ -10,7 +10,7 @@ export interface ArchitectResponse {
 export interface AIService {
   name: string;
   isOffline: boolean;
-  
+
   /**
    * Returns a safe, masked status of the API key currently in use.
    * Used for unit testing and diagnostics.
@@ -26,6 +26,11 @@ export interface AIService {
   findPartSources?(query: string): Promise<ShoppingOption[] | null>;
 
   findLocalSuppliers?(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null>;
+
+  /**
+   * Uses Google Search grounding to hydrate a virtual part with real-world data.
+   */
+  hydratePartDetails?(name: string, category: string): Promise<Partial<Part> | null>;
 
   verifyDesign?(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse>;
 

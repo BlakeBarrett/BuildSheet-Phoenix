@@ -1,5 +1,4 @@
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
-import { HARDWARE_REGISTRY } from '../data/seedData.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 
@@ -184,25 +183,19 @@ export class DraftingEngine {
     this.saveSession();
   }
 
-  public addPart(partId: string, quantity: number = 1) {
-    let part = HARDWARE_REGISTRY.find(p => p.id === partId);
-    let isVirtual = false;
+  public addPart(partId: string, name?: string, category?: string, quantity: number = 1) {
+    const part: Part = {
+      id: partId,
+      sku: `DRAFT-${partId.toUpperCase()}`,
+      name: name || partId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+      category: category || 'Component',
+      brand: 'TBD',
+      price: 0,
+      description: `${category || 'Component'} added by architect.`,
+      ports: []
+    };
 
-    if (!part) {
-      isVirtual = true;
-      part = {
-        id: partId,
-        sku: `DRAFT-${partId.toUpperCase()}`,
-        name: partId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-        category: 'Inferred Component',
-        brand: 'Design Placeholder',
-        price: 0,
-        description: 'Virtual component suggested by Gemini.',
-        ports: []
-      };
-    }
-
-    const existingEntry = this.session.bom.find(b => b.part.id === part!.id);
+    const existingEntry = this.session.bom.find(b => b.part.id === part.id);
     if (existingEntry) {
       this.updatePartQuantity(existingEntry.instanceId, existingEntry.quantity + quantity);
     } else {
@@ -217,6 +210,19 @@ export class DraftingEngine {
 
     this.session.cacheIsDirty = true;
     this.saveSession();
+  }
+
+  public updatePartDetails(instanceId: string, details: Partial<Part>) {
+    const entry = this.session.bom.find(b => b.instanceId === instanceId);
+    if (entry) {
+      if (details.brand) entry.part.brand = details.brand;
+      if (details.description) entry.part.description = details.description;
+      if (details.price !== undefined && details.price > 0) entry.part.price = details.price;
+      if (details.ports && details.ports.length > 0) entry.part.ports = details.ports;
+      if (details.sku) entry.part.sku = details.sku;
+      this.session.cacheIsDirty = true;
+      this.saveSession();
+    }
   }
 
   public updatePartQuantity(instanceId: string, quantity: number) {
