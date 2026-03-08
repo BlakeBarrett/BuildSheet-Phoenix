@@ -60,25 +60,6 @@ test.describe('GeminiService Nano Banana Integration', () => {
         // If I can't mock easily, I will rename the model in the service and rely on the UI test to verify the "Nano Banana" text.
         // The payload verification is critical though.
 
-        // I will write a test that sub-classes GeminiService to expose the client or mock the `getClient` method.
-
-        class TestGeminiService extends GeminiService {
-            public async getClientForTest() {
-                // @ts-ignore
-                return this.getClient();
-            }
-
-            // Override getClient to return a mock
-            // @ts-ignore
-            private getClient() {
-                return {
-                    models: {
-                        generateContent: mockGenerateContent
-                    }
-                } as any;
-            }
-        }
-
         let capturedParams: any = null;
         const mockGenerateContentSpy = async (params: any) => {
             capturedParams = params;
@@ -95,19 +76,16 @@ test.describe('GeminiService Nano Banana Integration', () => {
                 }]
             };
         };
-
-        const service = new TestGeminiService('fake-key');
+        const service = new GeminiService('fake-key');
         // We need to override the method on the instance or prototype because `getClient` is private and called internally.
         // TypeScript private is soft, runtime it's accessible.
         // But `getClient` returns a new instance. 
-
-        // We can prototype patch `GeminiService.prototype['getClient']`.
         // @ts-ignore
         service['getClient'] = () => ({
             models: {
-                generateContent: mockGenerateContentSpy
+                generateContent: mockGenerateContentSpy as any
             }
-        });
+        } as any);
 
         await service.generateProductImage('test prompt');
 

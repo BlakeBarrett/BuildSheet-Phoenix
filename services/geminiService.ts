@@ -293,7 +293,7 @@ export class GeminiService implements AIService {
             }
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-3.1-pro-preview',
                 contents: prompt,
                 config: {
                     maxOutputTokens: 8192,
@@ -311,7 +311,7 @@ export class GeminiService implements AIService {
         try {
             const ai = this.getClient();
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-3.1-pro-preview',
                 contents: `Manufacturing specs for: ${partName}. Context: ${context}.`,
                 config: {
                     maxOutputTokens: 4096,
@@ -368,7 +368,7 @@ export class GeminiService implements AIService {
             }
 
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-3.1-pro-preview',
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
@@ -409,7 +409,7 @@ export class GeminiService implements AIService {
             const ai = this.getClient();
             const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
             const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-3.1-pro-preview',
                 contents: `Generate a 3D printable enclosure specification for this project. Context: ${context}. Components: ${bomDigest}`,
                 config: {
                     maxOutputTokens: 4096,
