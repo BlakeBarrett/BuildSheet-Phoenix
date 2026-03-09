@@ -16,12 +16,13 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const { t, i18n } = useTranslation();
 
-    // Automatically select the latest image when the image list changes
+    // Automatically select the latest image when a new one arrives
+    const latestImageId = images.length > 0 ? images[images.length - 1].id : null;
     useEffect(() => {
-        if (images.length > 0) {
-            setSelectedImageId(images[images.length - 1].id);
+        if (latestImageId) {
+            setSelectedImageId(latestImageId);
         }
-    }, [images.length]);
+    }, [latestImageId]);
 
     const activeImage = selectedImageId
         ? images.find(img => img.id === selectedImageId)
