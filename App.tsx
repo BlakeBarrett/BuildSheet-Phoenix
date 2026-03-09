@@ -1,4 +1,5 @@
 import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
+import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
@@ -1182,12 +1183,33 @@ const AppContent: React.FC = () => {
                                 accept="image/*" 
                                 className="hidden" 
                                 id="image-upload" 
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (file) {
+                                        setIsThinking(true);
+                                        let processFile = file;
+                                        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+                                        
+                                        if (isHeic) {
+                                            try {
+                                                const convertedBlob = await heic2any({
+                                                    blob: file,
+                                                    toType: "image/jpeg",
+                                                    quality: 0.8
+                                                });
+                                                const blobArray = Array.isArray(convertedBlob) ? convertedBlob : [convertedBlob];
+                                                processFile = new File([blobArray[0]], file.name.replace(/\.hei[cf]$/i, '.jpg'), { type: "image/jpeg" });
+                                            } catch (err) {
+                                                console.error("HEIC conversion failed:", err);
+                                            }
+                                        }
+
                                         const reader = new FileReader();
-                                        reader.onloadend = () => setSelectedImage(reader.result as string);
-                                        reader.readAsDataURL(file);
+                                        reader.onloadend = () => {
+                                            setSelectedImage(reader.result as string);
+                                            setIsThinking(false);
+                                        };
+                                        reader.readAsDataURL(processFile);
                                     }
                                     e.target.value = '';
                                 }} 
