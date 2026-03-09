@@ -416,10 +416,10 @@ export class GeminiService implements AIService {
             const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
             const response = await ai.models.generateContent({
                 model: 'gemini-3.1-pro-preview',
-                contents: `Generate a 3D printable enclosure specification for this project. Context: ${context}. Components: ${bomDigest}`,
+                contents: `Generate a 3D printable enclosure or custom adapter specification for this project. You MUST output raw OpenSCAD code for transparency and manufacturing. Context: ${context}. Components: ${bomDigest}`,
                 config: {
-                    maxOutputTokens: 4096,
-                    thinkingConfig: { thinkingBudget: 2048 },
+                    maxOutputTokens: 8192,
+                    thinkingConfig: { thinkingBudget: 4096 },
                     responseMimeType: "application/json",
                     responseSchema: {
                         type: Type.OBJECT,
@@ -429,7 +429,7 @@ export class GeminiService implements AIService {
                             openSCAD: { type: Type.STRING },
                             description: { type: Type.STRING }
                         },
-                        required: ['material', 'dimensions', 'description']
+                        required: ['material', 'dimensions', 'description', 'openSCAD']
                     }
                 }
             });

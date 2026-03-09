@@ -131,7 +131,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
             {/* Gallery Strip */}
             <div className="h-20 w-full md:h-full md:w-[100px] flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto p-1 scrollbar-hide shrink-0">
                 <button
-                    onClick={onGenerate}
+                    onClick={() => onGenerate()}
                     disabled={isGenerating || !hasItems}
                     className="flex-shrink-0 w-20 h-full md:w-full md:h-24 rounded-[20px] border-2 border-dashed border-indigo-200 bg-indigo-50/50 flex flex-col items-center justify-center gap-1 text-indigo-400 hover:bg-indigo-100 hover:border-indigo-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                     aria-label={t('vis.new')}

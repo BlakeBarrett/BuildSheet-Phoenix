@@ -215,6 +215,7 @@ export class DraftingEngine {
   public updatePartDetails(instanceId: string, details: Partial<Part>) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
+      if (details.name) entry.part.name = details.name;
       if (details.brand) entry.part.brand = details.brand;
       if (details.description) entry.part.description = details.description;
       if (details.price !== undefined && details.price > 0) entry.part.price = details.price;

@@ -284,7 +284,20 @@ const PartDetailModal: React.FC<{
     onSource: (entry: BOMEntry) => void;
     onHydrate: (entry: BOMEntry) => void;
     isHydrating?: boolean;
-}> = ({ entry, onClose, onSource, onHydrate, isHydrating }) => {
+    onUpdateQuantity?: (instanceId: string, qty: number) => void;
+    onUpdateName?: (instanceId: string, name: string) => void;
+    onRemove?: (instanceId: string) => void;
+}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove }) => {
+    const [editName, setEditName] = useState(entry?.part.name || '');
+    const [editQty, setEditQty] = useState(entry?.quantity || 1);
+
+    useEffect(() => {
+        if (entry) {
+            setEditName(entry.part.name);
+            setEditQty(entry.quantity);
+        }
+    }, [entry]);
+
     if (!entry) return null;
     const isVirtual = entry.part.brand === 'TBD';
     return (
@@ -295,15 +308,25 @@ const PartDetailModal: React.FC<{
                         <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center font-bold text-xl ${isVirtual ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'}`} aria-hidden="true">
                             {entry.part.category[0] || 'P'}
                         </div>
-                        <div>
-                            <h3 id="part-title" className="text-xl font-bold text-slate-800 tracking-tight">{entry.part.name}</h3>
-                            <p className="text-xs text-slate-600 font-medium flex items-center gap-2">
+                        <div className="flex-1">
+                            {onUpdateName ? (
+                                <input
+                                    value={editName}
+                                    onChange={e => setEditName(e.target.value)}
+                                    onBlur={() => onUpdateName(entry.instanceId, editName)}
+                                    className="text-xl font-bold w-full text-slate-800 tracking-tight bg-transparent border-b border-gray-200 outline-none focus:border-indigo-400"
+                                    aria-label="Part Name"
+                                />
+                            ) : (
+                                <h3 id="part-title" className="text-xl font-bold text-slate-800 tracking-tight">{entry.part.name}</h3>
+                            )}
+                            <p className="text-xs text-slate-600 font-medium flex items-center gap-2 mt-1">
                                 {entry.part.brand}
                                 {isVirtual && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Unverified</span>}
                             </p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <IconButton icon="close" onClick={onClose} title="Close" className="self-start" />
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     <div className="space-y-6">
@@ -331,13 +354,28 @@ const PartDetailModal: React.FC<{
                             <p className="text-sm text-slate-700 leading-relaxed">{entry.part.description}</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-3">
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SKU</label>
-                                <p className="text-sm font-mono text-slate-900 mt-1">{entry.part.sku}</p>
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Qty</label>
+                                {onUpdateQuantity ? (
+                                    <input
+                                        type="number" min="1"
+                                        value={editQty}
+                                        onChange={e => setEditQty(parseInt(e.target.value) || 1)}
+                                        onBlur={() => onUpdateQuantity(entry.instanceId, editQty)}
+                                        className="w-full text-sm font-bold text-slate-900 mt-1 bg-transparent border-b border-gray-200 outline-none focus:border-indigo-400"
+                                        aria-label="Quantity"
+                                    />
+                                ) : (
+                                    <p className="text-sm font-bold text-slate-900 mt-1">{entry.quantity}</p>
+                                )}
                             </div>
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Target Price</label>
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SKU</label>
+                                <p className="text-sm font-mono text-slate-900 mt-1 truncate">{entry.part.sku}</p>
+                            </div>
+                            <div className="p-4 border border-gray-100 rounded-[20px]">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Price</label>
                                 <p className="text-sm text-slate-900 mt-1 font-bold">${entry.part.price.toFixed(2)}</p>
                             </div>
                         </div>
@@ -419,7 +457,10 @@ const PartDetailModal: React.FC<{
                         )}
                     </div>
                 </div>
-                <div className="p-6 border-t border-gray-100 flex flex-wrap gap-3 justify-end">
+                <div className="p-6 border-t border-gray-100 flex flex-wrap gap-3 justify-end items-center">
+                    {onRemove && (
+                        <Button variant="ghost" onClick={() => onRemove(entry.instanceId)} className="mr-auto text-red-600 hover:bg-red-50" icon="delete">Remove</Button>
+                    )}
                     <Button variant="tonal" onClick={() => onSource(entry)} disabled={entry.sourcing?.loading} icon="refresh">Update Sourcing</Button>
                     <Button variant="primary" onClick={onClose}>Close</Button>
                 </div>
@@ -643,6 +684,55 @@ const AppContent: React.FC = () => {
     useEffect(() => {
         setProjectsList(draftingEngine.getProjectsList());
     }, []);
+
+    const triggerArchitectRevalidation = async () => {
+        draftingEngine.addMessage({ role: 'assistant', content: "**System:** Manual BOM edit detected. Triggering Architect re-validation for constraints (836cc engine).", timestamp: new Date() });
+        refreshState();
+        try {
+            const history = draftingEngine.getSession().messages.map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: [{ text: m.content }]
+            }));
+            const architectResponse = await aiService.askArchitect("A manual edit occurred. Re-validate the active BOM layout and state to check for kinematic or thermal conflicts against the 836cc engine constraints. Be brief in your analysis.", history);
+            const parsed = aiService.parseArchitectResponse(architectResponse.text);
+            
+            draftingEngine.addMessage({ 
+                role: 'assistant', 
+                content: parsed.reasoning || architectResponse.text, 
+                timestamp: new Date()
+            });
+        } catch (e: any) {
+            draftingEngine.addMessage({ role: 'assistant', content: `[VALIDATION ERROR] ${e.message}`, timestamp: new Date() });
+        } finally {
+            refreshState();
+        }
+    };
+
+    const handleUpdateQuantity = (instanceId: string, qty: number) => {
+        draftingEngine.updatePartQuantity(instanceId, qty);
+        refreshState();
+        triggerArchitectRevalidation();
+    };
+
+    const handleUpdateName = (instanceId: string, name: string) => {
+        draftingEngine.updatePartDetails(instanceId, { name });
+        refreshState();
+        triggerArchitectRevalidation();
+    };
+
+    const handleRemovePart = (instanceId: string) => {
+        draftingEngine.removePart(instanceId);
+        if (selectedPart?.instanceId === instanceId) setSelectedPart(null);
+        refreshState();
+        triggerArchitectRevalidation();
+    };
+
+    const handleAddCustomPart = () => {
+        const id = "custom-part-" + Math.random().toString(36).substr(2, 5);
+        draftingEngine.addPart(id, "New Custom Part", "Custom Component", 1);
+        refreshState();
+        triggerArchitectRevalidation();
+    };
 
     const handleSourcePart = async (entry: BOMEntry) => {
         setSession(prev => ({
@@ -892,7 +982,16 @@ const AppContent: React.FC = () => {
             />
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
             <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
-            <PartDetailModal entry={selectedPart} onClose={() => setSelectedPart(null)} onSource={handleSourcePart} onHydrate={handleHydratePart} isHydrating={isHydrating} />
+            <PartDetailModal 
+                entry={selectedPart} 
+                onClose={() => setSelectedPart(null)} 
+                onSource={handleSourcePart} 
+                onHydrate={handleHydratePart} 
+                isHydrating={isHydrating} 
+                onUpdateQuantity={handleUpdateQuantity}
+                onUpdateName={handleUpdateName}
+                onRemove={handleRemovePart}
+            />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
@@ -1082,7 +1181,8 @@ const AppContent: React.FC = () => {
                                     ${draftingEngine.getTotalCost().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                             </div>
-                            <div className="text-right">
+                            <div className="flex flex-col items-end gap-2">
+                                <Button variant="ghost" onClick={handleAddCustomPart} className="text-xs bg-indigo-50 text-indigo-700 h-8" icon="add">Custom Part</Button>
                                 <span className="text-xs font-medium text-slate-500">{session.bom.length} Components</span>
                             </div>
                         </div>
