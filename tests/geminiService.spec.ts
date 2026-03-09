@@ -98,4 +98,52 @@ test.describe('GeminiService Nano Banana Integration', () => {
         expect(capturedParams.contents.parts[0].text).toContain('test prompt');
     });
 
+    test('parseArchitectResponse should extract single addPart', () => {
+        const service = new GeminiService('fake-key');
+        const input = `Here is my reasoning. addPart("test-part", "Test Part", "Category", 1);`;
+        const result = service.parseArchitectResponse(input);
+        
+        expect(result.toolCalls).toHaveLength(1);
+        expect(result.toolCalls[0]).toEqual({ type: 'addPart', partId: 'test-part', name: 'Test Part', category: 'Category', qty: 1 });
+        expect(result.reasoning).toBe('Here is my reasoning.');
+    });
+
+    test('parseArchitectResponse should extract un-semicoloned addPart calls on multiple lines', () => {
+        const service = new GeminiService('fake-key');
+        const input = `To integrate your 27" monitor and provide seamless switching between the ProArt PC, the Mac Mini, and the XPS 17 (via eGPU), we need a Triple-Input DisplayPort KVM.
+
+The Architecture Reasoning:
+The Standing Surface: I've added a Rubberwood Butcher Block. Wire shelves are unstable for typing; this solid mass provides the "standing desk" feel and matches the wood accents of your ProArt case.
+The Switching Logic:
+Input 1: Asus ProArt PC (Direct DisplayPort + USB).
+Input 2: Mac Mini (Thunderbolt to DisplayPort + USB).
+Input 3: Razer Core X eGPU (The XPS 17 plugs into the eGPU, and the eGPU sends DisplayPort + USB to the KVM).
+Thunderbolt Routing: We'll use a CalDigit TS4 as a "Pre-Switch" for the Mac. This allows you to have one cable for the Mac that handles its data and video before it hits the KVM.
+The Shelf: A 24-inch deep industrial unit is mandatory. Your ProArt PA602 is 23.6" deep; a standard 18" shelf would cause it to overhang dangerously.
+addPart("seville-classics-24x36-shelf", "Seville Classics UltraDurable 5-Tier Steel Wire Shelving (24\\" x 36\\")", "Furniture", 1) addPart("hardwood-butcher-block-36x24", "36\\" x 24\\" Solid Rubberwood Workbench Top", "Furniture", 1)`;
+
+        const result = service.parseArchitectResponse(input);
+        
+        expect(result.toolCalls).toHaveLength(2);
+        
+        expect(result.toolCalls[0]).toEqual({ 
+            type: 'addPart', 
+            partId: 'seville-classics-24x36-shelf', 
+            name: 'Seville Classics UltraDurable 5-Tier Steel Wire Shelving (24" x 36")', 
+            category: 'Furniture', 
+            qty: 1 
+        });
+        
+        expect(result.toolCalls[1]).toEqual({ 
+            type: 'addPart', 
+            partId: 'hardwood-butcher-block-36x24', 
+            name: '36" x 24" Solid Rubberwood Workbench Top', 
+            category: 'Furniture', 
+            qty: 1 
+        });
+        
+        expect(result.reasoning).not.toContain('addPart');
+        expect(result.reasoning).toContain('The Shelf: A 24-inch deep industrial unit is mandatory.');
+    });
+
 });

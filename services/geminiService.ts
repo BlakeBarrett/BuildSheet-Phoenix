@@ -137,15 +137,20 @@ export class GeminiService implements AIService {
 
         let reasoning = text;
 
-        const initMatch = text.match(/initializeDraft\s*\(\s*["'](.+?)["']\s*,\s*["'](.+?)["']\s*\)\s*;?/);
+        const initMatch = text.match(/initializeDraft\s*\(\s*["'](.*?)["']\s*,\s*["'](.*?)["']\s*\)\s*;?/);
         if (initMatch) {
             toolCalls.push({ type: 'initializeDraft', name: initMatch[1], reqs: initMatch[2] });
             reasoning = reasoning.replace(initMatch[0], '');
         }
 
-        const addMatches = [...text.matchAll(/addPart\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*,\s*(\d+)\s*\)\s*;?/g)];
+        const addMatches = [...text.matchAll(/addPart\s*\(\s*["']([^"']+)["']\s*,\s*["'](.*?)(?<!\\)["']\s*,\s*["']([^"']+)["']\s*,\s*(\d+)\s*\)\s*;?/gs)];
         addMatches.forEach(m => {
-            toolCalls.push({ type: 'addPart', partId: m[1], name: m[2], category: m[3], qty: parseInt(m[4]) });
+            const partId = m[1];
+            // Unescape quotes if any are escaped inside the name argument
+            const name = m[2].replace(/\\"/g, '"').replace(/\\'/g, "'");
+            const category = m[3];
+            const qty = parseInt(m[4]);
+            toolCalls.push({ type: 'addPart', partId, name, category, qty });
             reasoning = reasoning.replace(m[0], '');
         });
 

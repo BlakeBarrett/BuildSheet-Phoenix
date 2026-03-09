@@ -1180,7 +1180,7 @@ const AppContent: React.FC = () => {
                         <div className="relative bg-[#F2F6FC] rounded-[32px] transition-all hover:bg-[#EBF1F8] focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 focus-within:shadow-md flex items-center">
                             <input 
                                 type="file" 
-                                accept="image/*" 
+                                accept="image/*,.heic,.heif,image/heic,image/heif" 
                                 className="hidden" 
                                 id="image-upload" 
                                 onChange={async (e) => {
