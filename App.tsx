@@ -645,6 +645,7 @@ const AppContent: React.FC = () => {
     const [draftingEngine] = useState(() => getDraftingEngine());
     const [session, setSession] = useState<DraftingSession>(draftingEngine.getSession());
     const [input, setInput] = useState('');
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isThinking, setIsThinking] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -913,19 +914,32 @@ const AppContent: React.FC = () => {
 
     const handleSend = async () => {
         if (!input.trim() || isThinking) return;
-        draftingEngine.addMessage({ role: 'user', content: input, timestamp: new Date() });
+        
+        const currentInput = input;
+        const currentImage = selectedImage;
+        
+        draftingEngine.addMessage({ role: 'user', content: currentInput, attachment: currentImage || undefined, timestamp: new Date() });
         refreshState();
-        const tempInput = input;
         setInput('');
+        setSelectedImage(null);
         setIsThinking(true);
         try {
             // Fix: Map 'assistant' role to 'model' for Gemini API compatibility
-            const history = session.messages.map(m => ({
-                role: m.role === 'user' ? 'user' : 'model',
-                parts: [{ text: m.content }]
-            }));
+            const history = session.messages.map(m => {
+                const parts: any[] = [{ text: m.content }];
+                if (m.attachment) {
+                    const matches = m.attachment.match(/^data:(.+?);base64,(.+)$/);
+                    if (matches && matches.length === 3) {
+                        parts.push({ inlineData: { mimeType: matches[1], data: matches[2] } });
+                    }
+                }
+                return {
+                    role: m.role === 'user' ? 'user' : 'model',
+                    parts
+                };
+            });
             const startTime = Date.now();
-            const architectResponse = await aiService.askArchitect(tempInput, history);
+            const architectResponse = await aiService.askArchitect(currentInput, history, currentImage || undefined);
             const latencyMs = Date.now() - startTime;
             const parsed = aiService.parseArchitectResponse(architectResponse.text);
 
@@ -1081,6 +1095,11 @@ const AppContent: React.FC = () => {
                                         : 'bg-[#F2F6FC] text-[#1F1F1F] rounded-[24px] rounded-bl-[4px] border border-white'}
                     `}>
                                     <div className={`px-6 py-4 prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
+                                        {m.attachment && (
+                                            <div className="mb-3">
+                                                <img src={m.attachment} alt="Uploaded attachment" className="max-w-full sm:max-w-xs rounded-[12px] border border-white/20 shadow-sm" />
+                                            </div>
+                                        )}
                                         <ReactMarkdown>{m.content}</ReactMarkdown>
                                     </div>
                                     {m.role === 'user' && (
@@ -1149,14 +1168,44 @@ const AppContent: React.FC = () => {
 
                     {/* Input Area */}
                     <footer className="p-4 bg-white shrink-0 z-20">
-                        <div className="relative bg-[#F2F6FC] rounded-[32px] transition-all hover:bg-[#EBF1F8] focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 focus-within:shadow-md">
+                        {selectedImage && (
+                            <div className="mb-3 relative inline-block p-1 bg-white border border-gray-200 rounded-xl shadow-sm">
+                                <img src={selectedImage} alt="Upload preview" className="w-16 h-16 object-cover rounded-lg" />
+                                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-700 shadow-sm" title="Remove image">
+                                    <span className="material-symbols-rounded text-[14px]">close</span>
+                                </button>
+                            </div>
+                        )}
+                        <div className="relative bg-[#F2F6FC] rounded-[32px] transition-all hover:bg-[#EBF1F8] focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 focus-within:shadow-md flex items-center">
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                id="image-upload" 
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => setSelectedImage(reader.result as string);
+                                        reader.readAsDataURL(file);
+                                    }
+                                    e.target.value = '';
+                                }} 
+                            />
+                            <label 
+                                htmlFor="image-upload" 
+                                className="w-12 h-12 ml-1 text-slate-400 hover:text-indigo-600 rounded-full flex items-center justify-center transition-all cursor-pointer hover:bg-white shrink-0"
+                                title="Upload image"
+                            >
+                                <span className="material-symbols-rounded">image</span>
+                            </label>
                             <textarea
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                                 placeholder="Instruct Gemini to build..."
                                 aria-label="Instruct Gemini to build"
-                                className="w-full pl-6 pr-14 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500"
+                                className="w-full pr-14 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500"
                                 rows={1}
                             />
                             <button
