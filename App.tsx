@@ -676,7 +676,7 @@ const AppContent: React.FC = () => {
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [session.messages, mobileTab]);
+    }, [session.messages, mobileTab, isThinking]);
 
     const refreshState = () => {
         setSession(draftingEngine.getSession());
