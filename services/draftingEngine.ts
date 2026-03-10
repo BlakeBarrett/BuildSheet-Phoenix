@@ -1,6 +1,7 @@
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
+import { get, set, del } from 'idb-keyval';
 
 export interface ProjectIndexEntry {
   id: string;
@@ -18,9 +19,32 @@ export class DraftingEngine {
   private ACTIVE_ID_KEY = 'buildsheet_active_project_id';
   private SESSION_PREFIX = 'buildsheet_project_';
 
+  private onImagesLoaded?: () => void;
+
+  public setOnImagesLoaded(cb: () => void) {
+    this.onImagesLoaded = cb;
+    // Trigger immediately if images were already loaded synchronously during hydrated states or prior
+    if (this.session.generatedImages.length > 0) {
+        cb();
+    }
+  }
+
   constructor() {
     this.session = this.loadInitialSession();
     this.saveSession();
+    this.loadImagesAsync();
+  }
+
+  private loadImagesAsync() {
+    get(this.SESSION_PREFIX + this.session.id + '_images').then((images: any) => {
+        if (images && Array.isArray(images)) {
+            this.session.generatedImages = images.map(img => ({
+                ...img,
+                timestamp: new Date(img.timestamp)
+            }));
+            if (this.onImagesLoaded) this.onImagesLoaded();
+        }
+    }).catch(e => console.error("IDB load failed", e));
   }
 
   private loadInitialSession(): DraftingSession {
@@ -89,20 +113,21 @@ export class DraftingEngine {
     try {
       const key = this.SESSION_PREFIX + session.id;
 
+      // Always strip images from localStorage to prevent 5MB quota exhaustion
+      const sessionNoImages = {
+        ...session,
+        generatedImages: []
+      };
+
       try {
-        localStorage.setItem(key, JSON.stringify(session));
+        localStorage.setItem(key, JSON.stringify(sessionNoImages));
       } catch (e: any) {
-        // Fallback: If 1 image is still too big, save with NO images.
-        if (e.name === 'QuotaExceededError' || e.code === 22 || e.message?.includes('quota')) {
-          console.warn("Storage quota exceeded. Dropping all images for persistence.");
-          const sessionNoImages = {
-            ...session,
-            generatedImages: []
-          };
-          localStorage.setItem(key, JSON.stringify(sessionNoImages));
-        } else {
-          throw e;
-        }
+        console.error("Local storage quota exceeded even without images.", e);
+      }
+
+      // Persist images boundlessly to IndexedDB
+      if (session.generatedImages.length > 0) {
+         set(key + '_images', session.generatedImages).catch(e => console.error("IDB save failed", e));
       }
 
       this.updateProjectIndex(session);
@@ -150,11 +175,13 @@ export class DraftingEngine {
     if (stored) {
       this.session = this.hydrateSession(JSON.parse(stored));
       this.saveSession(); // Updates modified date and moves to top of index
+      this.loadImagesAsync();
     }
   }
 
   public deleteProject(id: string) {
     localStorage.removeItem(this.SESSION_PREFIX + id);
+    del(this.SESSION_PREFIX + id + '_images').catch(console.error);
     const indexRaw = localStorage.getItem(this.INDEX_KEY);
     if (indexRaw) {
       let index = JSON.parse(indexRaw);

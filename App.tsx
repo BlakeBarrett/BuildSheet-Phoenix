@@ -302,8 +302,8 @@ const PartDetailModal: React.FC<{
     if (!entry) return null;
     if (!entry) return null;
     const isVirtual = entry.part.brand === 'TBD';
-    const isOwned = entry.part.description?.includes('(User Owned)');
-    const displayDescription = entry.part.description?.replace(/\(User Owned\)/gi, '').trim() || 'No description provided.';
+    const isOwned = /user owned/i.test(entry.part.description || '');
+    const displayDescription = entry.part.description?.replace(/\s*\({0,1}user owned\){0,1}/gi, '').trim() || 'No description provided.';
     return (
         <div className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="part-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -689,7 +689,12 @@ const AppContent: React.FC = () => {
 
     useEffect(() => {
         setProjectsList(draftingEngine.getProjectsList());
-    }, []);
+        
+        // Listen for async image loading from IndexedDB
+        draftingEngine.setOnImagesLoaded(() => {
+            setSession(draftingEngine.getSession());
+        });
+    }, [draftingEngine]);
 
     const triggerArchitectRevalidation = async () => {
         draftingEngine.addMessage({ role: 'assistant', content: "**System:** Manual BOM edit detected. Triggering Architect re-validation for constraints (836cc engine).", timestamp: new Date() });
@@ -1283,7 +1288,7 @@ const AppContent: React.FC = () => {
                                         <div className="flex gap-2 items-center mt-2 flex-wrap">
                                             <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
                                             <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
-                                            {entry.part.description?.includes('(User Owned)')
+                                            {/user owned/i.test(entry.part.description || '')
                                                 ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">inventory</span>Owned</span>
                                                 : entry.sourcing?.online?.length
                                                     ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
