@@ -155,6 +155,7 @@ export interface DraftingSession {
   lastModified: Date;
   // Caching & Validation
   cachedAuditResult?: string;
+  cachedAuditActions?: { type: 'addPart' | 'removePart'; partId?: string; name?: string; category?: string; quantity?: number; instanceId?: string; reason: string }[];
   cachedAssemblyPlan?: AssemblyPlan;
   cacheIsDirty: boolean; // True if BOM changed since last audit/plan
 }

@@ -136,7 +136,10 @@ export class MockService implements AIService {
 
     return {
       reasoning,
-      toolCalls: []
+      toolCalls: [],
+      auditActions: hasBattery && hasLoad ? [] : [
+        { type: 'addPart' as const, partId: 'usb-c-cable', name: 'USB-C to USB-C Cable (1m)', category: 'Cable', quantity: 1, reason: 'No USB-C Cable detected in BOM. User cannot charge device.' }
+      ]
     };
   }
 

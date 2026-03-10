@@ -286,17 +286,19 @@ export class DraftingEngine {
 
   public cacheAuditResult(result: string) {
     this.session.cachedAuditResult = result;
-    if (this.session.cachedAssemblyPlan) {
-      this.session.cacheIsDirty = false;
-    }
+    this.session.cachedAuditActions = undefined; // Clear stale actions; they'll be pre-computed after
+    this.session.cacheIsDirty = false;
+    this.saveSession();
+  }
+
+  public cacheAuditActions(actions: DraftingSession['cachedAuditActions']) {
+    this.session.cachedAuditActions = actions;
     this.saveSession();
   }
 
   public cacheAssemblyPlan(plan: AssemblyPlan) {
     this.session.cachedAssemblyPlan = plan;
-    if (this.session.cachedAuditResult) {
-      this.session.cacheIsDirty = false;
-    }
+    this.session.cacheIsDirty = false;
     this.saveSession();
   }
 

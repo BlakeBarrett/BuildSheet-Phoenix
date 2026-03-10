@@ -179,3 +179,127 @@ test.describe('DraftingEngine Sourcing & Hydration Persistence', () => {
         expect(passed).toBe(true);
     });
 });
+
+test.describe('Audit Changelist Flow', () => {
+
+    test('should persist cachedAuditActions through save/load cycle', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            const mockActions = [
+                { type: 'removePart' as const, instanceId: 'otg-adapter-abc12', name: 'Micro-USB OTG Adapter', reason: 'OTG adapter forces Host Mode, breaking USB Gadget drivers' },
+                { type: 'addPart' as const, partId: 'micro-usb-breakout', name: 'Micro-USB Male Breakout Board', category: 'Connector', quantity: 1, reason: 'Leaves ID pin floating for Device/Gadget Mode' },
+                { type: 'addPart' as const, partId: 'tps2113a-breakout', name: 'TPS2113A Power Multiplexer Breakout', category: 'Power', quantity: 1, reason: 'Prevents backfeed and brownout between Host A and Host B' }
+            ];
+
+            const mockSession = {
+                id: 'audit-test',
+                slug: 'build-aud',
+                name: 'Audit Test',
+                ownerId: 'test-user',
+                designRequirements: 'USB KVM switch',
+                bom: [],
+                cachedAuditResult: 'Some audit text mentioning USB issues',
+                cachedAuditActions: mockActions,
+                generatedImages: [],
+                messages: [],
+                createdAt: new Date().toISOString(),
+                lastModified: new Date().toISOString(),
+                cacheIsDirty: false
+            };
+
+            localStorage.setItem('buildsheet_project_audit-test', JSON.stringify(mockSession));
+
+            const stored = localStorage.getItem('buildsheet_project_audit-test');
+            if (!stored) return false;
+
+            const parsed = JSON.parse(stored);
+            return (
+                parsed.cachedAuditActions.length === 3 &&
+                parsed.cachedAuditActions[0].type === 'removePart' &&
+                parsed.cachedAuditActions[0].instanceId === 'otg-adapter-abc12' &&
+                parsed.cachedAuditActions[1].type === 'addPart' &&
+                parsed.cachedAuditActions[1].partId === 'micro-usb-breakout' &&
+                parsed.cachedAuditActions[1].category === 'Connector' &&
+                parsed.cachedAuditActions[2].name === 'TPS2113A Power Multiplexer Breakout' &&
+                parsed.cachedAuditActions[2].reason === 'Prevents backfeed and brownout between Host A and Host B'
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should display "Suggested Changes" section in audit modal when actions are cached', async ({ page }) => {
+        // Pre-seed localStorage with a session that has BOM, audit result, and audit actions
+        const mockSession = {
+            id: 'audit-ui-test',
+            slug: 'build-ui',
+            name: 'Audit UI Test',
+            ownerId: 'test-user',
+            designRequirements: 'USB KVM switch with Pi Zero 2 W',
+            bom: [
+                {
+                    instanceId: 'pi-zero-001',
+                    quantity: 1,
+                    part: { id: 'pi-zero-2w', sku: '', name: 'Raspberry Pi Zero 2 W', category: 'Microcontroller', brand: 'Raspberry Pi', price: 15, ports: [], description: 'Compact SBC' }
+                },
+                {
+                    instanceId: 'otg-adapter-001',
+                    quantity: 1,
+                    part: { id: 'otg-adapter', sku: '', name: 'Micro-USB OTG Adapter', category: 'Connector', brand: 'Generic', price: 5, ports: [], description: 'USB OTG adapter' }
+                }
+            ],
+            cachedAuditResult: '**Critical:** The OTG adapter forces Host Mode. Replace with a breakout board.',
+            cachedAuditActions: [
+                { type: 'removePart', instanceId: 'otg-adapter-001', name: 'Micro-USB OTG Adapter', reason: 'Forces Host Mode, breaking USB Gadget' },
+                { type: 'addPart', partId: 'usb-breakout', name: 'Micro-USB Breakout Board', category: 'Connector', quantity: 1, reason: 'Leaves ID pin floating for Device Mode' }
+            ],
+            generatedImages: [],
+            messages: [],
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            cacheIsDirty: false
+        };
+
+        // Set localStorage before navigating
+        await page.addInitScript((session) => {
+            localStorage.setItem('buildsheet_active_project_id', session.id);
+            localStorage.setItem(`buildsheet_project_${session.id}`, JSON.stringify(session));
+            localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: session.id, name: session.name, lastModified: session.lastModified, preview: '' }]));
+        }, mockSession);
+
+        await page.goto('http://localhost:3000');
+        await page.setViewportSize({ width: 1400, height: 900 });
+        await page.waitForTimeout(1000);
+
+        // Dismiss cookie consent dialog if present
+        const acceptAll = page.locator('button:has-text("Accept All")');
+        if (await acceptAll.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await acceptAll.click();
+            await page.waitForTimeout(300);
+        }
+
+        // Click "View Audit" to open the modal (button text changes when audit is cached and not dirty)
+        const viewAuditButton = page.locator('button:has-text("View Audit")');
+        await viewAuditButton.click({ timeout: 5000 });
+        await page.waitForTimeout(500);
+
+        // The audit modal should show with the cached result
+        const auditModal = page.locator('[aria-labelledby="audit-title"]');
+        await expect(auditModal).toBeVisible({ timeout: 3000 });
+
+        // The "Suggested Changes" section should be rendered with our 2 cached actions
+        const suggestedHeader = page.locator('h4:has-text("Suggested Changes")');
+        await expect(suggestedHeader).toBeVisible({ timeout: 3000 });
+
+        // Verify the individual change items are rendered
+        const removeItem = page.locator('text=Remove: Micro-USB OTG Adapter');
+        const addItem = page.locator('text=Add: Micro-USB Breakout Board');
+        await expect(removeItem).toBeVisible({ timeout: 2000 });
+        await expect(addItem).toBeVisible({ timeout: 2000 });
+
+        // The "Apply Recommended Changes" button should be visible
+        const applyButton = page.locator('button:has-text("Apply Recommended Changes")');
+        await expect(applyButton).toBeVisible({ timeout: 2000 });
+    });
+});

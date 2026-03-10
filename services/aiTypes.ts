@@ -5,6 +5,7 @@ export interface ArchitectResponse {
   reasoning: string;
   toolCalls: any[];
   visualization?: VisualManifest;
+  auditActions?: AuditAction[];
 }
 
 export interface AuditAction {

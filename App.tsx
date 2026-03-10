@@ -593,10 +593,12 @@ const AuditModal: React.FC<{
     isRunning: boolean;
     isDirty: boolean;
     isApplying?: boolean;
+    proposedActions?: DraftingSession['cachedAuditActions'];
     onRefresh: () => void;
     onApplyChanges?: () => void;
-}> = ({ isOpen, onClose, result, isRunning, isDirty, isApplying, onRefresh, onApplyChanges }) => {
+}> = ({ isOpen, onClose, result, isRunning, isDirty, isApplying, proposedActions, onRefresh, onApplyChanges }) => {
     if (!isOpen) return null;
+    const hasActions = proposedActions && proposedActions.length > 0;
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="audit-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -636,8 +638,39 @@ const AuditModal: React.FC<{
                             <p className="text-slate-500 font-medium animate-pulse">Applying recommended changes...</p>
                         </div>
                     ) : result ? (
-                        <div className="prose prose-sm max-w-none text-slate-600">
-                            <ReactMarkdown>{result}</ReactMarkdown>
+                        <div className="space-y-6">
+                            <div className="prose prose-sm max-w-none text-slate-600">
+                                <ReactMarkdown>{result}</ReactMarkdown>
+                            </div>
+
+                            {/* Structured Changelist */}
+                            {hasActions && (
+                                <div className="border border-emerald-200 rounded-[20px] overflow-hidden">
+                                    <div className="bg-emerald-50 px-5 py-3 flex items-center gap-2">
+                                        <span className="material-symbols-rounded text-emerald-600 text-[18px]" aria-hidden="true">checklist</span>
+                                        <h4 className="text-sm font-bold text-emerald-900 uppercase tracking-wider">Suggested Changes ({proposedActions!.length})</h4>
+                                    </div>
+                                    <div className="divide-y divide-emerald-100">
+                                        {proposedActions!.map((action, i) => (
+                                            <div key={i} className="px-5 py-3 flex items-start gap-3">
+                                                <span className={`material-symbols-rounded text-[18px] mt-0.5 shrink-0 ${
+                                                    action.type === 'addPart' ? 'text-emerald-600' : 'text-red-500'
+                                                }`} aria-hidden="true">
+                                                    {action.type === 'addPart' ? 'add_circle' : 'remove_circle'}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-slate-800">
+                                                        {action.type === 'addPart' ? 'Add' : 'Remove'}: {action.name || action.instanceId}
+                                                        {action.category && <span className="text-xs text-slate-400 ml-2">({action.category})</span>}
+                                                        {action.quantity && action.quantity > 1 && <span className="text-xs text-slate-400 ml-1">×{action.quantity}</span>}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 mt-0.5">{action.reason}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="text-center text-gray-400 py-10">
@@ -650,7 +683,7 @@ const AuditModal: React.FC<{
                     {isDirty && (
                         <Button variant="tonal" onClick={onRefresh} disabled={isRunning || isApplying} icon="refresh">Re-Run Audit</Button>
                     )}
-                    {result && !isDirty && !isRunning && onApplyChanges && (
+                    {hasActions && !isDirty && !isRunning && onApplyChanges && (
                         <Button variant="tonal" onClick={onApplyChanges} disabled={isApplying} className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="auto_fix_high">Apply Recommended Changes</Button>
                     )}
                     <Button variant="primary" onClick={onClose} disabled={isApplying}>Done</Button>
@@ -841,6 +874,25 @@ const AppContent: React.FC = () => {
             const latestSession = draftingEngine.getSession();
             const res = await aiService.verifyDesign(latestSession.bom, latestSession.designRequirements, latestSession.cachedAuditResult);
             draftingEngine.cacheAuditResult(res.reasoning);
+
+            // Use actions from verifyDesign response (single API call approach)
+            if (res.auditActions && res.auditActions.length > 0) {
+                draftingEngine.cacheAuditActions(res.auditActions);
+            } else if (aiService.applyAuditRecommendations) {
+                // Fallback: separate API call if verifyDesign didn't return actions
+                try {
+                    const freshSession = draftingEngine.getSession();
+                    const { actions } = await aiService.applyAuditRecommendations(
+                        freshSession.bom,
+                        res.reasoning,
+                        freshSession.designRequirements
+                    );
+                    draftingEngine.cacheAuditActions(actions);
+                } catch (e) {
+                    console.error('Failed to pre-compute audit actions:', e);
+                }
+            }
+
             if (!silent) refreshState();
         } catch (e) { console.error(e); } finally { if (!silent) setIsAuditing(false); }
     }
@@ -944,17 +996,11 @@ const AppContent: React.FC = () => {
 
     const handleApplyAuditChanges = async () => {
         const currentSession = draftingEngine.getSession();
-        if (!currentSession.cachedAuditResult || !aiService.applyAuditRecommendations) return;
+        const actions = currentSession.cachedAuditActions;
+        if (!actions || actions.length === 0) return;
 
         setIsApplyingAudit(true);
         try {
-            // Use structured function calling — returns typed AuditAction[] instead of free-form text
-            const { actions, summary } = await aiService.applyAuditRecommendations(
-                currentSession.bom,
-                currentSession.cachedAuditResult,
-                currentSession.designRequirements
-            );
-
             let changesApplied = 0;
             actions.forEach(action => {
                 if (action.type === 'addPart' && action.partId && action.name && action.category) {
@@ -970,7 +1016,7 @@ const AppContent: React.FC = () => {
                 const actionDetails = actions.map(a => `- **${a.type === 'addPart' ? 'Added' : 'Removed'}**: ${a.name || a.instanceId} — ${a.reason}`).join('\n');
                 draftingEngine.addMessage({
                     role: 'assistant',
-                    content: `✅ **Applied ${changesApplied} recommended change${changesApplied > 1 ? 's' : ''}.**\n${actionDetails}\n\n${summary}`,
+                    content: `✅ **Applied ${changesApplied} recommended change${changesApplied > 1 ? 's' : ''}.**\n${actionDetails}`,
                     timestamp: new Date()
                 });
                 refreshState();
@@ -986,7 +1032,7 @@ const AppContent: React.FC = () => {
             } else {
                 draftingEngine.addMessage({
                     role: 'assistant',
-                    content: `✅ **No actionable changes identified.** ${summary}`,
+                    content: '✅ **No actionable changes could be applied.** The suggested changes may already be reflected in the BOM.',
                     timestamp: new Date()
                 });
             }
@@ -1123,7 +1169,7 @@ const AppContent: React.FC = () => {
                 onFixAll={handleOneClickKit}
             />
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
-            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
+            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} proposedActions={session.cachedAuditActions} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
             <PartDetailModal 
                 entry={selectedPart} 
                 onClose={() => setSelectedPart(null)} 

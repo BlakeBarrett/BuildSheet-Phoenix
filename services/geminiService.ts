@@ -286,7 +286,7 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse> {
+    async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse & { auditActions?: import('./aiTypes.ts').AuditAction[] }> {
         try {
             const ai = this.getClient();
             const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Price: $${b.part.price} - Description: ${b.part.description}`).join('\n');
@@ -297,6 +297,15 @@ export class GeminiService implements AIService {
         
         CURRENT BILL OF MATERIALS:
         ${digest}
+
+        IMPORTANT: After your audit text, you MUST append a structured JSON block with the exact BOM changes you recommend.
+        Use the delimiter ===ACTIONS_JSON=== on its own line, followed by a JSON object with this exact format:
+        {"actions":[{"type":"addPart","partId":"kebab-id","name":"Full Name","category":"Category","quantity":1,"reason":"Why"},{"type":"removePart","instanceId":"exact-instance-id-from-bom","name":"Part Name","reason":"Why"}],"summary":"Brief summary"}
+        
+        For removePart actions, use the EXACT [ID: xxx] instanceId from the BOM above.
+        For addPart actions, use descriptive kebab-case IDs and real component names.
+        If no changes are needed, use: {"actions":[],"summary":"No changes needed."}
+        The JSON block MUST be valid JSON. Do not wrap it in markdown code fences.
         `;
 
             if (previousAudit) {
@@ -312,7 +321,28 @@ export class GeminiService implements AIService {
                 }
             });
 
-            return this.parseArchitectResponse(response.text || "");
+            const fullText = response.text || "";
+            
+            // Parse the actions JSON from the delimiter
+            let auditText = fullText;
+            let auditActions: import('./aiTypes.ts').AuditAction[] | undefined;
+
+            const delimiterIndex = fullText.indexOf('===ACTIONS_JSON===');
+            if (delimiterIndex !== -1) {
+                auditText = fullText.substring(0, delimiterIndex).trim();
+                const jsonPart = fullText.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
+                try {
+                    const parsed = JSON.parse(jsonPart);
+                    if (parsed.actions && Array.isArray(parsed.actions)) {
+                        auditActions = parsed.actions;
+                    }
+                } catch (jsonErr) {
+                    console.warn('[GeminiService] Failed to parse audit actions JSON:', jsonErr);
+                }
+            }
+
+            const architectResponse = this.parseArchitectResponse(auditText);
+            return { ...architectResponse, auditActions };
         } catch (e: any) {
             return { reasoning: `Verification failed: ${e.message}`, toolCalls: [] };
         }
