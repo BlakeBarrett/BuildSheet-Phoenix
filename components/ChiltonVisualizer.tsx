@@ -45,6 +45,20 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
         document.body.removeChild(link);
     };
 
+    const handleOpenInFull = () => {
+        if (!activeImage) return;
+        const newTab = window.open();
+        if (newTab) {
+            newTab.document.title = activeImage.prompt || 'Generated Image';
+            newTab.document.body.style.margin = '0';
+            newTab.document.body.style.display = 'flex';
+            newTab.document.body.style.justifyContent = 'center';
+            newTab.document.body.style.alignItems = 'center';
+            newTab.document.body.style.backgroundColor = '#0f172a';
+            newTab.document.body.innerHTML = `<img src="${activeImage.url}" alt="${activeImage.prompt?.replace(/"/g, '&quot;') || 'Generated Image'}" style="max-width: 100vw; max-height: 100vh; object-fit: contain;">`;
+        }
+    };
+
     return (
         <div className="h-full w-full flex flex-col md:flex-row gap-3">
             {/* Main Viewport */}
@@ -61,7 +75,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                     {activeImage && (
                         <div className="flex gap-2 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
                             <IconButton icon="download" onClick={handleDownload} className="bg-white shadow-sm border border-gray-100 text-slate-700 hover:bg-slate-50" />
-                            <IconButton icon="open_in_full" onClick={() => window.open(activeImage.url, '_blank')} className="bg-white shadow-sm border border-gray-100 text-slate-700 hover:bg-slate-50" />
+                            <IconButton icon="open_in_full" onClick={handleOpenInFull} className="bg-white shadow-sm border border-gray-100 text-slate-700 hover:bg-slate-50" />
                         </div>
                     )}
                 </div>
