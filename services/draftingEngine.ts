@@ -89,15 +89,8 @@ export class DraftingEngine {
     try {
       const key = this.SESSION_PREFIX + session.id;
 
-      // OPTIMIZATION: Only persist the latest image to save storage space.
-      // History is kept in memory (this.session) but not all written to disk.
-      const sessionWithRecentImageOnly = {
-        ...session,
-        generatedImages: session.generatedImages.slice(-1)
-      };
-
       try {
-        localStorage.setItem(key, JSON.stringify(sessionWithRecentImageOnly));
+        localStorage.setItem(key, JSON.stringify(session));
       } catch (e: any) {
         // Fallback: If 1 image is still too big, save with NO images.
         if (e.name === 'QuotaExceededError' || e.code === 22 || e.message?.includes('quota')) {
@@ -406,11 +399,6 @@ export class DraftingEngine {
       timestamp: new Date()
     };
     this.session.generatedImages.push(img);
-
-    // Limit images to avoid memory bloat
-    if (this.session.generatedImages.length > 3) {
-      this.session.generatedImages = this.session.generatedImages.slice(-3);
-    }
 
     this.saveSession();
   }
