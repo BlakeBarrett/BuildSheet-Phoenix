@@ -300,7 +300,10 @@ const PartDetailModal: React.FC<{
     }, [entry]);
 
     if (!entry) return null;
+    if (!entry) return null;
     const isVirtual = entry.part.brand === 'TBD';
+    const isOwned = entry.part.description?.includes('(User Owned)');
+    const displayDescription = entry.part.description?.replace(/\(User Owned\)/gi, '').trim() || 'No description provided.';
     return (
         <div className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="part-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -324,6 +327,7 @@ const PartDetailModal: React.FC<{
                             <p className="text-xs text-slate-600 font-medium flex items-center gap-2 mt-1">
                                 {entry.part.brand}
                                 {isVirtual && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Unverified</span>}
+                                {isOwned && <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase">Owned</span>}
                             </p>
                         </div>
                     </div>
@@ -352,7 +356,7 @@ const PartDetailModal: React.FC<{
                         )}
 
                         <div className="bg-[#F0F4F9] p-4 rounded-[20px]">
-                            <p className="text-sm text-slate-700 leading-relaxed">{entry.part.description}</p>
+                            <p className="text-sm text-slate-700 leading-relaxed">{displayDescription}</p>
                         </div>
 
                         <div className="grid grid-cols-3 gap-3">
@@ -1279,8 +1283,8 @@ const AppContent: React.FC = () => {
                                         <div className="flex gap-2 items-center mt-2 flex-wrap">
                                             <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
                                             <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
-                                            {entry.part.price === 0
-                                                ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">Owned</span>
+                                            {entry.part.description?.includes('(User Owned)')
+                                                ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">inventory</span>Owned</span>
                                                 : entry.sourcing?.online?.length
                                                     ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
                                                     : <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Pending</span>
