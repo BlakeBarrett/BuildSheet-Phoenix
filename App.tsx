@@ -592,17 +592,19 @@ const AuditModal: React.FC<{
     result: string | null;
     isRunning: boolean;
     isDirty: boolean;
+    isApplying?: boolean;
     onRefresh: () => void;
-}> = ({ isOpen, onClose, result, isRunning, isDirty, onRefresh }) => {
+    onApplyChanges?: () => void;
+}> = ({ isOpen, onClose, result, isRunning, isDirty, isApplying, onRefresh, onApplyChanges }) => {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="audit-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-sm ${isRunning ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'}`} aria-hidden="true">
-                            <span className={`material-symbols-rounded text-[28px] ${isRunning ? 'animate-spin' : ''}`} aria-hidden="true">
-                                {isRunning ? 'refresh' : 'policy'}
+                        <div className={`w-12 h-12 rounded-[16px] flex items-center justify-center shadow-sm ${isRunning || isApplying ? 'bg-indigo-100 text-indigo-600' : 'bg-teal-100 text-teal-600'}`} aria-hidden="true">
+                            <span className={`material-symbols-rounded text-[28px] ${isRunning || isApplying ? 'animate-spin' : ''}`} aria-hidden="true">
+                                {isRunning || isApplying ? 'refresh' : 'policy'}
                             </span>
                         </div>
                         <div>
@@ -625,6 +627,14 @@ const AuditModal: React.FC<{
                             </div>
                             <p className="text-slate-500 font-medium animate-pulse">Analyzing BOM against requirements...</p>
                         </div>
+                    ) : isApplying ? (
+                        <div className="flex flex-col items-center justify-center h-64 space-y-6">
+                            <div className="relative w-20 h-20">
+                                <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                                <div className="absolute inset-0 border-4 border-emerald-500 rounded-full border-t-transparent animate-spin"></div>
+                            </div>
+                            <p className="text-slate-500 font-medium animate-pulse">Applying recommended changes...</p>
+                        </div>
                     ) : result ? (
                         <div className="prose prose-sm max-w-none text-slate-600">
                             <ReactMarkdown>{result}</ReactMarkdown>
@@ -637,8 +647,13 @@ const AuditModal: React.FC<{
                 </div>
 
                 <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-                    <Button variant="tonal" onClick={onRefresh} disabled={isRunning} icon="refresh">Re-Run Audit</Button>
-                    <Button variant="primary" onClick={onClose}>Done</Button>
+                    {isDirty && (
+                        <Button variant="tonal" onClick={onRefresh} disabled={isRunning || isApplying} icon="refresh">Re-Run Audit</Button>
+                    )}
+                    {result && !isDirty && !isRunning && onApplyChanges && (
+                        <Button variant="tonal" onClick={onApplyChanges} disabled={isApplying} className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="auto_fix_high">Apply Recommended Changes</Button>
+                    )}
+                    <Button variant="primary" onClick={onClose} disabled={isApplying}>Done</Button>
                 </div>
             </div>
         </div>
@@ -656,6 +671,7 @@ const AppContent: React.FC = () => {
 
     const [auditOpen, setAuditOpen] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
+    const [isApplyingAudit, setIsApplyingAudit] = useState(false);
 
     const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
     const [assemblyOpen, setAssemblyOpen] = useState(false);
@@ -669,6 +685,11 @@ const AppContent: React.FC = () => {
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
+
+    // Editable Title State
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editTitleValue, setEditTitleValue] = useState(session.name || '');
+    const [shareToast, setShareToast] = useState(false);
 
     // Mobile State
     const [mobileTab, setMobileTab] = useState<'draft' | 'bom'>('draft');
@@ -782,6 +803,29 @@ const AppContent: React.FC = () => {
         }
     };
 
+    const hydrateAllVirtualParts = async () => {
+        if (!aiService.hydratePartDetails) return;
+        const latestSession = draftingEngine.getSession();
+        const virtualParts = latestSession.bom.filter(b => b.part.brand === 'TBD');
+        if (virtualParts.length === 0) return;
+
+        // Process in batches of 3 for speed
+        for (let i = 0; i < virtualParts.length; i += 3) {
+            const batch = virtualParts.slice(i, i + 3);
+            await Promise.all(batch.map(async (entry) => {
+                try {
+                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category);
+                    if (details) {
+                        draftingEngine.updatePartDetails(entry.instanceId, details);
+                    }
+                } catch (e) {
+                    console.error(`Hydration failed for ${entry.part.name}:`, e);
+                }
+            }));
+        }
+        refreshState();
+    };
+
     const performVerifyAudit = async (silent = false) => {
         const currentSession = draftingEngine.getSession();
         if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
@@ -792,7 +836,10 @@ const AppContent: React.FC = () => {
             setIsAuditing(true);
         }
         try {
-            const res = await aiService.verifyDesign(currentSession.bom, currentSession.designRequirements, currentSession.cachedAuditResult);
+            // Hydrate all virtual parts before running audit
+            await hydrateAllVirtualParts();
+            const latestSession = draftingEngine.getSession();
+            const res = await aiService.verifyDesign(latestSession.bom, latestSession.designRequirements, latestSession.cachedAuditResult);
             draftingEngine.cacheAuditResult(res.reasoning);
             if (!silent) refreshState();
         } catch (e) { console.error(e); } finally { if (!silent) setIsAuditing(false); }
@@ -843,10 +890,17 @@ const AppContent: React.FC = () => {
         }
 
         setIsKitting(true);
-        draftingEngine.addMessage({ role: 'assistant', content: "🚀 **One-Click Stabilization Initiated.**\nI'm finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.", timestamp: new Date() });
+        draftingEngine.addMessage({ role: 'assistant', content: "🚀 **One-Click Stabilization Initiated.**\nI'm hydrating virtual parts, finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.", timestamp: new Date() });
         refreshState();
 
         try {
+            // Hydrate all virtual parts first (Google Search grounding)
+            await hydrateAllVirtualParts();
+            draftingEngine.addMessage({ role: 'assistant', content: "🔬 **Parts hydrated.** Real-world specs and pricing applied to all virtual components.", timestamp: new Date() });
+            refreshState();
+
+            // Re-fetch latest session after hydration
+            latestSession = draftingEngine.getSession();
             for (const entry of latestSession.bom) {
                 if (entry.sourcing?.online === undefined) {
                     await handleSourcePart(entry);
@@ -886,6 +940,70 @@ const AppContent: React.FC = () => {
             return;
         }
         await performVerifyAudit();
+    };
+
+    const handleApplyAuditChanges = async () => {
+        const currentSession = draftingEngine.getSession();
+        if (!currentSession.cachedAuditResult || !aiService.applyAuditRecommendations) return;
+
+        setIsApplyingAudit(true);
+        try {
+            // Use structured function calling — returns typed AuditAction[] instead of free-form text
+            const { actions, summary } = await aiService.applyAuditRecommendations(
+                currentSession.bom,
+                currentSession.cachedAuditResult,
+                currentSession.designRequirements
+            );
+
+            let changesApplied = 0;
+            actions.forEach(action => {
+                if (action.type === 'addPart' && action.partId && action.name && action.category) {
+                    draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
+                    changesApplied++;
+                } else if (action.type === 'removePart' && action.instanceId) {
+                    draftingEngine.removePart(action.instanceId);
+                    changesApplied++;
+                }
+            });
+
+            if (changesApplied > 0) {
+                const actionDetails = actions.map(a => `- **${a.type === 'addPart' ? 'Added' : 'Removed'}**: ${a.name || a.instanceId} — ${a.reason}`).join('\n');
+                draftingEngine.addMessage({
+                    role: 'assistant',
+                    content: `✅ **Applied ${changesApplied} recommended change${changesApplied > 1 ? 's' : ''}.**\n${actionDetails}\n\n${summary}`,
+                    timestamp: new Date()
+                });
+                refreshState();
+
+                // Hydrate new parts and source them
+                await hydrateAllVirtualParts();
+                const updatedSession = draftingEngine.getSession();
+                for (const entry of updatedSession.bom) {
+                    if (entry.sourcing?.online === undefined) {
+                        await handleSourcePart(entry);
+                    }
+                }
+            } else {
+                draftingEngine.addMessage({
+                    role: 'assistant',
+                    content: `✅ **No actionable changes identified.** ${summary}`,
+                    timestamp: new Date()
+                });
+            }
+
+            refreshState();
+            setAuditOpen(false);
+        } catch (e: any) {
+            console.error('Failed to apply audit changes:', e);
+            draftingEngine.addMessage({
+                role: 'assistant',
+                content: `⚠️ **Failed to apply changes:** ${e.message}`,
+                timestamp: new Date()
+            });
+            refreshState();
+        } finally {
+            setIsApplyingAudit(false);
+        }
     };
 
     const handlePlanAssembly = async () => {
@@ -1005,7 +1123,7 @@ const AppContent: React.FC = () => {
                 onFixAll={handleOneClickKit}
             />
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
-            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} onRefresh={() => performVerifyAudit()} />
+            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
             <PartDetailModal 
                 entry={selectedPart} 
                 onClose={() => setSelectedPart(null)} 
@@ -1071,12 +1189,64 @@ const AppContent: React.FC = () => {
                             <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden -ml-2" title="Menu" />
                         </div>
 
-                        <div className="flex flex-col">
-                            <h1 className="font-bold text-lg md:text-xl tracking-tight text-slate-800 truncate">{session.name || "Untitled Draft"}</h1>
+                        <div className="flex flex-col flex-1 min-w-0">
+                            {isEditingTitle ? (
+                                <input
+                                    id="project-title-input"
+                                    autoFocus
+                                    value={editTitleValue}
+                                    onChange={e => setEditTitleValue(e.target.value)}
+                                    onBlur={() => {
+                                        draftingEngine.updateSessionName(editTitleValue);
+                                        refreshState();
+                                        setIsEditingTitle(false);
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            draftingEngine.updateSessionName(editTitleValue);
+                                            refreshState();
+                                            setIsEditingTitle(false);
+                                        } else if (e.key === 'Escape') {
+                                            setEditTitleValue(session.name);
+                                            setIsEditingTitle(false);
+                                        }
+                                    }}
+                                    className="font-bold text-lg md:text-xl tracking-tight text-slate-800 bg-transparent border-b-2 border-indigo-400 outline-none w-full py-0.5"
+                                    aria-label="Edit project name"
+                                />
+                            ) : (
+                                <h1
+                                    className="font-bold text-lg md:text-xl tracking-tight text-slate-800 truncate cursor-pointer hover:text-indigo-600 transition-colors group/title"
+                                    onClick={() => { setEditTitleValue(session.name); setIsEditingTitle(true); }}
+                                    title="Click to edit project name"
+                                >
+                                    {session.name || "Untitled Draft"}
+                                    <span className="material-symbols-rounded text-[14px] text-slate-300 group-hover/title:text-indigo-400 ml-1.5 align-middle transition-colors" aria-hidden="true">edit</span>
+                                </h1>
+                            )}
                             <span className="text-xs text-slate-500 font-medium tracking-wide">BuildSheet Drafting Engine</span>
                         </div>
 
-                        <div className="flex gap-2 items-center">
+                        <div className="flex gap-2 items-center shrink-0 ml-3">
+                            <div className="relative">
+                                <IconButton
+                                    icon="share"
+                                    title="Copy share link"
+                                    onClick={() => {
+                                        const url = window.location.origin + draftingEngine.getShareUrl();
+                                        navigator.clipboard.writeText(url).then(() => {
+                                            setShareToast(true);
+                                            setTimeout(() => setShareToast(false), 2000);
+                                        });
+                                    }}
+                                    className="text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                                />
+                                {shareToast && (
+                                    <div className="absolute top-full right-0 mt-2 bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 z-30">
+                                        Link Copied!
+                                    </div>
+                                )}
+                            </div>
                             {session.cacheIsDirty && session.bom.length > 0 && <Chip label="Unsaved Changes" color="bg-amber-100 text-amber-900 border-transparent" />}
                         </div>
                     </header>

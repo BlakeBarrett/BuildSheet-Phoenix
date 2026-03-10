@@ -208,4 +208,13 @@ export class MockService implements AIService {
       ]
     };
   }
+  async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: import('./aiTypes.ts').AuditAction[], summary: string }> {
+    await new Promise(r => setTimeout(r, 1000));
+    // Simulate one recommendation based on audit content
+    const hasUSB = auditResult.toLowerCase().includes('usb');
+    return {
+      actions: hasUSB ? [{ type: 'addPart' as const, partId: 'usb-c-cable', name: 'USB-C to USB-C Cable (1m)', category: 'Cable', quantity: 1, reason: 'Missing USB-C cable detected by audit' }] : [],
+      summary: hasUSB ? 'Added missing USB-C cable per audit recommendation.' : 'No actionable changes identified from audit.'
+    };
+  }
 }

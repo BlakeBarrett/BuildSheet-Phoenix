@@ -21,5 +21,8 @@ RUN npm install -g serve
 COPY env.sh .
 RUN chmod +x env.sh
 
+# Expose the port for LAN access
+EXPOSE 8080
+
 # Start the server using the startup script
 CMD ["./env.sh"]

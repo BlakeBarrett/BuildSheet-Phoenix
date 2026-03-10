@@ -75,6 +75,17 @@ export class DraftingEngine {
         ...data.cachedAssemblyPlan,
         generatedAt: new Date(data.cachedAssemblyPlan.generatedAt)
       } : undefined,
+      // Deep-clone BOM entries to preserve sourcing/hydration data across navigation
+      bom: (data.bom || []).map((entry: any) => ({
+        ...entry,
+        part: { ...entry.part, ports: entry.part.ports ? [...entry.part.ports] : [] },
+        sourcing: entry.sourcing ? {
+          ...entry.sourcing,
+          online: entry.sourcing.online ? [...entry.sourcing.online] : undefined,
+          local: entry.sourcing.local ? [...entry.sourcing.local] : undefined,
+          lastUpdated: entry.sourcing.lastUpdated ? new Date(entry.sourcing.lastUpdated) : undefined
+        } : undefined
+      })),
       generatedImages: data.generatedImages?.map((img: any) => ({
         ...img,
         timestamp: new Date(img.timestamp)
@@ -86,14 +97,26 @@ export class DraftingEngine {
     };
   }
 
+  private static generateShareSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 64) || 'untitled';
+  }
+
   private createNewSessionTemplate(): DraftingSession {
     const user = UserService.getCurrentUser();
     const id = Math.random().toString(36).substr(2, 9);
+    const name = 'Untitled Assembly';
     return {
       id,
       slug: `build-${id.substr(0, 4)}`,
+      shareSlug: DraftingEngine.generateShareSlug(name),
       ownerId: user?.id || 'anonymous',
-      name: 'Untitled Assembly',
+      name,
       designRequirements: '',
       bom: [],
       generatedImages: [],
@@ -433,6 +456,20 @@ export class DraftingEngine {
   public updateOwner(ownerId: string) {
     this.session.ownerId = ownerId;
     this.saveSession();
+  }
+
+  public updateSessionName(name: string) {
+    if (!name.trim()) return;
+    this.session.name = name.trim();
+    this.session.shareSlug = DraftingEngine.generateShareSlug(name);
+    this.saveSession();
+  }
+
+  public getShareUrl(): string {
+    const user = UserService.getCurrentUser();
+    const username = user?.username || 'anonymous';
+    const slug = this.session.shareSlug || DraftingEngine.generateShareSlug(this.session.name);
+    return `/${username}/${slug}`;
   }
 
   public exportManifest(): string {

@@ -463,4 +463,60 @@ export class GeminiService implements AIService {
             return response.text || "Continue with the assembly step.";
         } catch (e) { return "Guidance temporarily unavailable."; }
     }
+
+    async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: import('./aiTypes.ts').AuditAction[], summary: string }> {
+        try {
+            const ai = this.getClient();
+            const digest = bom.map(b =>
+                `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category}) - $${b.part.price}`
+            ).join('\n');
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: `You are a hardware engineering audit assistant. Based on the audit results below, determine the EXACT changes needed to the Bill of Materials.
+
+DESIGN REQUIREMENTS: ${requirements}
+
+CURRENT BOM:
+${digest}
+
+AUDIT RESULT:
+${auditResult}
+
+Based ONLY on what the audit explicitly recommends, produce the list of actions. For addPart actions, use descriptive kebab-case IDs and real component names. For removePart actions, use the exact instanceId from the BOM above. Only include changes that directly address audit findings. If no changes are needed, return an empty actions array.`,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            actions: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        type: { type: Type.STRING, enum: ['addPart', 'removePart'] },
+                                        partId: { type: Type.STRING },
+                                        name: { type: Type.STRING },
+                                        category: { type: Type.STRING },
+                                        quantity: { type: Type.NUMBER },
+                                        instanceId: { type: Type.STRING },
+                                        reason: { type: Type.STRING }
+                                    },
+                                    required: ['type', 'reason']
+                                }
+                            },
+                            summary: { type: Type.STRING }
+                        },
+                        required: ['actions', 'summary']
+                    }
+                }
+            });
+
+            const data = JSON.parse(response.text || '{"actions":[],"summary":"No changes recommended."}');
+            return data;
+        } catch (e: any) {
+            console.error('[GeminiService] applyAuditRecommendations failed:', e);
+            throw new Error(`Failed to extract audit recommendations: ${e.message}`);
+        }
+    }
 }

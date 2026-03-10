@@ -7,6 +7,16 @@ export interface ArchitectResponse {
   visualization?: VisualManifest;
 }
 
+export interface AuditAction {
+  type: 'addPart' | 'removePart';
+  partId?: string;
+  name?: string;
+  category?: string;
+  quantity?: number;
+  instanceId?: string;
+  reason: string;
+}
+
 export interface AskArchitectResult {
   text: string;
   metadata?: {
@@ -58,4 +68,10 @@ export interface AIService {
    * Multimodal AR Guidance: Analyzes a camera frame and provides assembly instructions.
    */
   getARGuidance?(image: string, currentStep: number, plan: AssemblyPlan): Promise<string>;
+
+  /**
+   * Uses structured function calling to extract concrete BOM changes from an audit result.
+   * Returns typed actions instead of relying on text parsing.
+   */
+  applyAuditRecommendations?(bom: any[], auditResult: string, requirements: string): Promise<{ actions: AuditAction[], summary: string }>;
 }
