@@ -75,4 +75,23 @@ export interface AIService {
    * Returns typed actions instead of relying on text parsing.
    */
   applyAuditRecommendations?(bom: any[], auditResult: string, requirements: string): Promise<{ actions: AuditAction[], summary: string }>;
+
+  /**
+   * Multimodal Visual Parts Audit: Identifies a hardware component from a photo.
+   * Returns identification, condition report, and suggested BOM entry.
+   */
+  identifyComponent?(image: string): Promise<ComponentIdentification | null>;
+}
+
+export interface ComponentIdentification {
+  name: string;
+  category: string;
+  brand: string;
+  condition: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Unknown';
+  conditionNotes: string;
+  defects: string[];
+  estimatedPrice: number;
+  suggestedPartId: string;
+  description: string;
+  ports: { name: string; type: string; gender: string; spec: string }[];
 }

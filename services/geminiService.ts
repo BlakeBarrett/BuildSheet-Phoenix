@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
-import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
+import { AIService, ArchitectResponse, AskArchitectResult, ComponentIdentification } from "./aiTypes.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 
@@ -547,6 +547,78 @@ Based ONLY on what the audit explicitly recommends, produce the list of actions.
         } catch (e: any) {
             console.error('[GeminiService] applyAuditRecommendations failed:', e);
             throw new Error(`Failed to extract audit recommendations: ${e.message}`);
+        }
+    }
+
+    async identifyComponent(image: string): Promise<ComponentIdentification | null> {
+        try {
+            const ai = this.getClient();
+            const imageData = this.cleanBase64(image);
+            if (!imageData) return null;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: {
+                    parts: [
+                        { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
+                        { text: `Identify this hardware component from the photo. Determine:
+1. What the component is (name, category, brand if visible)
+2. Physical condition assessment (Excellent/Good/Fair/Poor)
+3. Any visible defects or wear
+4. Estimated retail price in USD
+5. A suggested kebab-case part ID
+6. Technical description and specifications
+7. Physical/electrical ports and connectors visible
+
+Be specific and accurate. If you can identify the exact manufacturer and model, do so.` }
+                    ]
+                },
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            name: { type: Type.STRING },
+                            category: { type: Type.STRING },
+                            brand: { type: Type.STRING },
+                            condition: { type: Type.STRING },
+                            conditionNotes: { type: Type.STRING },
+                            defects: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            estimatedPrice: { type: Type.NUMBER },
+                            suggestedPartId: { type: Type.STRING },
+                            description: { type: Type.STRING },
+                            ports: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        name: { type: Type.STRING },
+                                        type: { type: Type.STRING },
+                                        gender: { type: Type.STRING },
+                                        spec: { type: Type.STRING }
+                                    },
+                                    required: ['name', 'type', 'gender', 'spec']
+                                }
+                            }
+                        },
+                        required: ['name', 'category', 'brand', 'condition', 'conditionNotes', 'defects', 'estimatedPrice', 'suggestedPartId', 'description', 'ports']
+                    }
+                }
+            });
+            const data = JSON.parse(response.text || "null");
+            if (!data) return null;
+            // Normalize port enums
+            if (data.ports) {
+                data.ports = data.ports.map((p: any) => ({
+                    ...p,
+                    type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL'),
+                    gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL')
+                }));
+            }
+            return data as ComponentIdentification;
+        } catch (e) {
+            console.error('[GeminiService] identifyComponent failed:', e);
+            return null;
         }
     }
 }

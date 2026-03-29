@@ -14,6 +14,11 @@ export interface ProjectIndexEntry {
 export class DraftingEngine {
   private session: DraftingSession;
 
+  // Undo/Redo stacks (BOM snapshots)
+  private undoStack: string[] = [];
+  private redoStack: string[] = [];
+  private static MAX_UNDO = 50;
+
   // Storage Keys
   private INDEX_KEY = 'buildsheet_projects_index';
   private ACTIVE_ID_KEY = 'buildsheet_active_project_id';
@@ -227,6 +232,7 @@ export class DraftingEngine {
   }
 
   public addPart(partId: string, name?: string, category?: string, quantity: number = 1) {
+    this.pushUndo();
     const part: Part = {
       id: partId,
       sku: `DRAFT-${partId.toUpperCase()}`,
@@ -258,6 +264,7 @@ export class DraftingEngine {
   public updatePartDetails(instanceId: string, details: Partial<Part>) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
+      this.pushUndo();
       if (details.name) entry.part.name = details.name;
       if (details.brand) entry.part.brand = details.brand;
       if (details.description) entry.part.description = details.description;
@@ -272,6 +279,7 @@ export class DraftingEngine {
   public updatePartQuantity(instanceId: string, quantity: number) {
     const entry = this.session.bom.find(b => b.instanceId === instanceId);
     if (entry) {
+      this.pushUndo();
       entry.quantity = Math.max(1, quantity);
       this.session.cacheIsDirty = true;
       this.saveSession();
@@ -279,6 +287,13 @@ export class DraftingEngine {
   }
 
   public removePart(instanceId: string) {
+    this.pushUndo();
+    // Also unparent any children of the removed part
+    this.session.bom.forEach(entry => {
+      if (entry.parentInstanceId === instanceId) {
+        entry.parentInstanceId = undefined;
+      }
+    });
     this.session.bom = this.session.bom.filter(entry => entry.instanceId !== instanceId);
     this.session.cacheIsDirty = true;
     this.saveSession();
@@ -494,6 +509,144 @@ export class DraftingEngine {
 
   public hasActualLinks(): boolean {
     return this.session.bom.some(b => b.sourcing?.online && b.sourcing.online.length > 0);
+  }
+
+  // --- Sub-Assembly Nesting ---
+
+  public setParent(instanceId: string, parentInstanceId: string | null) {
+    const entry = this.session.bom.find(b => b.instanceId === instanceId);
+    if (!entry) return;
+    // Prevent circular nesting
+    if (parentInstanceId && parentInstanceId === instanceId) return;
+    if (parentInstanceId) {
+      // Walk up the parent chain to detect cycles
+      let current = parentInstanceId;
+      while (current) {
+        if (current === instanceId) return; // Cycle detected
+        const parent = this.session.bom.find(b => b.instanceId === current);
+        current = parent?.parentInstanceId || '';
+      }
+    }
+    this.pushUndo();
+    entry.parentInstanceId = parentInstanceId || undefined;
+    this.session.cacheIsDirty = true;
+    this.saveSession();
+  }
+
+  public getChildParts(parentInstanceId: string): BOMEntry[] {
+    return this.session.bom.filter(b => b.parentInstanceId === parentInstanceId);
+  }
+
+  public getRootParts(): BOMEntry[] {
+    return this.session.bom.filter(b => !b.parentInstanceId);
+  }
+
+  // --- Undo/Redo ---
+
+  private pushUndo() {
+    this.undoStack.push(JSON.stringify(this.session.bom));
+    if (this.undoStack.length > DraftingEngine.MAX_UNDO) {
+      this.undoStack.shift();
+    }
+    // Any new action clears the redo stack
+    this.redoStack = [];
+  }
+
+  public undo(): boolean {
+    if (this.undoStack.length === 0) return false;
+    this.redoStack.push(JSON.stringify(this.session.bom));
+    const previousState = this.undoStack.pop()!;
+    this.session.bom = JSON.parse(previousState);
+    this.session.cacheIsDirty = true;
+    this.saveSession();
+    return true;
+  }
+
+  public redo(): boolean {
+    if (this.redoStack.length === 0) return false;
+    this.undoStack.push(JSON.stringify(this.session.bom));
+    const nextState = this.redoStack.pop()!;
+    this.session.bom = JSON.parse(nextState);
+    this.session.cacheIsDirty = true;
+    this.saveSession();
+    return true;
+  }
+
+  public canUndo(): boolean { return this.undoStack.length > 0; }
+  public canRedo(): boolean { return this.redoStack.length > 0; }
+
+  // --- CSV Export ---
+
+  public exportCSV(): string {
+    const headers = ['Name', 'SKU', 'Category', 'Brand', 'Quantity', 'Unit Price', 'Total', 'Description'];
+    const escapeCSV = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return '"' + val.replace(/"/g, '""') + '"';
+      }
+      return val;
+    };
+    const rows = this.session.bom.map(entry => [
+      escapeCSV(entry.part.name),
+      escapeCSV(entry.part.sku),
+      escapeCSV(entry.part.category),
+      escapeCSV(entry.part.brand),
+      entry.quantity.toString(),
+      entry.part.price.toFixed(2),
+      (entry.part.price * entry.quantity).toFixed(2),
+      escapeCSV(entry.part.description || '')
+    ].join(','));
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  // --- Port Compatibility Analysis ---
+
+  public getPortWarnings(): { partA: string; partB: string; portA: string; portB: string; issue: string }[] {
+    const warnings: { partA: string; partB: string; portA: string; portB: string; issue: string }[] = [];
+    const partsWithPorts = this.session.bom.filter(b => b.part.ports && b.part.ports.length > 0);
+    
+    for (let i = 0; i < partsWithPorts.length; i++) {
+      for (let j = i + 1; j < partsWithPorts.length; j++) {
+        const a = partsWithPorts[i];
+        const b = partsWithPorts[j];
+        for (const portA of a.part.ports) {
+          for (const portB of b.part.ports) {
+            // Same spec but same gender = can't mate
+            if (portA.spec === portB.spec && portA.spec !== '' && portA.gender === portB.gender && portA.gender !== 'NEUTRAL') {
+              warnings.push({
+                partA: a.part.name,
+                partB: b.part.name,
+                portA: portA.name,
+                portB: portB.name,
+                issue: `Both have ${portA.gender} ${portA.spec} — cannot mate`
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Check for unmatched ports (ports with no compatible mate in the BOM)
+    for (const entry of partsWithPorts) {
+      for (const port of entry.part.ports) {
+        if (port.gender === 'NEUTRAL') continue;
+        const oppositeGender = port.gender === 'MALE' ? 'FEMALE' : 'MALE';
+        const hasMate = partsWithPorts.some(other =>
+          other.instanceId !== entry.instanceId &&
+          other.part.ports.some(p => p.spec === port.spec && (p.gender === oppositeGender || p.gender === 'NEUTRAL'))
+        );
+        if (!hasMate && port.spec) {
+          warnings.push({
+            partA: entry.part.name,
+            partB: '(none)',
+            portA: port.name,
+            portB: '',
+            issue: `No matching ${oppositeGender} ${port.spec} port found in BOM`
+          });
+        }
+      }
+    }
+
+    return warnings;
   }
 }
 

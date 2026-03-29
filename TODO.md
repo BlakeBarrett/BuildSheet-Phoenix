@@ -16,19 +16,19 @@
 ## 📌 Active Backlog (Original Tasks)
 
 ### 1. Visual Parts Audit
-- `[ ]` Multimodal interface to upload images of physical components alongside natural language prompts
-- `[ ]` AI identification and condition reporting of mechanical components
+- `[x]` Multimodal interface to upload images of physical components alongside natural language prompts
+- `[x]` AI identification and condition reporting of mechanical components
 
 ### 2. BOM Lifecycle Management
 - `[x]` Add/Remove/Edit for BOM entries
 - `[x]` Manual edits trigger Architect re-validation (constraint check)
-- `[ ]` Sub-assembly nesting — `parentInstanceId` exists in `BOMEntry` but is never set or rendered hierarchically
-- `[ ]` Undo/redo for BOM changes
+- `[x]` Sub-assembly nesting — `parentInstanceId` set via PartDetailModal, recursive tree renderer in BOM list
+- `[x]` Undo/redo for BOM changes — 50-deep snapshot stack, Ctrl+Z / Ctrl+Shift+Z
 
 ### 3. Kinematic-to-CAD Bridge
-- `[~]` OpenSCAD generation pipeline (`generateEnclosure` in `geminiService.ts`) — basic implementation exists
-- `[ ]` In-app OpenSCAD viewer / preview
-- `[ ]` Export `.scad` file directly from BOM entry
+- `[x]` OpenSCAD generation pipeline (`generateEnclosure` in `geminiService.ts`)
+- `[x]` In-app OpenSCAD viewer / preview — code viewer in PartDetailModal
+- `[x]` Export `.scad` file directly from BOM entry
 - `[ ]` STL preview via Three.js or similar
 
 ### 4. Legacy Manual Archaeology (PDF Ingestion)
@@ -42,9 +42,9 @@
 These are features the `website/index.html` explicitly advertises that are **not yet functional** in the actual app (`App.tsx`).
 
 ### Export
-- `[~]` **JSON export** — `exportManifest()` works and downloads a `.json` file.
-- `[ ]` **PDF export** — advertised on the Pro tier and in the FAQ ("PDF exports clean enough for vendor RFQs"). No PDF generation exists anywhere in the codebase.
-- `[ ]` **CSV / Excel export** — advertised on the Pro tier. Not implemented.
+- `[x]` **JSON export** — `exportManifest()` works and downloads a `.json` file.
+- `[x]` **PDF export** — print-optimized window with styled BOM table (via `window.print()`)
+- `[x]` **CSV export** — `exportCSV()` in DraftingEngine, button in nav rail
 - `[ ]` **BOM import from CSV** — advertised in the FAQ ("You can import existing BOMs from CSV"). No import logic exists at all.
 - `[ ]` **Paste-in BOM import** — also advertised in FAQ. Not implemented.
 
@@ -291,15 +291,15 @@ These can be done without a backend and immediately improve quality/honesty:
 
 1. `[ ]` **Implement the VisualManifest block-diagram renderer** — the type already exists, just needs a renderer
 2. `[ ]` **Move Visualizer to top of center panel** to match the hero mockup
-3. `[ ]` **CSV export** — pure frontend, trivial to implement from existing BOM data
-4. `[ ]` **Project delete confirmation** — currently instant with no undo
-5. `[ ]` **BOM sub-assembly nesting UI** — `parentInstanceId` already exists, just needs a recursive renderer
-6. `[ ]` **Port compatibility warnings** — cross-check `PortDefinition[]` between parts in the BOM and flag mismatches
-7. `[ ]` **PDF export** — use `window.print()` with a print stylesheet as a fast stopgap before server-side PDF
+3. `[x]` **CSV export** — `exportCSV()` in DraftingEngine + nav rail button
+4. `[x]` **Project delete confirmation** — modal dialog with name confirmation
+5. `[x]` **BOM sub-assembly nesting UI** — recursive tree renderer with collapse/expand, Set Parent in PartDetailModal
+6. `[x]` **Port compatibility warnings** — cross-checks port specs/gender, shows warning badges + detail panel
+7. `[x]` **PDF export** — print-optimized window via `window.print()` with styled BOM table
 8. `[ ]` **Real Google OAuth** via Firebase Auth (free tier, minimal backend needed)
 9. `[ ]` **Fix the share URL** — at minimum, encode the project as base64 in the URL query param so it actually loads
 10. `[ ]` **Persistent activity log** — write to IndexedDB alongside images
 
 ---
 
-*Last updated: 2026-03-28. Reflects gap analysis of `App.tsx` (v1581 lines), `types.ts`, `services/`, `components/`, and `website/index.html`.*
+*Last updated: 2026-03-29. Reflects Active Backlog implementation pass — Visual Parts Audit, BOM nesting/undo, CAD bridge, and Quick Wins (#3–#7) completed.*

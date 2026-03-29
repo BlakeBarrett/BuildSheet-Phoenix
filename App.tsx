@@ -1,10 +1,11 @@
-import React, { Component, useState, useRef, useEffect, ErrorInfo } from 'react';
+import React, { Component, useState, useRef, useEffect, useCallback, ErrorInfo } from 'react';
 import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
+import { ComponentIdentification } from './services/aiTypes.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
@@ -288,7 +289,11 @@ const PartDetailModal: React.FC<{
     onUpdateQuantity?: (instanceId: string, qty: number) => void;
     onUpdateName?: (instanceId: string, name: string) => void;
     onRemove?: (instanceId: string) => void;
-}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove }) => {
+    allEntries?: BOMEntry[];
+    onSetParent?: (instanceId: string, parentInstanceId: string | null) => void;
+    onGenerateEnclosure?: (entry: BOMEntry) => void;
+    onExportSCAD?: (entry: BOMEntry) => void;
+}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove, allEntries, onSetParent, onGenerateEnclosure, onExportSCAD }) => {
     const [editName, setEditName] = useState(entry?.part.name || '');
     const [editQty, setEditQty] = useState(entry?.quantity || 1);
 
@@ -460,6 +465,81 @@ const PartDetailModal: React.FC<{
                                 )}
                             </>
                         )}
+
+                        {/* Sub-Assembly Parent */}
+                        {onSetParent && allEntries && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="material-symbols-rounded text-teal-600 text-[18px]" aria-hidden="true">account_tree</span>
+                                    <label className="text-[11px] font-bold text-teal-900 uppercase tracking-widest">Sub-Assembly</label>
+                                </div>
+                                <select
+                                    value={entry.parentInstanceId || ''}
+                                    onChange={e => onSetParent(entry.instanceId, e.target.value || null)}
+                                    className="w-full p-3 bg-teal-50 border border-teal-100 rounded-[12px] text-sm focus:ring-2 focus:ring-teal-400 outline-none"
+                                    aria-label="Parent assembly"
+                                >
+                                    <option value="">— Root Level (No Parent) —</option>
+                                    {allEntries.filter(e => e.instanceId !== entry.instanceId).map(e => (
+                                        <option key={e.instanceId} value={e.instanceId}>{e.part.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Enclosure / CAD */}
+                        {(entry as any).enclosure ? (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <span className="material-symbols-rounded text-cyan-600 text-[18px]" aria-hidden="true">deployed_code</span>
+                                    <label className="text-[11px] font-bold text-cyan-900 uppercase tracking-widest">Enclosure Design</label>
+                                </div>
+                                <div className="space-y-3">
+                                    {(entry as any).enclosure.description && (
+                                        <p className="text-sm text-slate-700 bg-cyan-50 p-4 rounded-[16px] border border-cyan-100">{(entry as any).enclosure.description}</p>
+                                    )}
+                                    {(entry as any).enclosure.openSCAD && (
+                                        <details className="bg-slate-900 rounded-[16px] overflow-hidden">
+                                            <summary className="p-3 text-xs font-bold text-cyan-300 cursor-pointer hover:bg-slate-800 transition-colors uppercase tracking-wider flex items-center gap-2">
+                                                <span className="material-symbols-rounded text-[16px]" aria-hidden="true">code</span>
+                                                OpenSCAD Source
+                                            </summary>
+                                            <pre className="p-4 pt-0 text-xs text-green-300 font-mono overflow-x-auto max-h-[240px] overflow-y-auto leading-relaxed">{(entry as any).enclosure.openSCAD}</pre>
+                                        </details>
+                                    )}
+                                    {(entry as any).enclosure.renderUrl && (
+                                        <div className="rounded-[16px] overflow-hidden border border-cyan-100">
+                                            <img src={(entry as any).enclosure.renderUrl} alt="Enclosure render" className="w-full object-contain max-h-[240px] bg-[#F4F7FC]" />
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        {onExportSCAD && (entry as any).enclosure.openSCAD && (
+                                            <Button variant="tonal" onClick={() => onExportSCAD(entry)} icon="download" className="flex-1">Download .scad</Button>
+                                        )}
+                                        {onGenerateEnclosure && (
+                                            <Button variant="ghost" onClick={() => onGenerateEnclosure(entry)} icon="refresh" className="flex-1">Regenerate</Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : onGenerateEnclosure ? (
+                            <div className="p-5 bg-gradient-to-r from-cyan-50 to-sky-50 rounded-[20px] border border-cyan-200">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <h4 className="font-bold text-sm text-cyan-900 mb-1">Text-to-CAD</h4>
+                                        <p className="text-xs text-cyan-700 leading-relaxed">Generate a 3D-printable enclosure for this component using AI.</p>
+                                    </div>
+                                    <Button
+                                        onClick={() => onGenerateEnclosure(entry)}
+                                        variant="tonal"
+                                        className="shrink-0 bg-cyan-500 text-white hover:bg-cyan-600 border-none shadow-md"
+                                        icon="deployed_code"
+                                    >
+                                        Generate
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 </div>
                 <div className="p-6 border-t border-gray-100 flex flex-wrap gap-3 justify-end items-center">
@@ -693,6 +773,264 @@ const AuditModal: React.FC<{
     );
 };
 
+// --- DELETE CONFIRMATION DIALOG ---
+const DeleteConfirmDialog: React.FC<{
+    isOpen: boolean;
+    projectName: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+}> = ({ isOpen, projectName, onConfirm, onCancel }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+            <div className="bg-white rounded-[28px] shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 text-center">
+                    <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+                        <span className="material-symbols-rounded text-red-500 text-[32px]" aria-hidden="true">delete_forever</span>
+                    </div>
+                    <h3 id="delete-title" className="text-lg font-bold text-slate-800 mb-2">Delete Project?</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                        <strong className="text-slate-800">{projectName || 'Untitled Draft'}</strong> will be permanently deleted. This action cannot be undone.
+                    </p>
+                </div>
+                <div className="px-6 pb-6 flex gap-3">
+                    <Button variant="ghost" onClick={onCancel} className="flex-1">Cancel</Button>
+                    <Button variant="primary" onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700" icon="delete">Delete</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- SCAN PART MODAL (Visual Parts Audit) ---
+const ScanPartModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    result: ComponentIdentification | null;
+    isScanning: boolean;
+    onScan: (image: string) => void;
+    onAddToBOM: (result: ComponentIdentification) => void;
+}> = ({ isOpen, onClose, result, isScanning, onScan, onAddToBOM }) => {
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+    if (!isOpen) return null;
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        let processFile = file;
+        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+        if (isHeic) {
+            try {
+                const convertedBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.8 });
+                const blobArray = Array.isArray(convertedBlob) ? convertedBlob : [convertedBlob];
+                processFile = new File([blobArray[0]], file.name.replace(/\.hei[cf]$/i, '.jpg'), { type: "image/jpeg" });
+            } catch (err) { console.error("HEIC conversion failed:", err); }
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            setPreviewImage(dataUrl);
+            onScan(dataUrl);
+        };
+        reader.readAsDataURL(processFile);
+        e.target.value = '';
+    };
+
+    const conditionColor = (c: string) => {
+        switch (c) {
+            case 'Excellent': return 'text-emerald-700 bg-emerald-50';
+            case 'Good': return 'text-blue-700 bg-blue-50';
+            case 'Fair': return 'text-amber-700 bg-amber-50';
+            case 'Poor': return 'text-red-700 bg-red-50';
+            default: return 'text-slate-700 bg-slate-50';
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 pb-2 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-[14px] bg-violet-100 text-violet-600 flex items-center justify-center" aria-hidden="true">
+                            <span className="material-symbols-rounded text-[24px]">photo_camera</span>
+                        </div>
+                        <div>
+                            <h3 id="scan-title" className="text-lg font-bold text-slate-800 tracking-tight">Visual Parts Audit</h3>
+                            <p className="text-xs text-slate-500 font-medium">AI Component Identification</p>
+                        </div>
+                    </div>
+                    <IconButton icon="close" onClick={() => { setPreviewImage(null); onClose(); }} title="Close" />
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                    {/* Upload Area */}
+                    {!previewImage && !isScanning && !result && (
+                        <label className="block cursor-pointer">
+                            <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} />
+                            <div className="border-2 border-dashed border-violet-200 rounded-[24px] p-10 text-center hover:border-violet-400 hover:bg-violet-50/50 transition-all">
+                                <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center mx-auto mb-4">
+                                    <span className="material-symbols-rounded text-violet-400 text-[32px]">add_a_photo</span>
+                                </div>
+                                <p className="text-sm font-bold text-slate-700 mb-1">Upload a photo of your component</p>
+                                <p className="text-xs text-slate-500">Gemini will identify it, assess condition, and suggest a BOM entry</p>
+                            </div>
+                        </label>
+                    )}
+
+                    {/* Preview + Loading */}
+                    {previewImage && (
+                        <div className="rounded-[20px] overflow-hidden border border-gray-100">
+                            <img src={previewImage} alt="Component photo" className="w-full max-h-[200px] object-contain bg-[#F4F7FC]" />
+                        </div>
+                    )}
+
+                    {isScanning && (
+                        <div className="flex flex-col items-center py-8 space-y-4">
+                            <div className="relative w-16 h-16">
+                                <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                                <div className="absolute inset-0 border-4 border-violet-500 rounded-full border-t-transparent animate-spin"></div>
+                            </div>
+                            <p className="text-sm text-slate-500 font-medium animate-pulse">Analyzing component...</p>
+                        </div>
+                    )}
+
+                    {/* Result */}
+                    {result && !isScanning && (
+                        <div className="space-y-4">
+                            <div className="p-5 bg-[#F0F4F9] rounded-[20px]">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <h4 className="font-bold text-lg text-slate-800">{result.name}</h4>
+                                        <p className="text-xs text-slate-500">{result.brand} · {result.category}</p>
+                                    </div>
+                                    <span className={`text-[11px] font-bold uppercase px-3 py-1 rounded-full ${conditionColor(result.condition)}`}>
+                                        {result.condition}
+                                    </span>
+                                </div>
+                                <p className="text-sm text-slate-700 leading-relaxed">{result.description}</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-4 border border-gray-100 rounded-[16px]">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Est. Price</label>
+                                    <p className="text-lg font-bold text-slate-900 mt-1">${result.estimatedPrice.toFixed(2)}</p>
+                                </div>
+                                <div className="p-4 border border-gray-100 rounded-[16px]">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Part ID</label>
+                                    <p className="text-sm font-mono text-slate-700 mt-1 truncate">{result.suggestedPartId}</p>
+                                </div>
+                            </div>
+
+                            {result.conditionNotes && (
+                                <div className="p-4 bg-amber-50 rounded-[16px] border border-amber-100">
+                                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Condition Notes</p>
+                                    <p className="text-sm text-amber-900">{result.conditionNotes}</p>
+                                </div>
+                            )}
+
+                            {result.defects.length > 0 && (
+                                <div className="p-4 bg-red-50 rounded-[16px] border border-red-100">
+                                    <p className="text-xs font-bold text-red-800 uppercase tracking-wider mb-2">Defects Detected</p>
+                                    <ul className="space-y-1">
+                                        {result.defects.map((d, i) => (
+                                            <li key={i} className="text-sm text-red-800 flex items-start gap-2">
+                                                <span className="material-symbols-rounded text-[14px] mt-0.5 text-red-500" aria-hidden="true">warning</span>
+                                                {d}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {result.ports.length > 0 && (
+                                <div>
+                                    <p className="text-[11px] font-bold text-violet-900 uppercase tracking-widest mb-2">Detected Ports</p>
+                                    <div className="space-y-1">
+                                        {result.ports.map((p, i) => (
+                                            <div key={i} className="flex items-center justify-between p-2.5 bg-violet-50 rounded-[10px] text-sm">
+                                                <span className="font-medium text-slate-800">{p.name}</span>
+                                                <div className="flex gap-1">
+                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white text-slate-500">{p.type}</span>
+                                                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white text-slate-500">{p.gender}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 border-t border-gray-100 flex gap-3">
+                    {result && !isScanning ? (
+                        <>
+                            <Button variant="ghost" onClick={() => { setPreviewImage(null); }} className="flex-1" icon="add_a_photo">Scan Another</Button>
+                            <Button variant="primary" onClick={() => onAddToBOM(result)} className="flex-1" icon="add_circle">Add to BOM</Button>
+                        </>
+                    ) : (
+                        <Button variant="ghost" onClick={() => { setPreviewImage(null); onClose(); }} className="flex-1">Cancel</Button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- PORT WARNINGS PANEL ---
+const PortWarningsPanel: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    warnings: { partA: string; partB: string; portA: string; portB: string; issue: string }[];
+}> = ({ isOpen, onClose, warnings }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[90] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="warnings-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 pb-2 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-[14px] bg-amber-100 text-amber-600 flex items-center justify-center" aria-hidden="true">
+                            <span className="material-symbols-rounded text-[24px]">cable</span>
+                        </div>
+                        <div>
+                            <h3 id="warnings-title" className="text-lg font-bold text-slate-800 tracking-tight">Port Compatibility</h3>
+                            <p className="text-xs text-slate-500 font-medium">{warnings.length} issue{warnings.length !== 1 ? 's' : ''} detected</p>
+                        </div>
+                    </div>
+                    <IconButton icon="close" onClick={onClose} title="Close" />
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+                    {warnings.length === 0 ? (
+                        <div className="text-center py-10">
+                            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+                                <span className="material-symbols-rounded text-emerald-500 text-[28px]" aria-hidden="true">check_circle</span>
+                            </div>
+                            <p className="text-sm font-medium text-slate-600">All ports are compatible!</p>
+                        </div>
+                    ) : (
+                        warnings.map((w, i) => (
+                            <div key={i} className="p-4 bg-amber-50 rounded-[16px] border border-amber-100">
+                                <div className="flex items-start gap-2 mb-1">
+                                    <span className="material-symbols-rounded text-amber-500 text-[18px] mt-0.5 shrink-0" aria-hidden="true">warning</span>
+                                    <p className="text-sm font-bold text-amber-900">{w.issue}</p>
+                                </div>
+                                <div className="ml-6 text-xs text-amber-700 space-y-0.5">
+                                    <p><strong>{w.partA}</strong> → {w.portA}</p>
+                                    {w.partB !== '(none)' && <p><strong>{w.partB}</strong> → {w.portB}</p>}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+                <div className="p-6 border-t border-gray-100 flex justify-end">
+                    <Button variant="primary" onClick={onClose}>Done</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
     const { service: aiService } = useService();
     const [draftingEngine] = useState(() => getDraftingEngine());
@@ -732,9 +1070,47 @@ const AppContent: React.FC = () => {
     const [isValidating, setIsValidating] = useState(false);
     const [validationResults, setValidationResults] = useState<TestResult[]>([]);
 
+    // Delete Confirmation State
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [deleteTargetId, setDeleteTargetId] = useState<string>('');
+    const [deleteTargetName, setDeleteTargetName] = useState<string>('');
+
+    // Visual Audit (Scan Part) State
+    const [scanPartOpen, setScanPartOpen] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanResult, setScanResult] = useState<ComponentIdentification | null>(null);
+
+    // Port Warnings State
+    const [portWarningsOpen, setPortWarningsOpen] = useState(false);
+
+    // Sub-assembly collapsed state
+    const [collapsedAssemblies, setCollapsedAssemblies] = useState<Set<string>>(new Set());
+
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [session.messages, mobileTab, isThinking]);
+
+    // Undo/Redo keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                if (draftingEngine.canUndo()) {
+                    draftingEngine.undo();
+                    refreshState();
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+                e.preventDefault();
+                if (draftingEngine.canRedo()) {
+                    draftingEngine.redo();
+                    refreshState();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [draftingEngine]);
 
     const refreshState = () => {
         setSession(draftingEngine.getSession());
@@ -1077,6 +1453,173 @@ const AppContent: React.FC = () => {
         URL.revokeObjectURL(url);
     };
 
+    const handleExportCSV = () => {
+        const csv = draftingEngine.exportCSV();
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `buildsheet-bom-${session.id}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleExportPDF = () => {
+        // Create a print-optimized view
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+        const totalCost = draftingEngine.getTotalCost();
+        const bomRows = session.bom.map(entry => `
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${entry.part.name}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-family: monospace; font-size: 12px;">${entry.part.sku}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${entry.part.category}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${entry.part.brand}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${entry.quantity}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${entry.part.price.toFixed(2)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">$${(entry.part.price * entry.quantity).toFixed(2)}</td>
+            </tr>
+        `).join('');
+        printWindow.document.write(`<!DOCTYPE html><html><head><title>${session.name} — BuildSheet BOM</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1f1f1f; max-width: 900px; margin: 0 auto; }
+                h1 { font-size: 24px; margin-bottom: 4px; }
+                .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+                table { width: 100%; border-collapse: collapse; }
+                th { padding: 10px 8px; text-align: left; border-bottom: 2px solid #1f1f1f; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #666; }
+                .total-row td { border-top: 2px solid #1f1f1f; font-weight: bold; padding-top: 12px; }
+                @media print { body { padding: 20px; } }
+            </style></head><body>
+            <h1>${session.name || 'Untitled Draft'}</h1>
+            <p class="meta">${session.bom.length} components · Exported ${new Date().toLocaleDateString()} · BuildSheet</p>
+            ${session.designRequirements ? `<p style="color: #444; font-size: 14px; margin-bottom: 20px; padding: 12px; background: #f8fafc; border-radius: 8px;">${session.designRequirements}</p>` : ''}
+            <table>
+                <thead><tr>
+                    <th>Component</th><th>SKU</th><th>Category</th><th>Brand</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th>
+                </tr></thead>
+                <tbody>${bomRows}
+                <tr class="total-row">
+                    <td colspan="6" style="text-align: right; padding: 12px 8px;">Total Estimate</td>
+                    <td style="text-align: right; padding: 12px 8px; font-size: 18px;">$${totalCost.toFixed(2)}</td>
+                </tr></tbody>
+            </table>
+        </body></html>`);
+        printWindow.document.close();
+        setTimeout(() => { printWindow.print(); }, 500);
+    };
+
+    // Visual Audit Handlers
+    const handleScanPart = async (image: string) => {
+        if (!aiService.identifyComponent) return;
+        setIsScanning(true);
+        setScanResult(null);
+        try {
+            const result = await aiService.identifyComponent(image);
+            setScanResult(result);
+        } catch (e) {
+            console.error('Component scan failed:', e);
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const handleAddFromScan = (result: ComponentIdentification) => {
+        draftingEngine.addPart(
+            result.suggestedPartId,
+            result.name,
+            result.category,
+            1
+        );
+        // Update with full details
+        const latestSession = draftingEngine.getSession();
+        const newEntry = latestSession.bom.find(b => b.part.id === result.suggestedPartId);
+        if (newEntry) {
+            draftingEngine.updatePartDetails(newEntry.instanceId, {
+                brand: result.brand,
+                description: result.description + (result.condition !== 'Unknown' ? ` (Condition: ${result.condition})` : ''),
+                price: result.estimatedPrice,
+                ports: result.ports.map((p, i) => ({
+                    id: `port-${i}`,
+                    name: p.name,
+                    type: p.type as any,
+                    gender: p.gender as any,
+                    spec: p.spec
+                }))
+            });
+        }
+        refreshState();
+        setScanPartOpen(false);
+        setScanResult(null);
+        draftingEngine.addMessage({
+            role: 'assistant',
+            content: `📷 **Visual Parts Audit:** Identified **${result.name}** (${result.brand}). Condition: **${result.condition}**. Added to BOM at $${result.estimatedPrice.toFixed(2)}.${result.defects.length > 0 ? `\n⚠️ Defects: ${result.defects.join(', ')}` : ''}`,
+            timestamp: new Date()
+        });
+        refreshState();
+    };
+
+    // Delete confirmation wrapper
+    const handleDeleteWithConfirm = (id: string) => {
+        const project = projectsList.find(p => p.id === id);
+        setDeleteTargetId(id);
+        setDeleteTargetName(project?.name || '');
+        setDeleteConfirmOpen(true);
+    };
+
+    const confirmDelete = () => {
+        draftingEngine.deleteProject(deleteTargetId);
+        refreshState();
+        setDeleteConfirmOpen(false);
+    };
+
+    // Sub-assembly handlers
+    const handleSetParent = (instanceId: string, parentInstanceId: string | null) => {
+        draftingEngine.setParent(instanceId, parentInstanceId);
+        refreshState();
+    };
+
+    const toggleCollapse = (instanceId: string) => {
+        setCollapsedAssemblies(prev => {
+            const next = new Set(prev);
+            if (next.has(instanceId)) next.delete(instanceId);
+            else next.add(instanceId);
+            return next;
+        });
+    };
+
+    // Enclosure handlers
+    const handleGenerateEnclosure = async (entry: BOMEntry) => {
+        if (!aiService.generateEnclosure) return;
+        const context = `${session.name}: ${session.designRequirements || 'Hardware assembly'}`;
+        const spec = await aiService.generateEnclosure(context, session.bom);
+        if (spec) {
+            const updatedBom = session.bom.map(b =>
+                b.instanceId === entry.instanceId ? { ...b, enclosure: spec } : b
+            );
+            // Directly update session BOM with enclosure
+            const currentSession = draftingEngine.getSession();
+            const entryToUpdate = currentSession.bom.find(b => b.instanceId === entry.instanceId);
+            if (entryToUpdate) {
+                (entryToUpdate as any).enclosure = spec;
+            }
+            refreshState();
+            // Re-select the part to show enclosure in modal
+            const updatedEntry = draftingEngine.getSession().bom.find(b => b.instanceId === entry.instanceId);
+            if (updatedEntry) setSelectedPart(updatedEntry);
+        }
+    };
+
+    const handleExportSCAD = (entry: BOMEntry) => {
+        if (!entry.enclosure?.openSCAD) return;
+        const blob = new Blob([entry.enclosure.openSCAD], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${entry.part.name.replace(/\s+/g, '-').toLowerCase()}-enclosure.scad`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     const runValidationSuite = async () => {
         setValidationOpen(true);
         setIsValidating(true);
@@ -1154,7 +1697,7 @@ const AppContent: React.FC = () => {
                 projects={projectsList}
                 currentId={session.id}
                 onSelect={(id) => { draftingEngine.loadProject(id); refreshState(); }}
-                onDelete={(id) => { draftingEngine.deleteProject(id); refreshState(); }}
+                onDelete={handleDeleteWithConfirm}
                 onNewProject={() => { draftingEngine.createNewProject(); refreshState(); }}
                 onExport={handleExport}
                 onValidate={runValidationSuite}
@@ -1179,8 +1722,16 @@ const AppContent: React.FC = () => {
                 onUpdateQuantity={handleUpdateQuantity}
                 onUpdateName={handleUpdateName}
                 onRemove={handleRemovePart}
+                allEntries={session.bom}
+                onSetParent={handleSetParent}
+                onGenerateEnclosure={handleGenerateEnclosure}
+                onExportSCAD={handleExportSCAD}
             />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
+
+            <DeleteConfirmDialog isOpen={deleteConfirmOpen} projectName={deleteTargetName} onConfirm={confirmDelete} onCancel={() => setDeleteConfirmOpen(false)} />
+            <ScanPartModal isOpen={scanPartOpen} onClose={() => { setScanPartOpen(false); setScanResult(null); }} result={scanResult} isScanning={isScanning} onScan={handleScanPart} onAddToBOM={handleAddFromScan} />
+            <PortWarningsPanel isOpen={portWarningsOpen} onClose={() => setPortWarningsOpen(false)} warnings={draftingEngine.getPortWarnings()} />
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
             <CookieConsent />
@@ -1215,7 +1766,28 @@ const AppContent: React.FC = () => {
                         icon="output"
                         onClick={handleExport}
                         className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                        title="Export"
+                        title="Export JSON"
+                    />
+                    <IconButton
+                        icon="table_view"
+                        onClick={handleExportCSV}
+                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        title="Export CSV"
+                    />
+                    <IconButton
+                        icon="picture_as_pdf"
+                        onClick={handleExportPDF}
+                        className="text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                        title="Export PDF"
+                    />
+
+                    <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
+
+                    <IconButton
+                        icon="photo_camera"
+                        onClick={() => setScanPartOpen(true)}
+                        className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
+                        title="Scan Part"
                     />
                 </div>
 
@@ -1494,28 +2066,110 @@ const AppContent: React.FC = () => {
                         </Button>
                     </header>
 
-                    {/* Parts List */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {session.bom.map(entry => (
-                            <Card key={entry.instanceId} onClick={() => setSelectedPart(entry)} className="p-4 cursor-pointer group border border-transparent hover:border-indigo-100">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex-1">
-                                        <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors">{entry.part.name}</div>
-                                        <div className="flex gap-2 items-center mt-2 flex-wrap">
-                                            <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
-                                            <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
-                                            {/user owned/i.test(entry.part.description || '')
-                                                ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">inventory</span>Owned</span>
-                                                : entry.sourcing?.online?.length
-                                                    ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
-                                                    : <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Pending</span>
-                                            }
-                                        </div>
+                    {/* BOM Toolbar */}
+                    <div className="px-4 pt-3 pb-1 flex gap-2 items-center">
+                        <IconButton
+                            icon="undo"
+                            onClick={() => { draftingEngine.undo(); refreshState(); }}
+                            title="Undo (Ctrl+Z)"
+                            className={`text-slate-400 ${draftingEngine.canUndo() ? 'hover:text-slate-700 hover:bg-slate-100' : 'opacity-30 cursor-not-allowed'}`}
+                        />
+                        <IconButton
+                            icon="redo"
+                            onClick={() => { draftingEngine.redo(); refreshState(); }}
+                            title="Redo (Ctrl+Shift+Z)"
+                            className={`text-slate-400 ${draftingEngine.canRedo() ? 'hover:text-slate-700 hover:bg-slate-100' : 'opacity-30 cursor-not-allowed'}`}
+                        />
+                        <div className="flex-1" />
+                        {(() => {
+                            const warnings = draftingEngine.getPortWarnings();
+                            return warnings.length > 0 ? (
+                                <button
+                                    onClick={() => setPortWarningsOpen(true)}
+                                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full hover:bg-amber-100 transition-colors"
+                                    title={`${warnings.length} port compatibility issue${warnings.length !== 1 ? 's' : ''}`}
+                                >
+                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">warning</span>
+                                    {warnings.length} Port Issue{warnings.length !== 1 ? 's' : ''}
+                                </button>
+                            ) : session.bom.some(b => b.part.ports?.length > 0) ? (
+                                <button
+                                    onClick={() => setPortWarningsOpen(true)}
+                                    className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors"
+                                    title="All ports compatible"
+                                >
+                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">check_circle</span>
+                                    Ports OK
+                                </button>
+                            ) : null;
+                        })()}
+                    </div>
+
+                    {/* Parts List — Recursive Tree */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        {(() => {
+                            const rootParts = session.bom.filter(b => !b.parentInstanceId);
+                            const childrenOf = (parentId: string) => session.bom.filter(b => b.parentInstanceId === parentId);
+
+                            const renderEntry = (entry: BOMEntry, depth: number = 0): React.ReactNode => {
+                                const children = childrenOf(entry.instanceId);
+                                const hasChildren = children.length > 0;
+                                const isCollapsed = collapsedAssemblies.has(entry.instanceId);
+
+                                return (
+                                    <div key={entry.instanceId}>
+                                        <Card
+                                            onClick={() => setSelectedPart(entry)}
+                                            className={`p-4 cursor-pointer group border border-transparent hover:border-indigo-100 transition-all`}
+                                            style={{ marginLeft: `${depth * 20}px` }}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                                    {hasChildren && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); toggleCollapse(entry.instanceId); }}
+                                                            className="mt-0.5 p-0.5 rounded hover:bg-slate-100 transition-colors shrink-0"
+                                                            aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+                                                        >
+                                                            <span className={`material-symbols-rounded text-[16px] text-slate-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} aria-hidden="true">
+                                                                chevron_right
+                                                            </span>
+                                                        </button>
+                                                    )}
+                                                    {!hasChildren && depth > 0 && (
+                                                        <div className="w-6 shrink-0" />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors truncate">
+                                                            {entry.part.name}
+                                                            {hasChildren && <span className="text-[10px] text-slate-400 font-normal ml-2">({children.length} sub-parts)</span>}
+                                                        </div>
+                                                        <div className="flex gap-2 items-center mt-2 flex-wrap">
+                                                            <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">{entry.part.sku}</span>
+                                                            <span className="text-[10px] font-bold text-slate-500">x{entry.quantity}</span>
+                                                            {/user owned/i.test(entry.part.description || '')
+                                                                ? <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">inventory</span>Owned</span>
+                                                                : entry.sourcing?.online?.length
+                                                                    ? <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="material-symbols-rounded text-[12px]" aria-hidden="true">check</span>Sourced</span>
+                                                                    : <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full">Pending</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-sm font-bold text-slate-900 ml-4 shrink-0">${(entry.part.price * entry.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                            </div>
+                                        </Card>
+                                        {hasChildren && !isCollapsed && (
+                                            <div className="mt-1 space-y-1">
+                                                {children.map(child => renderEntry(child, depth + 1))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-sm font-bold text-slate-900 ml-4">${(entry.part.price * entry.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                </div>
-                            </Card>
-                        ))}
+                                );
+                            };
+
+                            return rootParts.length > 0 ? rootParts.map(entry => renderEntry(entry)) : null;
+                        })()}
                         {session.bom.length === 0 && (
                             <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8">
                                 <span className="material-symbols-rounded text-4xl text-slate-300 mb-2" aria-hidden="true">list_alt</span>

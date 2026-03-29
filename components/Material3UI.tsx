@@ -1,7 +1,7 @@
 import React from 'react';
 
 // M3 Card: Elevated or Filled surface with large corner radius
-export const Card: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void, variant?: 'elevated' | 'filled' | 'outlined' }> = ({ children, className, onClick, variant = 'elevated' }) => {
+export const Card: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void, variant?: 'elevated' | 'filled' | 'outlined', style?: React.CSSProperties }> = ({ children, className, onClick, variant = 'elevated', style }) => {
   const baseStyles = "rounded-[24px] overflow-hidden transition-all duration-300";
   const variants = {
     elevated: "bg-white shadow-sm hover:shadow-md",
@@ -18,6 +18,7 @@ export const Card: React.FC<{ children: React.ReactNode, className?: string, onC
       tabIndex={onClick ? 0 : undefined}
       role={onClick ? "button" : undefined}
       className={`${baseStyles} ${variants[variant]} ${interactiveStyles} ${className}`}
+      style={style}
     >
       {children}
     </div>
