@@ -14,6 +14,7 @@ import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
+import { VisualManifestRenderer } from './components/VisualManifestRenderer.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -56,8 +57,22 @@ const ProjectNavigator: React.FC<{
     onNewProject: () => void;
     onExport: () => void;
     onValidate: () => void;
-}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate }) => {
+    onDuplicate?: (id: string) => void;
+    onArchive?: (id: string) => void;
+    onUnarchive?: (id: string) => void;
+}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate, onDuplicate, onArchive, onUnarchive }) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showArchived, setShowArchived] = useState(false);
     if (!isOpen) return null;
+
+    const filtered = projects.filter(p => {
+      if (!showArchived && p.archived) return false;
+      if (showArchived && !p.archived) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (p.name || '').toLowerCase().includes(q) || (p.preview || '').toLowerCase().includes(q);
+    });
+
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="nav-title">
             <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden">
@@ -69,48 +84,97 @@ const ProjectNavigator: React.FC<{
                     <IconButton icon="close" onClick={onClose} title="Close Navigator" />
                 </header>
 
-                <div className="p-4">
+                <div className="px-4 pt-2 pb-1">
+                    <div className="relative">
+                        <span className="material-symbols-rounded absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400" aria-hidden="true">search</span>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search projects..."
+                            aria-label="Search projects"
+                            className="w-full pl-10 pr-4 py-2.5 bg-white rounded-[16px] border border-gray-200 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 placeholder:text-slate-400"
+                        />
+                    </div>
+                </div>
+
+                <div className="px-4 py-2 flex gap-2">
                     <Button
                         variant="tonal"
                         icon="add_circle"
                         onClick={() => { onNewProject(); onClose(); }}
-                        className="w-full justify-start bg-white hover:bg-white/80 shadow-sm"
+                        className="flex-1 justify-start bg-white hover:bg-white/80 shadow-sm"
                     >
                         New Build Sheet
                     </Button>
+                    <button
+                        onClick={() => setShowArchived(!showArchived)}
+                        className={`px-3 py-2 rounded-[16px] text-xs font-bold transition-colors ${showArchived ? 'bg-amber-100 text-amber-800' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                        title={showArchived ? 'Show active projects' : 'Show archived'}
+                    >
+                        <span className="material-symbols-rounded text-[16px]" aria-hidden="true">{showArchived ? 'unarchive' : 'archive'}</span>
+                    </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-4 space-y-2">
-                    {projects.map((p) => (
-                        <div key={p.id} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onSelect(p.id)} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { onSelect(p.id); onClose(); }}>
+                    {filtered.map((p) => (
+                        <div key={p.id} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && !p.archived && onSelect(p.id)} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${p.archived ? 'opacity-60' : ''} ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { if (!p.archived) { onSelect(p.id); onClose(); } }}>
                             {/* Visual Thumbnail */}
                             <div className={`w-14 h-14 rounded-[16px] overflow-hidden flex-shrink-0 border ${p.id === currentId ? 'border-indigo-400' : 'border-gray-100'}`}>
                                 {p.thumbnail ? (
                                     <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                     <div className={`w-full h-full flex items-center justify-center ${p.id === currentId ? 'bg-indigo-700' : 'bg-slate-100'}`}>
-                                        <span className={`material-symbols-rounded ${p.id === currentId ? 'text-indigo-300' : 'text-slate-300'}`} aria-hidden="true">draft</span>
+                                        <span className={`material-symbols-rounded ${p.id === currentId ? 'text-indigo-300' : 'text-slate-300'}`} aria-hidden="true">{p.archived ? 'archive' : 'draft'}</span>
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex flex-col flex-1 min-w-0">
                                 <span className="font-bold text-base truncate pr-6">{p.name || 'Untitled Draft'}</span>
-                                <span className={`text-xs truncate ${p.id === currentId ? 'text-indigo-100' : 'text-slate-500'}`}>{p.preview}</span>
+                                <span className={`text-xs truncate ${p.id === currentId ? 'text-indigo-100' : 'text-slate-500'}`}>{p.preview}{p.archived ? ' · Archived' : ''}</span>
                             </div>
 
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
-                                aria-label={`Delete ${p.name}`}
-                                className={`p-2 rounded-full opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity focus-visible:opacity-100 ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                            >
-                                <span className="material-symbols-rounded text-[20px]" aria-hidden="true">delete</span>
-                            </button>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity shrink-0">
+                                {p.archived ? (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onUnarchive?.(p.id); }}
+                                        aria-label={`Unarchive ${p.name}`}
+                                        className="p-2 rounded-full text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                    >
+                                        <span className="material-symbols-rounded text-[18px]" aria-hidden="true">unarchive</span>
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onDuplicate?.(p.id); }}
+                                            aria-label={`Duplicate ${p.name}`}
+                                            className={`p-2 rounded-full transition-colors ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                        >
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true">content_copy</span>
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onArchive?.(p.id); }}
+                                            aria-label={`Archive ${p.name}`}
+                                            className={`p-2 rounded-full transition-colors ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                                        >
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true">archive</span>
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                                            aria-label={`Delete ${p.name}`}
+                                            className={`p-2 rounded-full transition-colors ${p.id === currentId ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                        >
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true">delete</span>
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     ))}
-                    {projects.length === 0 && (
+                    {filtered.length === 0 && (
                         <div className="text-center py-20 opacity-40">
-                            <p className="text-sm font-medium text-slate-500">No project history found.</p>
+                            <p className="text-sm font-medium text-slate-500">{searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : 'No project history found.'}</p>
                         </div>
                     )}
                 </div>
@@ -1030,6 +1094,155 @@ const PortWarningsPanel: React.FC<{
     );
 };
 
+// --- BOM IMPORT MODAL ---
+const BOMImportModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onImportCSV: (csvText: string) => number;
+    onImportPaste: (text: string) => number;
+}> = ({ isOpen, onClose, onImportCSV, onImportPaste }) => {
+    const [mode, setMode] = useState<'csv' | 'paste'>('csv');
+    const [pasteText, setPasteText] = useState('');
+    const [importResult, setImportResult] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    if (!isOpen) return null;
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target?.result as string;
+            if (!text) return;
+            const count = onImportCSV(text);
+            setImportResult(`Imported ${count} part${count !== 1 ? 's' : ''} from CSV.`);
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
+    const handlePasteImport = () => {
+        if (!pasteText.trim()) return;
+        const count = onImportPaste(pasteText);
+        setImportResult(`Imported ${count} part${count !== 1 ? 's' : ''} from pasted text.`);
+        setPasteText('');
+    };
+
+    const handleClose = () => {
+        setImportResult(null);
+        setPasteText('');
+        setMode('csv');
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="import-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 pb-3 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-[14px] bg-blue-100 text-blue-600 flex items-center justify-center" aria-hidden="true">
+                            <span className="material-symbols-rounded text-[24px]">upload_file</span>
+                        </div>
+                        <div>
+                            <h3 id="import-title" className="text-lg font-bold text-slate-800 tracking-tight">Import BOM</h3>
+                            <p className="text-xs text-slate-500 font-medium">Add parts from a file or pasted list</p>
+                        </div>
+                    </div>
+                    <IconButton icon="close" onClick={handleClose} title="Close" />
+                </div>
+
+                {/* Mode Tabs */}
+                <div className="px-6 flex gap-2">
+                    <button
+                        onClick={() => setMode('csv')}
+                        className={`flex-1 px-4 py-2 rounded-[12px] text-sm font-bold transition-colors ${mode === 'csv' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        CSV File
+                    </button>
+                    <button
+                        onClick={() => setMode('paste')}
+                        className={`flex-1 px-4 py-2 rounded-[12px] text-sm font-bold transition-colors ${mode === 'paste' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        Paste Text
+                    </button>
+                </div>
+
+                <div className="flex-1 px-6 py-4">
+                    {mode === 'csv' ? (
+                        <div className="space-y-4">
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const file = e.dataTransfer.files[0];
+                                    if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => {
+                                            const text = ev.target?.result as string;
+                                            if (text) {
+                                                const count = onImportCSV(text);
+                                                setImportResult(`Imported ${count} part${count !== 1 ? 's' : ''} from CSV.`);
+                                            }
+                                        };
+                                        reader.readAsText(file);
+                                    }
+                                }}
+                                className="border-2 border-dashed border-blue-200 rounded-[20px] p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all"
+                            >
+                                <span className="material-symbols-rounded text-[40px] text-blue-300 mb-2 block" aria-hidden="true">cloud_upload</span>
+                                <p className="text-sm font-bold text-slate-700 mb-1">Drop a CSV file here</p>
+                                <p className="text-xs text-slate-500">or click to browse</p>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".csv,text/csv"
+                                    className="hidden"
+                                    onChange={handleFileSelect}
+                                />
+                            </div>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                                Headers auto-detected: Name, SKU, Category, Brand, Quantity, Price, Description.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <textarea
+                                value={pasteText}
+                                onChange={e => setPasteText(e.target.value)}
+                                placeholder={"Paste a parts list here...\n\nExamples:\n2x Ball Bearing 6004\nTimken 42690 Tapered Roller\nCalifornia Mini Truck CV Axle\n\nCSV and tab-separated data also accepted."}
+                                className="w-full h-48 p-4 bg-slate-50 rounded-[16px] border border-gray-200 text-sm text-slate-800 resize-none outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 placeholder:text-slate-400 font-mono"
+                            />
+                            <Button
+                                variant="primary"
+                                onClick={handlePasteImport}
+                                disabled={!pasteText.trim()}
+                                className="w-full"
+                                icon="playlist_add"
+                            >
+                                Import Parts
+                            </Button>
+                        </div>
+                    )}
+
+                    {importResult && (
+                        <div className="mt-4 p-4 bg-emerald-50 rounded-[16px] text-sm font-bold text-emerald-800 flex items-center gap-2">
+                            <span className="material-symbols-rounded text-[20px] text-emerald-500" aria-hidden="true">check_circle</span>
+                            {importResult}
+                        </div>
+                    )}
+                </div>
+
+                <div className="p-6 border-t border-gray-100 flex justify-end">
+                    <Button variant={importResult ? "primary" : "secondary"} onClick={handleClose}>{importResult ? 'Done' : 'Cancel'}</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
     const { service: aiService } = useService();
     const [draftingEngine] = useState(() => getDraftingEngine());
@@ -1085,6 +1298,9 @@ const AppContent: React.FC = () => {
     // Sub-assembly collapsed state
     const [collapsedAssemblies, setCollapsedAssemblies] = useState<Set<string>>(new Set());
 
+    // BOM Import
+    const [importModalOpen, setImportModalOpen] = useState(false);
+
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [session.messages, mobileTab, isThinking]);
@@ -1119,6 +1335,9 @@ const AppContent: React.FC = () => {
     useEffect(() => {
         setProjectsList(draftingEngine.getProjectsList());
         
+        // Load persistent activity log from IndexedDB
+        ActivityLogService.loadFromStorage();
+
         // Listen for async image loading from IndexedDB
         draftingEngine.setOnImagesLoaded(() => {
             setSession(draftingEngine.getSession());
@@ -1507,6 +1726,38 @@ const AppContent: React.FC = () => {
         setTimeout(() => { printWindow.print(); }, 500);
     };
 
+    // --- BOM Import Handlers ---
+    const handleImportCSV = (csvText: string): number => {
+        const count = draftingEngine.importCSV(csvText);
+        if (count > 0) refreshState();
+        return count;
+    };
+
+    const handleImportPaste = (text: string): number => {
+        const count = draftingEngine.importPastedText(text);
+        if (count > 0) refreshState();
+        return count;
+    };
+
+    // --- Project Management Handlers ---
+    const handleDuplicateProject = (id: string) => {
+        const newId = draftingEngine.duplicateProject(id);
+        draftingEngine.loadProject(newId);
+        refreshState();
+    };
+
+    const handleArchiveProject = (id: string) => {
+        draftingEngine.archiveProject(id);
+        refreshState();
+        setProjectsList(draftingEngine.getProjectsList());
+    };
+
+    const handleUnarchiveProject = (id: string) => {
+        draftingEngine.unarchiveProject(id);
+        refreshState();
+        setProjectsList(draftingEngine.getProjectsList(true));
+    };
+
     // Visual Audit Handlers
     const handleScanPart = async (image: string) => {
         if (!aiService.identifyComponent) return;
@@ -1666,6 +1917,16 @@ const AppContent: React.FC = () => {
                 else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
             });
 
+            // Populate VisualManifest if the architect returned one
+            if (parsed.visualization && parsed.visualization.components && parsed.visualization.components.length > 0) {
+                draftingEngine.setVisualManifest(parsed.visualization);
+                stateModified = true;
+            } else if (stateModified && !draftingEngine.getSession().visualManifest) {
+                // Generate a fallback manifest from the BOM
+                const fallback = draftingEngine.generateFallbackManifest();
+                if (fallback) draftingEngine.setVisualManifest(fallback);
+            }
+
             draftingEngine.addMessage({ 
                 role: 'assistant', 
                 content: parsed.reasoning || architectResponse.text, 
@@ -1700,8 +1961,12 @@ const AppContent: React.FC = () => {
                 onNewProject={() => { draftingEngine.createNewProject(); refreshState(); }}
                 onExport={handleExport}
                 onValidate={runValidationSuite}
+                onDuplicate={handleDuplicateProject}
+                onArchive={handleArchiveProject}
+                onUnarchive={handleUnarchiveProject}
             />
             <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
+            <BOMImportModal isOpen={importModalOpen} onClose={() => { setImportModalOpen(false); refreshState(); }} onImportCSV={handleImportCSV} onImportPaste={handleImportPaste} />
             <ValidationReportModal
                 isOpen={validationOpen}
                 onClose={() => setValidationOpen(false)}
@@ -1778,6 +2043,12 @@ const AppContent: React.FC = () => {
                         onClick={handleExportPDF}
                         className="text-orange-600 hover:bg-orange-50 hover:text-orange-700"
                         title="Export PDF"
+                    />
+                    <IconButton
+                        icon="upload_file"
+                        onClick={() => setImportModalOpen(true)}
+                        className="text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
+                        title="Import BOM"
                     />
 
                     <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
@@ -1868,9 +2139,27 @@ const AppContent: React.FC = () => {
                         </div>
                     </header>
 
-                    {/* Hero Visualizer */}
-                    <div className="px-4 pb-2 h-[40%] shrink-0">
-                        <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
+                    {/* Hero Visualizer — Block Diagram + Image Gallery */}
+                    <div className="px-4 pb-2 h-[40%] shrink-0 flex flex-col">
+                        {session.visualManifest && session.visualManifest.components.length > 0 ? (
+                            <div className="flex-1 flex gap-2 min-h-0">
+                                <div className="flex-1 min-w-0">
+                                    <VisualManifestRenderer
+                                        manifest={session.visualManifest}
+                                        bom={session.bom}
+                                        onComponentClick={(partId) => {
+                                            const entry = session.bom.find(b => b.part.id === partId);
+                                            if (entry) setSelectedPart(entry);
+                                        }}
+                                    />
+                                </div>
+                                <div className="w-[40%] min-w-0">
+                                    <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
+                                </div>
+                            </div>
+                        ) : (
+                            <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
+                        )}
                     </div>
 
                     {/* Conversation Feed */}

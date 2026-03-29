@@ -49,23 +49,23 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[x]` **JSON export** — `exportManifest()` works and downloads a `.json` file.
 - `[x]` **PDF export** — print-optimized window with styled BOM table (via `window.print()`)
 - `[x]` **CSV export** — `exportCSV()` in DraftingEngine, button in nav rail
-- `[ ]` **BOM import from CSV** — advertised in the FAQ ("You can import existing BOMs from CSV"). No import logic exists at all.
-- `[ ]` **Paste-in BOM import** — also advertised in FAQ. Not implemented.
+- `[x]` **BOM import from CSV** — `importCSV()` in DraftingEngine with auto-detected column mapping + drag-and-drop CSV modal in the nav rail.
+- `[x]` **Paste-in BOM import** — `importPastedText()` in DraftingEngine; supports free-text lists, quantity prefixes/suffixes, tab-separated, and CSV auto-detection. Accessible via the Import modal.
 
 ### Project Management
 - `[~]` **Project list / history** — `ProjectNavigator` shows local projects stored in `localStorage`. Limited to the current browser/device.
-- `[ ]` **Project search and filtering**
+- `[x]` **Project search and filtering** — live search input in `ProjectNavigator`; filters by name and preview text.
 - `[ ]` **Project tags / labels**
-- `[ ]` **Project archiving**
-- `[ ]` **Project duplication** — `forkFromMessage` exists but only forks from a message snapshot, not at the project level.
+- `[x]` **Project archiving** — `archiveProject()` / `unarchiveProject()` in DraftingEngine; toggle archived view in ProjectNavigator.
+- `[x]` **Project duplication** — `duplicateProject()` in DraftingEngine; deep-clones BOM and messages. Accessible via copy button in ProjectNavigator.
 - `[ ]` **Project templates** — suggested in marketing copy.
 - `[ ]` **Project thumbnail generation** — thumbnails are explicitly disabled (`thumbnail: undefined // DISABLE THUMBNAILS to save space in the index`).
 
 ### Visual Assembly View (the Chilton Visualizer)
 - `[~]` **AI-generated concept image** — `ChiltonVisualizer` shows Gemini-generated PNG images. This is a flat image, not an interactive assembly.
-- `[ ]` **The "Visualizer" panel shown in the hero mockup** — the `VisualManifest` type (`stackAxis`, `VisualComponent[]`) exists in `types.ts` but is **never populated or rendered**. The 3D/schematic block-diagram visualizer from the mockup is missing entirely.
-- `[ ]` **Interactive explorable visualization** — advertised as "See how every part connects, trace dependencies." The current image viewer has no interactivity beyond pan/zoom.
-- `[ ]` **Dependency graph / port-connection diagram** — ports are modelled in `PortDefinition` but never visualized beyond a list in `PartDetailModal`.
+- `[x]` **The "Visualizer" panel shown in the hero mockup** — `VisualManifestRenderer` renders `VisualComponent[]` as an SVG block diagram in the hero area. Populated from architect responses or auto-generated as fallback from BOM.
+- `[x]` **Interactive explorable visualization** — SVG blocks are clickable (jumps to BOM entry), hoverable (highlight + shadow), with port indicators color-coded by type.
+- `[x]` **Dependency graph / port-connection diagram** — Dashed connection lines with arrowheads drawn between adjacent components; port dots displayed at bottom of each block, color-coded by `PortType`.
 
 ### Authentication & User Accounts
 - `[~]` **Google Sign-In** — `UserService.login()` exists but returns a **hardcoded mock user** (`google-oauth2|...`). No real OAuth flow is implemented. `firebase.ts` is intentionally blank.
@@ -85,7 +85,7 @@ These are features the `website/index.html` explicitly advertises that are **not
 ### Data Security (advertised in FAQ)
 - `[ ]` **Encryption at rest** — all data is in plain `localStorage` / IndexedDB. No encryption.
 - `[ ]` **SOC 2 compliance** — advertised. N/A without a real backend.
-- `[ ]` **Audit logs** — `ActivityLogService` exists (`activityLogService.ts`) but only logs to memory with no persistence or UI.
+- `[x]` **Audit logs** — `ActivityLogService` now persists to IndexedDB (`buildsheet_activity_log` key); auto-loaded on startup with a 500-entry rolling cap.
 - `[ ]` **"We never use your data to train AI models"** — this requires a policy/backend to enforce, not just a promise.
 
 ### API Access
@@ -223,18 +223,18 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` Datasheet link field
 
 ### Visualizer (Chilton)
-- `[ ]` Implement the `VisualManifest` renderer — render `VisualComponent[]` as a schematic block diagram (SVG or Canvas), not just an AI-generated image
-- `[ ]` Place the Visualizer **above the center panel** (as shown in the hero mockup — it currently sits only in the left/draft pane)
-- `[ ]` Port connection lines between components in the block diagram
+- `[x]` Implement the `VisualManifest` renderer — `VisualManifestRenderer` component renders `VisualComponent[]` as an interactive SVG block diagram
+- `[x]` Place the Visualizer **above the center panel** — block diagram renders side-by-side with ChiltonVisualizer in the hero area when manifest is populated
+- `[x]` Port connection lines between components in the block diagram — dashed lines with arrowhead markers between adjacent blocks
 - `[ ]` Pan / zoom on the block diagram
-- `[ ]` Click a component block to jump to its BOM entry
+- `[x]` Click a component block to jump to its BOM entry — `onComponentClick` fires `setSelectedPart`
 - `[ ]` Persistent image gallery — deleted IndexedDB images are lost; add server-side image storage
 
 ### Export / Import UI
 - `[ ]` "Export as PDF" button — after backend is built
 - `[ ]` "Export as CSV" button
-- `[ ]` "Import CSV" modal with column mapping
-- `[ ]` Drag-and-drop JSON/CSV file onto the app to import
+- `[x]` "Import CSV" modal with column mapping — `BOMImportModal` component with auto-detected headers, plus paste-in tab
+- `[x]` Drag-and-drop JSON/CSV file onto the app to import — `BOMImportModal` supports drag-and-drop CSV files
 
 ### Settings
 - `[~]` `SettingsModal` exists but details are unknown without reading it
@@ -255,7 +255,7 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` Share permissions (view-only vs. editable)
 
 ### Activity Log UI
-- `[ ]` Activity feed panel showing who did what, when
+- `[~]` Activity feed panel showing who did what, when — `ActivityLogService` now persists to IndexedDB; UI panel to consume logs not yet built
 - `[ ]` Undo/redo from activity log
 
 ---
@@ -305,8 +305,8 @@ For the Team tier's "API access" promise:
 
 These can be done without a backend and immediately improve quality/honesty:
 
-1. `[ ]` **Implement the VisualManifest block-diagram renderer** — the type already exists, just needs a renderer
-2. `[ ]` **Move Visualizer to top of center panel** to match the hero mockup
+1. `[x]` **Implement the VisualManifest block-diagram renderer** — `VisualManifestRenderer` renders interactive SVG schematic
+2. `[x]` **Move Visualizer to top of center panel** — block diagram + image gallery in hero area
 3. `[ ]` **"Greasy Hands" Voice Mode** — push-to-talk hands-free assistant via `gemini-2.5-flash-native-audio-preview` (audio model already referenced; wire up bidirectional audio session)
 4. `[ ]` **Automotive Safety Auditor UI** — ISO 26262 / ISO 8800 violation panel (extends existing `audit` prompt; high demo value for industry audience)
 5. `[ ]` **VIN & Recall lookup** — NHTSA API call + ground results to BOM frame/engine entries
@@ -317,7 +317,7 @@ These can be done without a backend and immediately improve quality/honesty:
 7. `[x]` **PDF export** — print-optimized window via `window.print()` with styled BOM table
 8. `[ ]` **Real Google OAuth** via Firebase Auth (free tier, minimal backend needed)
 9. `[ ]` **Fix the share URL** — at minimum, encode the project as base64 in the URL query param so it actually loads
-10. `[ ]` **Persistent activity log** — write to IndexedDB alongside images
+10. `[x]` **Persistent activity log** — `ActivityLogService` now writes to IndexedDB with 500-entry rolling cap
 
 ---
 
@@ -331,4 +331,4 @@ These require specialized infrastructure not present in the base app. Deprioriti
 
 ---
 
-*Last updated: 2026-03-29. Reflects Active Backlog implementation pass — Visual Parts Audit, BOM nesting/undo, CAD bridge, and Quick Wins (#3–#7) completed. Added Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, and deferred simulation features.*
+*Last updated: 2026-03-29. CRITICAL backlog pass: CSV/Paste BOM import, project search/duplication/archiving, VisualManifest block-diagram renderer, persistent activity logging, drag-and-drop import modal. Plus Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, and deferred simulation features.*

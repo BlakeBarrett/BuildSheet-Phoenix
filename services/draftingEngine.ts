@@ -1,4 +1,4 @@
-import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
+import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 import { get, set, del } from 'idb-keyval';
@@ -9,6 +9,7 @@ export interface ProjectIndexEntry {
   lastModified: Date;
   preview: string;
   thumbnail?: string; // Latest generated image for the navigator
+  archived?: boolean;
 }
 
 export class DraftingEngine {
@@ -184,19 +185,7 @@ export class DraftingEngine {
     }
   }
 
-  public getProjectsList(): ProjectIndexEntry[] {
-    const indexRaw = localStorage.getItem(this.INDEX_KEY);
-    if (!indexRaw) return [];
-    try {
-      const parsed = JSON.parse(indexRaw);
-      return parsed.map((p: any) => ({
-        ...p,
-        lastModified: new Date(p.lastModified)
-      }));
-    } catch (e) {
-      return [];
-    }
-  }
+  // getProjectsList moved to below CSV/Import methods (supports includeArchived flag)
 
   public loadProject(id: string) {
     const stored = localStorage.getItem(this.SESSION_PREFIX + id);
@@ -482,6 +471,37 @@ export class DraftingEngine {
     this.saveSession();
   }
 
+  public setVisualManifest(manifest: VisualManifest | undefined) {
+    this.session.visualManifest = manifest;
+    this.saveSession();
+  }
+
+  public generateFallbackManifest(): VisualManifest | undefined {
+    if (this.session.bom.length === 0) return undefined;
+
+    const palette = ['#818CF8', '#34D399', '#F59E0B', '#F87171', '#60A5FA', '#A78BFA', '#FB923C', '#2DD4BF'];
+    const components = this.session.bom.map((entry, i): VisualComponent => ({
+      partId: entry.part.id,
+      shape: entry.part.category.toLowerCase().includes('motor') || entry.part.category.toLowerCase().includes('engine')
+        ? 'cylinder'
+        : entry.part.category.toLowerCase().includes('bearing') || entry.part.category.toLowerCase().includes('ball')
+          ? 'sphere'
+          : 'box',
+      dims: [
+        Math.max(80, 60 + entry.part.name.length * 3),
+        60,
+        40
+      ],
+      color: palette[i % palette.length],
+      label: entry.part.name,
+    }));
+
+    return {
+      stackAxis: components.length > 5 ? 'y' : 'x',
+      components
+    };
+  }
+
   public getShareUrl(): string {
     const user = UserService.getCurrentUser();
     const username = user?.username || 'anonymous';
@@ -596,6 +616,272 @@ export class DraftingEngine {
       escapeCSV(entry.part.description || '')
     ].join(','));
     return [headers.join(','), ...rows].join('\n');
+  }
+
+  // --- CSV Import ---
+
+  private static parseCSVRow(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"' && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else if (ch === '"') {
+          inQuotes = false;
+        } else {
+          current += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  public importCSV(csvText: string, columnMap?: { name?: number; sku?: number; category?: number; brand?: number; quantity?: number; price?: number; description?: number }): number {
+    const lines = csvText.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return 0;
+
+    const headerRow = DraftingEngine.parseCSVRow(lines[0]);
+    const headerLower = headerRow.map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+
+    // Auto-detect column indices if no explicit mapping provided
+    const map = columnMap || {};
+    if (map.name === undefined) map.name = headerLower.findIndex(h => h.includes('name') || h.includes('component') || h.includes('part'));
+    if (map.sku === undefined) map.sku = headerLower.findIndex(h => h.includes('sku') || h.includes('partnum') || h.includes('partnumber') || h.includes('mpn'));
+    if (map.category === undefined) map.category = headerLower.findIndex(h => h.includes('category') || h.includes('type') || h.includes('group'));
+    if (map.brand === undefined) map.brand = headerLower.findIndex(h => h.includes('brand') || h.includes('manufacturer') || h.includes('mfr'));
+    if (map.quantity === undefined) map.quantity = headerLower.findIndex(h => h.includes('qty') || h.includes('quantity') || h.includes('count'));
+    if (map.price === undefined) map.price = headerLower.findIndex(h => h.includes('price') || h.includes('unitprice') || h.includes('cost'));
+    if (map.description === undefined) map.description = headerLower.findIndex(h => h.includes('description') || h.includes('desc') || h.includes('notes'));
+
+    // Require at least a name column
+    if (map.name === undefined || map.name < 0) {
+      // Fallback: first non-empty column
+      map.name = 0;
+    }
+
+    this.pushUndo();
+    let imported = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = DraftingEngine.parseCSVRow(lines[i]);
+      const name = cols[map.name!] || '';
+      if (!name) continue;
+
+      const sku = (map.sku !== undefined && map.sku >= 0 ? cols[map.sku] : '') || '';
+      const category = (map.category !== undefined && map.category >= 0 ? cols[map.category] : '') || 'Component';
+      const brand = (map.brand !== undefined && map.brand >= 0 ? cols[map.brand] : '') || 'TBD';
+      const quantityStr = map.quantity !== undefined && map.quantity >= 0 ? cols[map.quantity] : '1';
+      const quantity = Math.max(1, parseInt(quantityStr, 10) || 1);
+      const priceStr = map.price !== undefined && map.price >= 0 ? (cols[map.price] || '0') : '0';
+      const price = Math.max(0, parseFloat(priceStr.replace(/[^0-9.]/g, '')) || 0);
+      const description = (map.description !== undefined && map.description >= 0 ? cols[map.description] : '') || '';
+
+      const partId = sku || `imported-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 32)}-${Math.random().toString(36).substr(2, 4)}`;
+
+      const part: Part = {
+        id: partId,
+        sku: sku || `IMPORT-${partId.toUpperCase().substring(0, 12)}`,
+        name,
+        category,
+        brand,
+        price,
+        description,
+        ports: []
+      };
+
+      const entry: BOMEntry = {
+        instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
+        part,
+        quantity,
+        isCompatible: true
+      };
+
+      this.session.bom.push(entry);
+      imported++;
+    }
+
+    if (imported > 0) {
+      this.session.cacheIsDirty = true;
+      this.saveSession();
+    }
+    return imported;
+  }
+
+  // --- Paste-in BOM Import ---
+
+  public importPastedText(text: string): number {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length === 0) return 0;
+
+    // Detect if it's actually CSV (has commas and a header-like first line)
+    const commaCount = (lines[0].match(/,/g) || []).length;
+    if (commaCount >= 2) {
+      return this.importCSV(text);
+    }
+
+    // Detect tab-separated
+    const tabCount = (lines[0].match(/\t/g) || []).length;
+    if (tabCount >= 1) {
+      return this.importCSV(text.replace(/\t/g, ','));
+    }
+
+    this.pushUndo();
+    let imported = 0;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Try to parse common patterns:
+      // "2x Widget Assembly" or "Widget Assembly x3" or "Widget Assembly (2)" or just "Widget Assembly"
+      let name = trimmed;
+      let quantity = 1;
+
+      // Pattern: "2x Name" or "2 x Name"
+      const prefixMatch = trimmed.match(/^(\d+)\s*x\s+(.+)$/i);
+      if (prefixMatch) {
+        quantity = parseInt(prefixMatch[1], 10) || 1;
+        name = prefixMatch[2].trim();
+      } else {
+        // Pattern: "Name x2" or "Name x 2"
+        const suffixMatch = trimmed.match(/^(.+?)\s*x\s*(\d+)$/i);
+        if (suffixMatch) {
+          name = suffixMatch[1].trim();
+          quantity = parseInt(suffixMatch[2], 10) || 1;
+        } else {
+          // Pattern: "Name (2)" or "Name [2]"
+          const parenMatch = trimmed.match(/^(.+?)\s*[\(\[](\d+)[\)\]]$/);
+          if (parenMatch) {
+            name = parenMatch[1].trim();
+            quantity = parseInt(parenMatch[2], 10) || 1;
+          }
+        }
+      }
+
+      // Strip leading bullets, dashes, numbers with dots/parens
+      name = name.replace(/^[\-\*•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').trim();
+      if (!name) continue;
+
+      const partId = `pasted-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 32)}-${Math.random().toString(36).substr(2, 4)}`;
+      const part: Part = {
+        id: partId,
+        sku: `DRAFT-${partId.toUpperCase().substring(0, 12)}`,
+        name,
+        category: 'Component',
+        brand: 'TBD',
+        price: 0,
+        description: 'Imported from pasted text.',
+        ports: []
+      };
+
+      const entry: BOMEntry = {
+        instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
+        part,
+        quantity,
+        isCompatible: true
+      };
+
+      this.session.bom.push(entry);
+      imported++;
+    }
+
+    if (imported > 0) {
+      this.session.cacheIsDirty = true;
+      this.saveSession();
+    }
+    return imported;
+  }
+
+  // --- Project Duplication ---
+
+  public duplicateProject(sourceId?: string): string {
+    const id = sourceId || this.session.id;
+    let sourceSession: DraftingSession;
+
+    if (id === this.session.id) {
+      sourceSession = { ...this.session };
+    } else {
+      const stored = localStorage.getItem(this.SESSION_PREFIX + id);
+      if (!stored) return this.session.id;
+      sourceSession = this.hydrateSession(JSON.parse(stored));
+    }
+
+    const newId = Math.random().toString(36).substr(2, 9);
+    const user = UserService.getCurrentUser();
+
+    const newSession: DraftingSession = {
+      ...sourceSession,
+      id: newId,
+      slug: `build-${newId.substr(0, 4)}`,
+      ownerId: user?.id || 'anonymous',
+      name: sourceSession.name + ' (Copy)',
+      bom: JSON.parse(JSON.stringify(sourceSession.bom)),
+      messages: JSON.parse(JSON.stringify(sourceSession.messages)),
+      generatedImages: [], // Don't duplicate large image blobs
+      createdAt: new Date(),
+      lastModified: new Date(),
+      cacheIsDirty: true,
+      cachedAuditResult: undefined,
+      cachedAssemblyPlan: undefined
+    };
+
+    newSession.messages.forEach(m => m.timestamp = new Date(m.timestamp));
+    this.saveSessionToStorage(newSession);
+    return newId;
+  }
+
+  // --- Project Archiving ---
+
+  public archiveProject(id: string) {
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return;
+    const index = JSON.parse(indexRaw);
+    const entry = index.find((i: any) => i.id === id);
+    if (entry) {
+      entry.archived = true;
+      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+    }
+  }
+
+  public unarchiveProject(id: string) {
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return;
+    const index = JSON.parse(indexRaw);
+    const entry = index.find((i: any) => i.id === id);
+    if (entry) {
+      entry.archived = false;
+      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+    }
+  }
+
+  public getProjectsList(includeArchived = false): ProjectIndexEntry[] {
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return [];
+    try {
+      const parsed = JSON.parse(indexRaw);
+      return parsed
+        .filter((p: any) => includeArchived || !p.archived)
+        .map((p: any) => ({
+          ...p,
+          lastModified: new Date(p.lastModified)
+        }));
+    } catch (e) {
+      return [];
+    }
   }
 
   // --- Port Compatibility Analysis ---

@@ -402,7 +402,13 @@ export class GeminiService implements AIService {
         try {
             const ai = this.getClient();
             const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
-            let prompt = `Generate an assembly plan for:\n${bomDigest}`;
+            let prompt = `Generate a robotic assembly plan for the following components:\n${bomDigest}\n\nFor automationFeasibility (0-100), score how practical it is to assemble this with standard industrial robotic arms and off-the-shelf end-effectors. Use this scale:
+- 90-100: Simple pick-and-place, snap-fit, or screw fastening of rigid, uniform parts (e.g. PCB mounting, connector insertion)
+- 70-89: Standard assembly requiring moderate dexterity or tool changes (e.g. cable routing with clips, heat-sink mounting)
+- 50-69: Complex assembly needing specialized fixtures or force-feedback (e.g. flex-cable threading, adhesive application)
+- 30-49: Highly dexterous or non-deterministic tasks (e.g. hand-soldering, conformal coating)
+- 0-29: Practically infeasible to automate (e.g. field wiring in confined spaces)
+Most consumer-electronics and maker-project assemblies should score 70+.`;
 
             if (previousPlan) {
                 prompt += `\n\n--- PREVIOUS PLAN ---\nUpdate this plan based on the new BOM.`;
