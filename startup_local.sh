@@ -19,6 +19,9 @@ CONTAINER_NAME="buildsheet-local-run"
 HOST_PORT=8080
 CONTAINER_PORT=8080
 
+MARKETING_CONTAINER_NAME="buildsheet-marketing-run"
+MARKETING_HOST_PORT=8081
+
 # load .env variables if file is present (export them for use below)
 if [ -f .env ]; then
   # shellcheck disable=SC1091
@@ -59,3 +62,20 @@ docker run -d \
   "$IMAGE_NAME"
 
 echo "✅ container started, visit http://localhost:${HOST_PORT}/"
+
+# --- Marketing website ---
+docker rm -f "$MARKETING_CONTAINER_NAME" 2>/dev/null || true
+
+echo "▶ launching marketing site on port ${MARKETING_HOST_PORT}..."
+docker run -d \
+  --name "$MARKETING_CONTAINER_NAME" \
+  -p "${MARKETING_HOST_PORT}:${MARKETING_HOST_PORT}" \
+  -v "$(pwd)/website:/srv/website:ro" \
+  "$IMAGE_NAME" \
+  serve /srv/website -l "${MARKETING_HOST_PORT}" --no-clipboard
+
+# update "Log In" link so it points to the running app
+echo "▶ patching marketing site login link → http://localhost:${HOST_PORT}/"
+sed -i "s|http://localhost:[0-9]*\"|http://localhost:${HOST_PORT}\"|g" website/index.html
+
+echo "✅ marketing site started, visit http://localhost:${MARKETING_HOST_PORT}/"

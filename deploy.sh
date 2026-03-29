@@ -82,7 +82,7 @@ echo ""
 
 # ── Step 3: Build the Docker image ──────────────────────────────────────────
 echo "🔧 Step 3: Building Docker image..."
-docker build -t "$IMAGE_URI" .
+docker build --load -t "$IMAGE_URI" .
 echo "   ✅ Image built: $IMAGE_URI"
 echo ""
 
