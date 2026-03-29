@@ -305,7 +305,6 @@ const PartDetailModal: React.FC<{
     }, [entry]);
 
     if (!entry) return null;
-    if (!entry) return null;
     const isVirtual = entry.part.brand === 'TBD';
     const isOwned = /user owned/i.test(entry.part.description || '');
     const displayDescription = entry.part.description?.replace(/\s*\({0,1}user owned\){0,1}/gi, '').trim() || 'No description provided.';

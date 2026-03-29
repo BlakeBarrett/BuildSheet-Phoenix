@@ -85,4 +85,12 @@ export class HybridAIService implements AIService {
     async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
         return this.geminiService.getARGuidance(image, currentStep, plan);
     }
+
+    async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: import('./aiTypes.ts').AuditAction[], summary: string }> {
+        return this.geminiService.applyAuditRecommendations(bom, auditResult, requirements);
+    }
+
+    async identifyComponent(image: string): Promise<import('./aiTypes.ts').ComponentIdentification | null> {
+        return this.geminiService.identifyComponent(image);
+    }
 }
