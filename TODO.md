@@ -35,6 +35,10 @@
 - `[?]` Pipeline to ingest and verify structural/mechanical data from 1970s PDF service manuals
 - `[?]` Extract parts from scanned documents and map them to BOM entries
 
+### 5. Industrial & Safety _(Roundtable Demo Priority)_
+- `[ ]` **Automotive Safety Auditor** — Validate BOM plan against ISO 26262 / ISO 8800; AI-driven violation report surfaced in a dedicated panel. Extends the existing `audit` prompt in `geminiService.ts`.
+- `[ ]` **VIN & Recall Grounding** — Enter a VIN; auto-pull NHTSA safety bulletins and OEM service notices and ground them to the relevant BOM frame/engine entries.
+
 ---
 
 ## 🔴 CRITICAL: Features Promised on the Marketing Website — Not Yet Built
@@ -94,6 +98,7 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[~]` **AR Guide View** — `ARGuideView.tsx` exists and uses the camera. It calls `aiService.getARGuidance()` which sends camera frames to Gemini. Basic.
 - `[ ]` **Spatial anchoring / overlay** — the "Live assembly overlay via camera" claim implies AR anchors. The current implementation just shows the camera feed + a text prompt from Gemini.
 - `[ ]` **Audio guidance** — `gemini-2.5-flash-native-audio-preview` is referenced in model name but audio output is unused; only text is read.
+- `[ ]` **"Greasy Hands" Voice Mode** — Dedicated hands-free voice session using `gemini-2.5-flash-native-audio-preview`; push-to-talk triggers BOM queries, part lookups, and step-by-step guidance without touching the screen. _(High demo value — show in a shop environment)_
 
 ---
 
@@ -144,6 +149,9 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` Rate limiting per user/plan tier (Redis token bucket)
 - `[ ]` Usage metering for billing
 - `[ ]` `POST /api/ai/ar-guidance` — AR frame analysis
+- `[ ]` `POST /api/ai/voice-session` — bidirectional audio proxy for "Greasy Hands" voice mode (Gemini Live Audio)
+- `[ ]` `POST /api/ai/vin-recall` — NHTSA + OEM bulletin lookup by VIN; returns recall list grounded to BOM entries
+- `[ ]` `POST /api/ai/safety-audit` — ISO 26262 / ISO 8800 compliance check against BOM plan; returns structured violation report
 
 #### Export Routes
 - `[ ]` `GET /api/projects/:id/export/json` — current JSON manifest
@@ -172,6 +180,11 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` Persist `ActivityLogService` entries to the database
 - `[ ]` `GET /api/projects/:id/activity` — return log for project
 - `[ ]` `GET /api/admin/activity` — org-level audit log (Team tier)
+
+#### Digital Traceability Ledger _(Industrial / Roundtable)_
+- `[ ]` Hash each BOM mutation and store an append-only provenance chain per project
+- `[ ]` `GET /api/projects/:id/provenance` — return the cryptographically chained build record
+- `[ ]` Export provenance chain as a signed JSON manifest (`.buildrecord` format)
 
 #### Billing / Stripe Integration
 - `[ ]` Stripe customer / subscription creation on signup
@@ -283,6 +296,9 @@ For the Team tier's "API access" promise:
 - `[ ]` **Unit tests** for `DraftingEngine`, `UserService`, parser functions
 - `[ ]` **Load testing** before public launch
 
+#### Agentic Integrations
+- `[ ]` **BuildSheet Skills Registry** — Package `DraftingEngine`, `geminiService` audit, and part hydration as Antigravity `.agent` skills; export a `skills.json` manifest from the project. _(Required for Antigravity platform demo)_
+
 ---
 
 ## 📋 Prioritized Quick Wins (Low Effort, High Impact)
@@ -291,7 +307,10 @@ These can be done without a backend and immediately improve quality/honesty:
 
 1. `[ ]` **Implement the VisualManifest block-diagram renderer** — the type already exists, just needs a renderer
 2. `[ ]` **Move Visualizer to top of center panel** to match the hero mockup
-3. `[x]` **CSV export** — `exportCSV()` in DraftingEngine + nav rail button
+3. `[ ]` **"Greasy Hands" Voice Mode** — push-to-talk hands-free assistant via `gemini-2.5-flash-native-audio-preview` (audio model already referenced; wire up bidirectional audio session)
+4. `[ ]` **Automotive Safety Auditor UI** — ISO 26262 / ISO 8800 violation panel (extends existing `audit` prompt; high demo value for industry audience)
+5. `[ ]` **VIN & Recall lookup** — NHTSA API call + ground results to BOM frame/engine entries
+6. `[x]` **CSV export** — `exportCSV()` in DraftingEngine + nav rail button
 4. `[x]` **Project delete confirmation** — modal dialog with name confirmation
 5. `[x]` **BOM sub-assembly nesting UI** — recursive tree renderer with collapse/expand, Set Parent in PartDetailModal
 6. `[x]` **Port compatibility warnings** — cross-checks port specs/gender, shows warning badges + detail panel
@@ -302,4 +321,14 @@ These can be done without a backend and immediately improve quality/honesty:
 
 ---
 
-*Last updated: 2026-03-29. Reflects Active Backlog implementation pass — Visual Parts Audit, BOM nesting/undo, CAD bridge, and Quick Wins (#3–#7) completed.*
+## ⚪ Deferred: Advanced Simulation _(Sweatlab / Future Sprint)_
+
+These require specialized infrastructure not present in the base app. Deprioritized relative to conference demo scope.
+
+- `[?]` **Local Thermal Simulation** — Agent-driven piston-to-wall clearance calculation. Requires a WebAssembly or server-side physics solver (e.g., Bullet, Matter.js).
+- `[?]` **3D Point Cloud Fusion** — Convert workbench photos to an interactive 3D scene via NeRF / Gaussian splatting. Requires a dedicated ML inference pipeline.
+- `[?]` **Omniverse/USD Export** — Export project to USD format for physics-based digital twin in NVIDIA Omniverse. Requires Omniverse SDK and a local or cloud simulation environment.
+
+---
+
+*Last updated: 2026-03-29. Reflects Active Backlog implementation pass — Visual Parts Audit, BOM nesting/undo, CAD bridge, and Quick Wins (#3–#7) completed. Added Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, and deferred simulation features.*
