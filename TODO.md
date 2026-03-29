@@ -9,6 +9,7 @@
 - `[ ]` Not started
 - `[~]` Partially implemented / stubbed
 - `[x]` Done
+- `[?]` Deferred but still in plan
 
 ---
 
@@ -31,29 +32,14 @@
 - `[ ]` STL preview via Three.js or similar
 
 ### 4. Legacy Manual Archaeology (PDF Ingestion)
-- `[ ]` Pipeline to ingest and verify structural/mechanical data from 1970s PDF service manuals
-- `[ ]` Extract parts from scanned documents and map them to BOM entries
+- `[?]` Pipeline to ingest and verify structural/mechanical data from 1970s PDF service manuals
+- `[?]` Extract parts from scanned documents and map them to BOM entries
 
 ---
 
 ## 🔴 CRITICAL: Features Promised on the Marketing Website — Not Yet Built
 
 These are features the `website/index.html` explicitly advertises that are **not yet functional** in the actual app (`App.tsx`).
-
-### Authentication & User Accounts
-- `[~]` **Google Sign-In** — `UserService.login()` exists but returns a **hardcoded mock user** (`google-oauth2|...`). No real OAuth flow is implemented. `firebase.ts` is intentionally blank.
-- `[ ]` **Real Auth0 / Firebase Auth integration** — The import comment says "Auth0 (Simulated)". Replace with the real SDK.
-- `[ ]` **Session persistence tied to real user identity** — Currently all data lives in `localStorage` keyed by a random ID, not by user account. Logging in/out does nothing to project ownership.
-- `[ ]` **User profile page** — avatar, name, email, account settings.
-- `[ ]` **Password reset / magic link flows**
-- `[ ]` **SSO / Enterprise SAML** (advertised in Team tier)
-
-### Collaboration & Sharing
-- `[ ]` **Real shareable project URLs** — `getShareUrl()` generates a path like `/username/project-slug` but there is no router, no server, and no way to load a shared project by URL. Clicking the share button only copies a dead link.
-- `[ ]` **Shared workspaces** (advertised in Team tier) — no concept of org-level project ownership.
-- `[ ]` **Role-based access control** (advertised in Team tier) — no roles exist beyond "owner" (mock).
-- `[ ]` **Commenting / annotation on build sheets**
-- `[ ]` **Real-time collaborative editing** (implied by "Collaborate" feature card)
 
 ### Export
 - `[~]` **JSON export** — `exportManifest()` works and downloads a `.json` file.
@@ -77,10 +63,20 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[ ]` **Interactive explorable visualization** — advertised as "See how every part connects, trace dependencies." The current image viewer has no interactivity beyond pan/zoom.
 - `[ ]` **Dependency graph / port-connection diagram** — ports are modelled in `PortDefinition` but never visualized beyond a list in `PartDetailModal`.
 
-### AR Guide
-- `[~]` **AR Guide View** — `ARGuideView.tsx` exists and uses the camera. It calls `aiService.getARGuidance()` which sends camera frames to Gemini. Basic.
-- `[ ]` **Spatial anchoring / overlay** — the "Live assembly overlay via camera" claim implies AR anchors. The current implementation just shows the camera feed + a text prompt from Gemini.
-- `[ ]` **Audio guidance** — `gemini-2.5-flash-native-audio-preview` is referenced in model name but audio output is unused; only text is read.
+### Authentication & User Accounts
+- `[~]` **Google Sign-In** — `UserService.login()` exists but returns a **hardcoded mock user** (`google-oauth2|...`). No real OAuth flow is implemented. `firebase.ts` is intentionally blank.
+- `[ ]` **Real Auth0 / Firebase Auth integration** — The import comment says "Auth0 (Simulated)". Replace with the real SDK.
+- `[ ]` **Session persistence tied to real user identity** — Currently all data lives in `localStorage` keyed by a random ID, not by user account. Logging in/out does nothing to project ownership.
+- `[ ]` **User profile page** — avatar, name, email, account settings.
+- `[ ]` **Password reset / magic link flows**
+- `[ ]` **SSO / Enterprise SAML** (advertised in Team tier)
+
+### Collaboration & Sharing
+- `[ ]` **Real shareable project URLs** — `getShareUrl()` generates a path like `/username/project-slug` but there is no router, no server, and no way to load a shared project by URL. Clicking the share button only copies a dead link.
+- `[ ]` **Shared workspaces** (advertised in Team tier) — no concept of org-level project ownership.
+- `[ ]` **Role-based access control** (advertised in Team tier) — no roles exist beyond "owner" (mock).
+- `[ ]` **Commenting / annotation on build sheets**
+- `[ ]` **Real-time collaborative editing** (implied by "Collaborate" feature card)
 
 ### Data Security (advertised in FAQ)
 - `[ ]` **Encryption at rest** — all data is in plain `localStorage` / IndexedDB. No encryption.
@@ -93,6 +89,11 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[ ]` **API key management UI**
 - `[ ]` **API documentation / OpenAPI spec**
 - `[ ]` **Webhooks** (reasonable expectation for a Team tier)
+
+### AR Guide
+- `[~]` **AR Guide View** — `ARGuideView.tsx` exists and uses the camera. It calls `aiService.getARGuidance()` which sends camera frames to Gemini. Basic.
+- `[ ]` **Spatial anchoring / overlay** — the "Live assembly overlay via camera" claim implies AR anchors. The current implementation just shows the camera feed + a text prompt from Gemini.
+- `[ ]` **Audio guidance** — `gemini-2.5-flash-native-audio-preview` is referenced in model name but audio output is unused; only text is read.
 
 ---
 
@@ -118,14 +119,6 @@ Payments: Stripe (partially referenced in conversation history)
 
 ### Backend Tasks
 
-#### Auth & User Management
-- `[ ]` Replace `UserService` mock with real Auth0/Firebase SDK calls
-- `[ ]` JWT middleware on all API routes
-- `[ ]` `POST /auth/session` — exchange auth token for session
-- `[ ]` `GET /api/me` — return current user profile
-- `[ ]` `PATCH /api/me` — update profile (name, avatar)
-- `[ ]` Organization / team entity with invite flow
-
 #### Project & BOM Persistence
 - `[ ]` Database schema: `users`, `organizations`, `projects`, `bom_entries`, `parts`, `messages`, `generated_images`, `activity_logs`
 - `[ ]` `GET /api/projects` — list user's projects (replace `localStorage` index)
@@ -145,17 +138,12 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` `POST /api/ai/hydrate` — part hydration with Google Search grounding
 - `[ ]` `POST /api/ai/source` — find purchase links
 - `[ ]` `POST /api/ai/audit` — technical + patent audit
+- `[ ]` `POST /api/ai/enclosure` — OpenSCAD enclosure generation
 - `[ ]` `POST /api/ai/assembly-plan` — generate assembly plan
 - `[ ]` `POST /api/ai/generate-image` — Gemini image generation
-- `[ ]` `POST /api/ai/ar-guidance` — AR frame analysis
-- `[ ]` `POST /api/ai/enclosure` — OpenSCAD enclosure generation
 - `[ ]` Rate limiting per user/plan tier (Redis token bucket)
 - `[ ]` Usage metering for billing
-
-#### Sharing & Public Routes
-- `[ ]` `GET /api/share/:username/:slug` — load a shared project (read-only)
-- `[ ]` `POST /api/projects/:id/share` — generate a share link
-- `[ ]` Public share renderer (SSR or static page at `/:username/:slug`)
+- `[ ]` `POST /api/ai/ar-guidance` — AR frame analysis
 
 #### Export Routes
 - `[ ]` `GET /api/projects/:id/export/json` — current JSON manifest
@@ -166,6 +154,19 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` `POST /api/projects/import/json` — ingest a `.json` manifest
 - `[ ]` `POST /api/projects/import/csv` — parse CSV BOM, hydrate via AI
 - `[ ]` `POST /api/projects/import/paste` — AI parses free-text / pasted BOM
+
+#### Auth & User Management
+- `[ ]` Replace `UserService` mock with real Auth0/Firebase SDK calls
+- `[ ]` JWT middleware on all API routes
+- `[ ]` `POST /auth/session` — exchange auth token for session
+- `[ ]` `GET /api/me` — return current user profile
+- `[ ]` `PATCH /api/me` — update profile (name, avatar)
+- `[ ]` Organization / team entity with invite flow
+
+#### Sharing & Public Routes
+- `[ ]` `GET /api/share/:username/:slug` — load a shared project (read-only)
+- `[ ]` `POST /api/projects/:id/share` — generate a share link
+- `[ ]` Public share renderer (SSR or static page at `/:username/:slug`)
 
 #### Activity & Audit Logs
 - `[ ]` Persist `ActivityLogService` entries to the database
@@ -183,11 +184,6 @@ Payments: Stripe (partially referenced in conversation history)
 ---
 
 ## 🟢 Frontend: Improvements Needed
-
-### Authentication UI
-- `[ ]` Real Google/GitHub OAuth popup (not a 800ms fake delay)
-- `[ ]` "Sign in to save your projects" prompt for anonymous users
-- `[ ]` Logout confirmation + data export before account deletion
 
 ### Project Management
 - `[ ]` Multi-device sync — projects currently live only in the current browser's `localStorage`
@@ -227,6 +223,19 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` "Import CSV" modal with column mapping
 - `[ ]` Drag-and-drop JSON/CSV file onto the app to import
 
+### Settings
+- `[~]` `SettingsModal` exists but details are unknown without reading it
+- `[ ]` API key management (user-provided key vs. server-managed)
+- `[ ]` Default model selection per feature (Flash vs. Pro)
+- `[ ]` Language / locale selection (i18n already wired via `react-i18next` and `i18n.ts`)
+- `[ ]` Theme preference persistence to account (not just localStorage)
+- `[ ]` Notification preferences
+
+### Authentication UI
+- `[ ]` Real Google/GitHub OAuth popup (not a 800ms fake delay)
+- `[ ]` "Sign in to save your projects" prompt for anonymous users
+- `[ ]` Logout confirmation + data export before account deletion
+
 ### Sharing
 - `[ ]` Real shareable link that actually loads the project
 - `[ ]` Embed code generator (iframe for sharing a read-only BOM)
@@ -235,14 +244,6 @@ Payments: Stripe (partially referenced in conversation history)
 ### Activity Log UI
 - `[ ]` Activity feed panel showing who did what, when
 - `[ ]` Undo/redo from activity log
-
-### Settings
-- `[~]` `SettingsModal` exists but details are unknown without reading it
-- `[ ]` API key management (user-provided key vs. server-managed)
-- `[ ]` Default model selection per feature (Flash vs. Pro)
-- `[ ]` Language / locale selection (i18n already wired via `react-i18next` and `i18n.ts`)
-- `[ ]` Theme preference persistence to account (not just localStorage)
-- `[ ]` Notification preferences
 
 ---
 
@@ -290,14 +291,14 @@ These can be done without a backend and immediately improve quality/honesty:
 
 1. `[ ]` **Implement the VisualManifest block-diagram renderer** — the type already exists, just needs a renderer
 2. `[ ]` **Move Visualizer to top of center panel** to match the hero mockup
-3. `[ ]` **Real Google OAuth** via Firebase Auth (free tier, minimal backend needed)
-4. `[ ]` **CSV export** — pure frontend, trivial to implement from existing BOM data
-5. `[ ]` **Fix the share URL** — at minimum, encode the project as base64 in the URL query param so it actually loads
-6. `[ ]` **Project delete confirmation** — currently instant with no undo
-7. `[ ]` **Persistent activity log** — write to IndexedDB alongside images
-8. `[ ]` **BOM sub-assembly nesting UI** — `parentInstanceId` already exists, just needs a recursive renderer
-9. `[ ]` **Port compatibility warnings** — cross-check `PortDefinition[]` between parts in the BOM and flag mismatches
-10. `[ ]` **PDF export** — use `window.print()` with a print stylesheet as a fast stopgap before server-side PDF
+3. `[ ]` **CSV export** — pure frontend, trivial to implement from existing BOM data
+4. `[ ]` **Project delete confirmation** — currently instant with no undo
+5. `[ ]` **BOM sub-assembly nesting UI** — `parentInstanceId` already exists, just needs a recursive renderer
+6. `[ ]` **Port compatibility warnings** — cross-check `PortDefinition[]` between parts in the BOM and flag mismatches
+7. `[ ]` **PDF export** — use `window.print()` with a print stylesheet as a fast stopgap before server-side PDF
+8. `[ ]` **Real Google OAuth** via Firebase Auth (free tier, minimal backend needed)
+9. `[ ]` **Fix the share URL** — at minimum, encode the project as base64 in the URL query param so it actually loads
+10. `[ ]` **Persistent activity log** — write to IndexedDB alongside images
 
 ---
 
