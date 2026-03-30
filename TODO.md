@@ -86,7 +86,28 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[ ]` **Encryption at rest** — all data is in plain `localStorage` / IndexedDB. No encryption.
 - `[ ]` **SOC 2 compliance** — advertised. N/A without a real backend.
 - `[x]` **Audit logs** — `ActivityLogService` now persists to IndexedDB (`buildsheet_activity_log` key); auto-loaded on startup with a 500-entry rolling cap.
-- `[ ]` **"We never use your data to train AI models"** — this requires a policy/backend to enforce, not just a promise.
+- `[ ]` **"We never use your data to train AI models"** — this requires a policy/backend to enforce, not just a promise. _(See Compliance & Trust section below)_
+
+---
+
+## 🔒 Compliance & Trust (2026 Standards)
+
+### Legal & Privacy Policy
+- `[ ]` **Privacy Policy 2026 Update — AI Transparency clauses**
+    - Define "No-Training" policy for Gemini Vertex AI calls.
+    - Document data residency (Firebase Firestore in `us-central1`).
+    - Explicitly state legal basis for processing (Contractual Necessity for engine builds).
+- `[ ]` **GDPR/CCPA "Layered Notice" Footer** — Sticky footer with:
+    - Direct links to Privacy, Terms, and DPA (Data Processing Agreement).
+    - "Your Privacy Choices" toggle for California/EU users.
+- `[ ]` **Just-in-Time Disclosures** — Add "Privacy Pings" when the user first uploads an image or enters a VIN, explaining exactly how that specific data is processed.
+
+### Trust UI (Footer)
+- `[ ]` **Enterprise-Grade Privacy blurb in app footer** — Display the following trust copy in the site/app footer to build credibility with professional audiences (Sacramento shop owners, industrial clients):
+
+    > *Enterprise-Grade Privacy: BuildSheet.cloud is built on SOC 2 Type II compliant Google Cloud infrastructure. Your proprietary mechanical specs and build data are encrypted at rest using AES-256 and are never used to train global AI models. All data processing is governed by the Google Cloud Data Protection Addendum (CDPA).*
+
+    _Note: This copy is aspirational until encryption-at-rest and SOC 2 audit are completed. Gate display behind a feature flag or only show after backend launch._
 
 ### API Access
 - `[ ]` **Public REST API** — advertised in the Team tier ("API access"). No API exists.
@@ -331,4 +352,4 @@ These require specialized infrastructure not present in the base app. Deprioriti
 
 ---
 
-*Last updated: 2026-03-29. CRITICAL backlog pass: CSV/Paste BOM import, project search/duplication/archiving, VisualManifest block-diagram renderer, persistent activity logging, drag-and-drop import modal. Plus Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, and deferred simulation features.*
+*Last updated: 2026-03-30. CRITICAL backlog pass: CSV/Paste BOM import, project search/duplication/archiving, VisualManifest block-diagram renderer, persistent activity logging, drag-and-drop import modal. Plus Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, deferred simulation features. **2026-03-30:** Added Compliance & Trust section — Privacy Policy AI Transparency clauses, GDPR/CCPA Layered Notice footer, Just-in-Time Disclosures, and Enterprise-Grade Privacy footer blurb.*

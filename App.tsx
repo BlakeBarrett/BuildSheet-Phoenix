@@ -1451,6 +1451,20 @@ const AppContent: React.FC = () => {
     const [editTitleValue, setEditTitleValue] = useState(session.name || '');
     const [shareToast, setShareToast] = useState(false);
 
+    // Auth dropdown
+    const [authMenuOpen, setAuthMenuOpen] = useState(false);
+    const authMenuRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!authMenuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (authMenuRef.current && !authMenuRef.current.contains(e.target as Node)) {
+                setAuthMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [authMenuOpen]);
+
     // Mobile State
     const [mobileTab, setMobileTab] = useState<'draft' | 'bom'>('draft');
 
@@ -2423,6 +2437,58 @@ const AppContent: React.FC = () => {
                                 )}
                             </div>
                             {session.cacheIsDirty && session.bom.length > 0 && <Chip label="Unsaved Changes" color="bg-amber-100 text-amber-900 border-transparent" />}
+
+                            {/* Auth chip — visible on all screen sizes */}
+                            {isFirebaseConfigured() && (
+                                <div className="relative" ref={authMenuRef}>
+                                    {currentUser ? (
+                                        <>
+                                            <button
+                                                onClick={() => setAuthMenuOpen(v => !v)}
+                                                className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full hover:bg-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                                                aria-label={`Account: ${currentUser.name}`}
+                                                aria-expanded={authMenuOpen}
+                                                aria-haspopup="true"
+                                            >
+                                                {currentUser.avatar ? (
+                                                    <img src={currentUser.avatar} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0" aria-hidden="true">
+                                                        {currentUser.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <span className="hidden md:block text-sm font-semibold text-slate-700 max-w-[96px] truncate">{currentUser.name.split(' ')[0]}</span>
+                                                <span className="material-symbols-rounded text-[16px] text-slate-400 hidden md:block" aria-hidden="true">expand_more</span>
+                                            </button>
+                                            {authMenuOpen && (
+                                                <div className="absolute top-full right-0 mt-2 w-52 bg-white rounded-[16px] shadow-xl border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150" role="menu">
+                                                    <div className="px-4 py-3 border-b border-gray-50">
+                                                        <p className="text-sm font-bold text-slate-800 truncate">{currentUser.name}</p>
+                                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{currentUser.email}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => { setAuthMenuOpen(false); handleLogout(); }}
+                                                        className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                                                        role="menuitem"
+                                                    >
+                                                        <span className="material-symbols-rounded text-[18px]" aria-hidden="true">logout</span>
+                                                        Sign Out
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={handleLogin}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
+                                            aria-label="Sign in"
+                                        >
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true">login</span>
+                                            <span className="hidden sm:inline">Sign In</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </header>
 
@@ -2801,6 +2867,32 @@ const AppContent: React.FC = () => {
                         </div>
                         <span className="text-[11px] font-bold">Parts</span>
                     </button>
+                    {isFirebaseConfigured() && (
+                        <button
+                            onClick={currentUser ? handleLogout : handleLogin}
+                            role="tab"
+                            aria-selected={false}
+                            aria-label={currentUser ? `Sign out (${currentUser.name})` : 'Sign in'}
+                            className="flex flex-col items-center justify-center w-full h-full gap-1"
+                        >
+                            <div className="px-5 py-1 rounded-full transition-colors">
+                                {currentUser ? (
+                                    currentUser.avatar ? (
+                                        <img src={currentUser.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+                                    ) : (
+                                        <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                            {currentUser.name.charAt(0).toUpperCase()}
+                                        </div>
+                                    )
+                                ) : (
+                                    <span className="material-symbols-rounded text-[24px] text-indigo-600" aria-hidden="true">login</span>
+                                )}
+                            </div>
+                            <span className={`text-[11px] font-bold ${currentUser ? 'text-slate-600' : 'text-indigo-600'}`}>
+                                {currentUser ? 'Sign Out' : 'Sign In'}
+                            </span>
+                        </button>
+                    )}
                 </div>
 
             </main>
