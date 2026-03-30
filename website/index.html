@@ -43,7 +43,6 @@
         <a href="#features" class="navbar__link">Features</a>
         <a href="#how-it-works" class="navbar__link">How It Works</a>
         <a href="#pricing" class="navbar__link">Pricing</a>
-        <a href="#testimonials" class="navbar__link">Testimonials</a>
         <a href="#faq" class="navbar__link">FAQ</a>
       </div>
 
@@ -53,8 +52,8 @@
             <!-- Moon icon for dark, sun appears via CSS -->
           </span>
         </button>
-        <!-- Login href: update to deployed app URL for production e.g. https://app.buildsheet.io -->
-        <a href="http://localhost:5173" class="btn btn--secondary btn--sm" id="nav-login-btn">Log In</a>
+        <!-- Live Demo href: update to deployed app URL for production e.g. https://app.buildsheet.io -->
+        <a href="http://localhost:8080" class="btn btn--secondary btn--sm" id="nav-live-demo-btn">Live Demo</a>
         <a href="#pricing" class="btn btn--primary btn--sm">Get Started</a>
       </div>
 
@@ -71,13 +70,12 @@
     <a href="#features" class="navbar__link">Features</a>
     <a href="#how-it-works" class="navbar__link">How It Works</a>
     <a href="#pricing" class="navbar__link">Pricing</a>
-    <a href="#testimonials" class="navbar__link">Testimonials</a>
     <a href="#faq" class="navbar__link">FAQ</a>
     <button class="theme-toggle" id="theme-toggle-mobile" aria-label="Toggle dark/light mode">
       <span class="theme-toggle__thumb" aria-hidden="true"></span>
     </button>
-    <!-- Login href: update to deployed app URL for production -->
-    <a href="http://localhost:5173" class="btn btn--secondary btn--lg">Log In</a>
+    <!-- Live Demo href: update to deployed app URL for production -->
+    <a href="http://localhost:8080" class="btn btn--secondary btn--lg">Live Demo</a>
     <a href="#pricing" class="btn btn--primary btn--lg">Get Started</a>
   </div>
 
@@ -131,6 +129,19 @@
           >
         </div>
       </div>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════
+       LIVE DEMO CTA
+       ═══════════════════════════════════════════ -->
+  <section class="section" style="padding-top: 0;">
+    <div class="container" style="text-align: center;">
+      <a href="http://localhost:8080" class="btn btn--primary btn--lg animate-on-scroll">
+        Live Demo
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </a>
     </div>
   </section>
 
@@ -315,10 +326,10 @@
           <h3 class="pricing-card__name">Pro</h3>
           <p class="pricing-card__description">For serious makers and professional engineers.</p>
           <div class="pricing-card__price">
-            <span class="pricing-card__amount" id="price-pro" style="transition: all 0.15s ease">$19</span>
+            <span class="pricing-card__amount" id="price-pro" style="transition: all 0.15s ease">$5</span>
             <span class="pricing-card__period" id="period-pro">/mo</span>
           </div>
-          <p class="pricing-card__annual-note" style="display: none; font-size: 0.8rem; color: var(--color-success); margin-top: -1rem; margin-bottom: 1rem;">Billed at $180/year</p>
+          <p class="pricing-card__annual-note" style="display: none; font-size: 0.8rem; color: var(--color-success); margin-top: -1rem; margin-bottom: 1rem;">Billed at $48/year</p>
           <ul class="pricing-card__features">
             <li class="pricing-card__feature">
               <svg class="pricing-card__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
@@ -349,7 +360,7 @@
           <h3 class="pricing-card__name">Team</h3>
           <p class="pricing-card__description">For hardware teams and organizations at scale.</p>
           <div class="pricing-card__price">
-            <span class="pricing-card__amount" id="price-team" style="transition: all 0.15s ease">$49</span>
+            <span class="pricing-card__amount" id="price-team" style="transition: all 0.15s ease">$20</span>
             <span class="pricing-card__period" id="period-team">/user/mo</span>
           </div>
           <p class="pricing-card__annual-note" style="display: none; font-size: 0.8rem; color: var(--color-success); margin-top: -1rem; margin-bottom: 1rem;">Billed annually</p>
@@ -377,113 +388,6 @@
           </ul>
           <a href="#" class="btn btn--secondary" style="width: 100%;">Contact Sales</a>
         </div>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ═══════════════════════════════════════════
-       TESTIMONIALS
-       ═══════════════════════════════════════════ -->
-  <section class="testimonials section" id="testimonials">
-    <div class="container">
-      <div class="section-header animate-on-scroll">
-        <span class="badge badge--accent">Testimonials</span>
-        <h2>Loved by <span class="text-gradient">builders everywhere</span></h2>
-        <p>See what engineers, makers, and teams are saying about BuildSheet.</p>
-      </div>
-
-      <div class="carousel animate-on-scroll" role="region" aria-label="Testimonials carousel">
-        <div class="carousel__track">
-          <!-- Testimonial 1 -->
-          <div class="carousel__slide">
-            <div class="carousel__card">
-              <p class="carousel__quote">BuildSheet cut our BOM preparation time by 80%. What used to take our team a full day now happens in under an hour. The AI drafting engine is genuinely magical.</p>
-              <div class="carousel__author">
-                <div class="carousel__avatar" aria-hidden="true">SK</div>
-                <div class="carousel__author-info">
-                  <span class="carousel__name">Sarah Kim</span>
-                  <span class="carousel__role">Mechanical Engineer, RoboCore Labs</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Testimonial 2 -->
-          <div class="carousel__slide">
-            <div class="carousel__card">
-              <p class="carousel__quote">As a solo maker, I don't have a procurement team. BuildSheet's smart parts catalog does the research for me — finding real parts, prices, and compatibility data automatically.</p>
-              <div class="carousel__author">
-                <div class="carousel__avatar" aria-hidden="true">MR</div>
-                <div class="carousel__author-info">
-                  <span class="carousel__name">Marcus Reeves</span>
-                  <span class="carousel__role">Independent Hardware Developer</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Testimonial 3 -->
-          <div class="carousel__slide">
-            <div class="carousel__card">
-              <p class="carousel__quote">The visual assembly view is a game-changer for our design reviews. Stakeholders who can't read schematics can finally understand what we're building and why.</p>
-              <div class="carousel__author">
-                <div class="carousel__avatar" aria-hidden="true">JP</div>
-                <div class="carousel__author-info">
-                  <span class="carousel__name">James Park</span>
-                  <span class="carousel__role">Head of Engineering, AeroVolt Systems</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Testimonial 4 -->
-          <div class="carousel__slide">
-            <div class="carousel__card">
-              <p class="carousel__quote">We integrated BuildSheet into our Sprint workflow. Our hardware and firmware teams finally speak the same language. The PDF exports are clean enough for vendor RFQs.</p>
-              <div class="carousel__author">
-                <div class="carousel__avatar" aria-hidden="true">AL</div>
-                <div class="carousel__author-info">
-                  <span class="carousel__name">Anita Larsson</span>
-                  <span class="carousel__role">VP of Product, NovaTech Devices</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Testimonial 5 -->
-          <div class="carousel__slide">
-            <div class="carousel__card">
-              <p class="carousel__quote">I teach an intro-to-robotics course at MIT. BuildSheet lets my students go from concept to buildable designs in a single lab session. Incredible educational tool.</p>
-              <div class="carousel__author">
-                <div class="carousel__avatar" aria-hidden="true">DW</div>
-                <div class="carousel__author-info">
-                  <span class="carousel__name">Dr. David Wu</span>
-                  <span class="carousel__role">Professor of Mechanical Engineering, MIT</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="carousel__dots" role="tablist" aria-label="Testimonial navigation">
-          <button class="carousel__dot active" role="tab" aria-label="Testimonial 1" aria-selected="true"></button>
-          <button class="carousel__dot" role="tab" aria-label="Testimonial 2" aria-selected="false"></button>
-          <button class="carousel__dot" role="tab" aria-label="Testimonial 3" aria-selected="false"></button>
-          <button class="carousel__dot" role="tab" aria-label="Testimonial 4" aria-selected="false"></button>
-          <button class="carousel__dot" role="tab" aria-label="Testimonial 5" aria-selected="false"></button>
-        </div>
-      </div>
-
-      <!-- Trusted By Logos -->
-      <div class="logos-bar animate-on-scroll">
-        <span class="logos-bar__label">Trusted by teams at</span>
-        <span class="logos-bar__logo">RoboCore</span>
-        <span class="logos-bar__logo">AeroVolt</span>
-        <span class="logos-bar__logo">NovaTech</span>
-        <span class="logos-bar__logo">CircuitMind</span>
-        <span class="logos-bar__logo">OpenMech</span>
-        <span class="logos-bar__logo">HexaWorks</span>
       </div>
     </div>
   </section>

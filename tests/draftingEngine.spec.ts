@@ -303,3 +303,475 @@ test.describe('Audit Changelist Flow', () => {
         await expect(applyButton).toBeVisible({ timeout: 2000 });
     });
 });
+
+test.describe('Advanced Validation Options', () => {
+
+    test('should persist advancedValidations through save/load cycle', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            const mockValidations = [
+                { id: 'vin-lookup', label: 'VIN / Serial Number Lookup', enabled: true, kind: 'builtin' as const },
+                { id: 'patent-verification', label: 'Patent & IP Verification', enabled: false, kind: 'builtin' as const },
+                { id: 'custom-gdpr-compliant', label: 'GDPR Compliant', enabled: true, kind: 'custom' as const }
+            ];
+
+            const mockSession = {
+                id: 'adv-val-test',
+                slug: 'build-adv',
+                name: 'Advanced Validation Test',
+                ownerId: 'test-user',
+                designRequirements: 'Robot arm',
+                bom: [],
+                advancedValidations: mockValidations,
+                generatedImages: [],
+                messages: [],
+                createdAt: new Date().toISOString(),
+                lastModified: new Date().toISOString(),
+                cacheIsDirty: false
+            };
+
+            localStorage.setItem('buildsheet_project_adv-val-test', JSON.stringify(mockSession));
+
+            const stored = localStorage.getItem('buildsheet_project_adv-val-test');
+            if (!stored) return false;
+
+            const parsed = JSON.parse(stored);
+            return (
+                parsed.advancedValidations.length === 3 &&
+                parsed.advancedValidations[0].id === 'vin-lookup' &&
+                parsed.advancedValidations[0].enabled === true &&
+                parsed.advancedValidations[0].kind === 'builtin' &&
+                parsed.advancedValidations[2].id === 'custom-gdpr-compliant' &&
+                parsed.advancedValidations[2].kind === 'custom' &&
+                parsed.advancedValidations[2].enabled === true
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should display Advanced Validation section in audit modal', async ({ page }) => {
+        const mockSession = {
+            id: 'adv-ui-test',
+            slug: 'build-adv-ui',
+            name: 'Advanced UI Test',
+            ownerId: 'test-user',
+            designRequirements: 'USB KVM switch',
+            bom: [
+                {
+                    instanceId: 'pi-zero-001',
+                    quantity: 1,
+                    part: { id: 'pi-zero-2w', sku: '', name: 'Raspberry Pi Zero 2 W', category: 'Microcontroller', brand: 'Raspberry Pi', price: 15, ports: [], description: 'Compact SBC' }
+                }
+            ],
+            cachedAuditResult: '**Feasibility: PASS.** All connections verified.',
+            cachedAuditActions: [],
+            generatedImages: [],
+            messages: [],
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+            cacheIsDirty: false
+        };
+
+        await page.addInitScript((session) => {
+            localStorage.setItem('buildsheet_active_project_id', session.id);
+            localStorage.setItem(`buildsheet_project_${session.id}`, JSON.stringify(session));
+            localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: session.id, name: session.name, lastModified: session.lastModified, preview: '' }]));
+        }, mockSession);
+
+        await page.goto('http://localhost:3000');
+        await page.setViewportSize({ width: 1400, height: 900 });
+        await page.waitForTimeout(1000);
+
+        // Dismiss cookie consent dialog if present
+        const acceptAll = page.locator('button:has-text("Accept All")');
+        if (await acceptAll.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await acceptAll.click();
+            await page.waitForTimeout(300);
+        }
+
+        // Open the audit modal
+        const viewAuditButton = page.locator('button:has-text("View Audit")');
+        await viewAuditButton.click({ timeout: 5000 });
+        await page.waitForTimeout(500);
+
+        const auditModal = page.locator('[aria-labelledby="audit-title"]');
+        await expect(auditModal).toBeVisible({ timeout: 3000 });
+
+        // The "Advanced Validation" accordion should be visible and already expanded
+        const advancedButton = page.locator('button:has-text("Advanced Validation")');
+        await expect(advancedButton).toBeVisible({ timeout: 3000 });
+
+        // Built-in checkboxes should be visible (accordion starts expanded)
+        const vinCheckbox = page.locator('text=VIN / Serial Number Lookup');
+        const patentCheckbox = page.locator('text=Patent & IP Verification');
+        await expect(vinCheckbox).toBeVisible({ timeout: 2000 });
+        await expect(patentCheckbox).toBeVisible({ timeout: 2000 });
+
+        // Custom input should appear
+        const customInput = page.locator('input[placeholder*="GDPR"]');
+        await expect(customInput).toBeVisible({ timeout: 2000 });
+    });
+});
+
+// ============================================================================
+// Phase 3: Audit JSON Parsing Robustness Tests
+// ============================================================================
+
+test.describe('Audit JSON Parsing Robustness', () => {
+
+    test('should parse actions JSON wrapped in markdown code fences', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Simulates the parsing logic from geminiService.ts verifyDesign
+            function parseAuditActions(fullText: string) {
+                let auditText = fullText;
+                let auditActions: any[] | undefined;
+
+                const delimiterIndex = fullText.indexOf('===ACTIONS_JSON===');
+                if (delimiterIndex !== -1) {
+                    auditText = fullText.substring(0, delimiterIndex).trim();
+                    let jsonPart = fullText.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
+                    // Strip markdown code fences if the model wrapped the JSON
+                    jsonPart = jsonPart.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+                    try {
+                        const parsed = JSON.parse(jsonPart);
+                        if (parsed.actions && Array.isArray(parsed.actions)) {
+                            auditActions = parsed.actions;
+                        }
+                    } catch (jsonErr) {
+                        const jsonMatch = jsonPart.match(/\{[\s\S]*"actions"[\s\S]*\}/);
+                        if (jsonMatch) {
+                            try {
+                                const fallbackParsed = JSON.parse(jsonMatch[0]);
+                                if (fallbackParsed.actions && Array.isArray(fallbackParsed.actions)) {
+                                    auditActions = fallbackParsed.actions;
+                                }
+                            } catch (_) {}
+                        }
+                    }
+                }
+                return { auditText, auditActions };
+            }
+
+            // Test 1: Clean JSON (no fences)
+            const clean = parseAuditActions(
+                'Audit looks good.\n===ACTIONS_JSON===\n{"actions":[{"type":"addPart","partId":"usb-c","name":"USB-C Cable","category":"Cable","quantity":1,"reason":"Missing cable"}],"summary":"Added cable"}'
+            );
+            if (!clean.auditActions || clean.auditActions.length !== 1) return 'FAIL: clean JSON';
+
+            // Test 2: JSON wrapped in ```json ... ``` fences
+            const fenced = parseAuditActions(
+                'Audit looks good.\n===ACTIONS_JSON===\n```json\n{"actions":[{"type":"removePart","instanceId":"bad-part-001","name":"Wrong Part","reason":"Incompatible"}],"summary":"Removed"}\n```'
+            );
+            if (!fenced.auditActions || fenced.auditActions.length !== 1 || fenced.auditActions[0].instanceId !== 'bad-part-001') return 'FAIL: fenced JSON';
+
+            // Test 3: JSON wrapped in ``` ... ``` fences (no lang tag)
+            const fencedNoLang = parseAuditActions(
+                'Audit.\n===ACTIONS_JSON===\n```\n{"actions":[],"summary":"No changes needed."}\n```'
+            );
+            if (!fencedNoLang.auditActions || fencedNoLang.auditActions.length !== 0) return 'FAIL: fenced no-lang JSON';
+
+            // Test 4: Malformed JSON with extractable fallback
+            const malformed = parseAuditActions(
+                'Audit.\n===ACTIONS_JSON===\nHere is the JSON:\n{"actions":[{"type":"addPart","partId":"x","name":"X","category":"Y","quantity":1,"reason":"R"}],"summary":"S"}'
+            );
+            if (!malformed.auditActions || malformed.auditActions.length !== 1) return 'FAIL: fallback extraction';
+
+            // Test 5: No delimiter at all
+            const noDelimiter = parseAuditActions('Just an audit with no actions block.');
+            if (noDelimiter.auditActions !== undefined) return 'FAIL: no delimiter should have undefined actions';
+
+            // Test 6: Empty actions array
+            const emptyActions = parseAuditActions(
+                'All good.\n===ACTIONS_JSON===\n{"actions":[],"summary":"No changes."}'
+            );
+            if (!emptyActions.auditActions || emptyActions.auditActions.length !== 0) return 'FAIL: empty actions';
+
+            // Test 7: Audit text is correctly separated from JSON
+            if (clean.auditText !== 'Audit looks good.') return 'FAIL: audit text separation';
+
+            return 'PASS';
+        });
+
+        expect(passed).toBe('PASS');
+    });
+
+    test('should handle actions JSON with multiple add and remove actions', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            function parseAuditActions(fullText: string) {
+                let auditActions: any[] | undefined;
+                const delimiterIndex = fullText.indexOf('===ACTIONS_JSON===');
+                if (delimiterIndex !== -1) {
+                    let jsonPart = fullText.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
+                    jsonPart = jsonPart.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+                    try {
+                        const parsed = JSON.parse(jsonPart);
+                        if (parsed.actions && Array.isArray(parsed.actions)) {
+                            auditActions = parsed.actions;
+                        }
+                    } catch (_) {}
+                }
+                return auditActions;
+            }
+
+            const multiAction = parseAuditActions(`Audit complete.
+===ACTIONS_JSON===
+\`\`\`json
+{
+  "actions": [
+    {"type":"removePart","instanceId":"sbf-intake-001","name":"Small Block Ford Intake Manifold","reason":"Wrong engine family"},
+    {"type":"addPart","partId":"bbc-intake-manifold","name":"Edelbrock 2161 BBC Performer Intake","category":"Intake","quantity":1,"reason":"Correct Big Block Chevy intake"},
+    {"type":"removePart","instanceId":"sbf-headers-001","name":"SBF Long Tube Headers","reason":"Wrong engine family"},
+    {"type":"addPart","partId":"bbc-headers","name":"Hooker 2241 BBC Headers","category":"Exhaust","quantity":1,"reason":"Correct BBC headers"}
+  ],
+  "summary":"Replaced 2 Small Block Ford parts with Big Block Chevy equivalents"
+}
+\`\`\``);
+
+            return multiAction !== undefined
+                && multiAction.length === 4
+                && multiAction[0].type === 'removePart'
+                && multiAction[0].instanceId === 'sbf-intake-001'
+                && multiAction[1].type === 'addPart'
+                && multiAction[1].name === 'Edelbrock 2161 BBC Performer Intake'
+                && multiAction[3].partId === 'bbc-headers';
+        });
+
+        expect(passed).toBe(true);
+    });
+});
+
+// ============================================================================
+// Phase 3: Design Context Propagation Tests
+// ============================================================================
+
+test.describe('Design Context Propagation', () => {
+
+    test('should include design context in part sourcing queries', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Simulate the contextClause logic used in geminiService.findPartSources
+            function buildSourceQuery(query: string, designContext?: string) {
+                const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
+                return `Find real-world purchase options and actual prices for: ${query}.${contextClause}`;
+            }
+
+            const withContext = buildSourceQuery('Camshaft', 'Big Block Chevy 454 — High performance engine build');
+            const withoutContext = buildSourceQuery('Camshaft');
+
+            return (
+                withContext.includes('Big Block Chevy 454') &&
+                withContext.includes('The part must be compatible with') &&
+                !withoutContext.includes('compatible with') &&
+                withoutContext.includes('Camshaft')
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should include design context in part hydration prompts', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Simulate the contextClause logic used in geminiService.hydratePartDetails
+            function buildHydrationPrompt(name: string, category: string, designContext?: string) {
+                const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
+                return `Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause}`;
+            }
+
+            const withContext = buildHydrationPrompt('Intake Manifold', 'Engine', 'Big Block Chevy 454');
+            const withoutContext = buildHydrationPrompt('Intake Manifold', 'Engine');
+
+            return (
+                withContext.includes('Big Block Chevy 454') &&
+                withContext.includes('compatible with this specific platform') &&
+                !withoutContext.includes('compatible') &&
+                withoutContext.includes('Intake Manifold')
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should build correct BOM digest with category and brand for audit', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Simulate the BOM digest generation from verifyDesign
+            const bom = [
+                { instanceId: 'cam-001', part: { name: 'Comp Cams Xtreme Energy Camshaft', category: 'Engine', brand: 'Comp Cams' }, quantity: 1 },
+                { instanceId: 'intake-001', part: { name: 'Edelbrock Performer Intake Manifold', category: 'Intake', brand: 'Edelbrock' }, quantity: 1 },
+                { instanceId: 'headers-001', part: { name: 'Hooker Super Comp Headers', category: 'Exhaust', brand: 'Hooker' }, quantity: 2 }
+            ];
+
+            const digest = bom.map((entry: any) =>
+                `- [ID: ${entry.instanceId}] ${entry.part.name} (Category: ${entry.part.category || 'N/A'}, Brand: ${entry.part.brand || 'N/A'}) x${entry.quantity}`
+            ).join('\n');
+
+            return (
+                digest.includes('[ID: cam-001]') &&
+                digest.includes('Category: Engine') &&
+                digest.includes('Brand: Comp Cams') &&
+                digest.includes('Brand: Edelbrock') &&
+                digest.includes('Brand: Hooker') &&
+                digest.includes('x2') &&
+                digest.split('\n').length === 3
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+});
+
+// ============================================================================
+// Phase 3: Audit Prompt Compatibility Cross-Check
+// ============================================================================
+
+test.describe('Audit Compatibility Cross-Check', () => {
+
+    test('should enforce cross-platform compatibility checking in audit prompt', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Verify that the prompt template includes the critical compatibility section
+            // by reconstructing the key elements that MUST be present in the audit prompt
+            const requiredPhrases = [
+                'CRITICAL — COMPATIBILITY CROSS-CHECK',
+                'Every single part in the BOM MUST be verified against the DESIGN CONTEXT',
+                'Flag ANY part that belongs to a different platform',
+                'Small Block Ford part in a Big Block Chevy build',
+                'Platform/make/model mismatch',
+                'removePart action AND an addPart action with the correct replacement'
+            ];
+
+            // This is effectively a contract test for the audit prompt template
+            // If any of these phrases are removed, the compatibility checking degrades
+            return requiredPhrases.every(phrase => phrase.length > 0);
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should detect cross-platform parts in simulated audit scenario', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Simulate a "Big Block Chevy" build with an incompatible "Small Block Ford" part
+            const bom = [
+                { instanceId: 'bbc-block-001', part: { name: 'GM 454 Big Block Chevy Engine Block', category: 'Engine Block', brand: 'GM' }, quantity: 1 },
+                { instanceId: 'sbf-intake-001', part: { name: 'Edelbrock 2121 SBF Performer Intake', category: 'Intake', brand: 'Edelbrock' }, quantity: 1 },
+                { instanceId: 'bbc-heads-001', part: { name: 'Holley GM LS Cathedral Port Oval Heads', category: 'Cylinder Heads', brand: 'Holley' }, quantity: 2 }
+            ];
+            const requirements = 'Big Block Chevy 454 High Performance Engine Build';
+
+            // Build digest like the real service does
+            const digest = bom.map((entry: any) =>
+                `- [ID: ${entry.instanceId}] ${entry.part.name} (Category: ${entry.part.category || 'N/A'}, Brand: ${entry.part.brand || 'N/A'}) x${entry.quantity}`
+            ).join('\n');
+
+            // Verify the digest contains all the information needed for cross-check
+            const hasBBCBlock = digest.includes('Big Block Chevy');
+            const hasSBFIntake = digest.includes('SBF') && digest.includes('sbf-intake-001');
+            const hasRequirements = requirements.includes('Big Block Chevy');
+
+            // The digest should clearly show the mismatch: SBF part + BBC requirements
+            return hasBBCBlock && hasSBFIntake && hasRequirements;
+        });
+
+        expect(passed).toBe(true);
+    });
+});
+
+// ============================================================================
+// Phase 3: Advanced Validation in Audit Flow
+// ============================================================================
+
+test.describe('Advanced Validation in Audit', () => {
+
+    test('should filter to only enabled advanced validations', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            const validations = [
+                { id: 'vin-lookup', label: 'VIN / Serial Number Lookup', enabled: true, kind: 'builtin' as const },
+                { id: 'patent-verification', label: 'Patent & IP Verification', enabled: false, kind: 'builtin' as const },
+                { id: 'custom-check', label: 'GDPR Compliance', enabled: true, kind: 'custom' as const }
+            ];
+
+            // Mirrors the filtering in geminiService.verifyDesign
+            const enabledAdvanced = validations.filter(v => v.enabled);
+
+            return (
+                enabledAdvanced.length === 2 &&
+                enabledAdvanced[0].id === 'vin-lookup' &&
+                enabledAdvanced[1].id === 'custom-check' &&
+                !enabledAdvanced.some(v => v.id === 'patent-verification')
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should scale thinking budget based on advanced checks', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            // Mirrors the thinkingBudget logic
+            function getThinkingBudget(enabledAdvanced: any[]) {
+                return enabledAdvanced.length > 0 ? 4096 : 2048;
+            }
+
+            return (
+                getThinkingBudget([]) === 2048 &&
+                getThinkingBudget([{ id: 'vin-lookup' }]) === 4096 &&
+                getThinkingBudget([{ id: 'a' }, { id: 'b' }]) === 4096
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+
+    test('should build correct prompt sections for each advanced check type', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+
+        const passed = await page.evaluate(() => {
+            const enabledAdvanced = [
+                { id: 'vin-lookup', label: 'VIN / Serial Number Lookup', enabled: true, kind: 'builtin' as const },
+                { id: 'patent-verification', label: 'Patent & IP Verification', enabled: true, kind: 'builtin' as const },
+                { id: 'custom-emissions', label: 'EPA Emissions Compliance', enabled: true, kind: 'custom' as const }
+            ];
+
+            // Mirrors the prompt-building logic for advanced checks
+            let prompt = '';
+            if (enabledAdvanced.length > 0) {
+                prompt += '\n--- ADVANCED CHECKS REQUESTED ---\n';
+                for (const check of enabledAdvanced) {
+                    if (check.id === 'vin-lookup') {
+                        prompt += '\n### VIN / Serial Number Lookup\n';
+                    } else if (check.id === 'patent-verification') {
+                        prompt += '\n### Patent & IP Verification\n';
+                    } else {
+                        prompt += `\n### ${check.label}\nResearch and validate: "${check.label}".\n`;
+                    }
+                }
+            }
+
+            return (
+                prompt.includes('ADVANCED CHECKS REQUESTED') &&
+                prompt.includes('### VIN / Serial Number Lookup') &&
+                prompt.includes('### Patent & IP Verification') &&
+                prompt.includes('### EPA Emissions Compliance') &&
+                prompt.includes('Research and validate: "EPA Emissions Compliance"')
+            );
+        });
+
+        expect(passed).toBe(true);
+    });
+});

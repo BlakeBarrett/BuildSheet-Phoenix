@@ -50,20 +50,20 @@ export class HybridAIService implements AIService {
         return this.geminiService.generateProductImage(description, referenceImage);
     }
 
-    async findPartSources(query: string): Promise<ShoppingOption[] | null> {
-        return this.geminiService.findPartSources(query);
+    async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[] | null> {
+        return this.geminiService.findPartSources(query, designContext);
     }
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         return this.geminiService.findLocalSuppliers(query);
     }
 
-    async hydratePartDetails(name: string, category: string): Promise<Partial<Part> | null> {
-        return this.geminiService.hydratePartDetails(name, category);
+    async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
+        return this.geminiService.hydratePartDetails(name, category, designContext);
     }
 
-    async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse> {
-        return this.geminiService.verifyDesign(bom, requirements, previousAudit);
+    async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: import('../types.ts').AdvancedValidationOption[]): Promise<ArchitectResponse> {
+        return this.geminiService.verifyDesign(bom, requirements, previousAudit, advancedChecks);
     }
 
     async generateFabricationBrief(partName: string, context: string): Promise<string> {

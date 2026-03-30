@@ -45,9 +45,9 @@ USAGE
   exit 1
 fi
 
-# build the image
+# build the image (DOCKER_BUILDKIT=0 avoids stale buildx container cache)
 echo "▶ building docker image ${IMAGE_NAME}..."
-docker build -t "$IMAGE_NAME" .
+DOCKER_BUILDKIT=0 docker build --no-cache -t "$IMAGE_NAME" .
 
 # remove any old container with the same name
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
@@ -74,8 +74,8 @@ docker run -d \
   "$IMAGE_NAME" \
   serve /srv/website -l "${MARKETING_HOST_PORT}" --no-clipboard
 
-# update "Log In" link so it points to the running app
-echo "▶ patching marketing site login link → http://localhost:${HOST_PORT}/"
+# update "Live Demo" link so it points to the running app
+echo "▶ patching marketing site live demo link → http://localhost:${HOST_PORT}/"
 sed -i "s|http://localhost:[0-9]*\"|http://localhost:${HOST_PORT}\"|g" website/index.html
 
 echo "✅ marketing site started, visit http://localhost:${MARKETING_HOST_PORT}/"

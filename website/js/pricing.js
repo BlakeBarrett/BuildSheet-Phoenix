@@ -20,8 +20,8 @@ function initPricingToggle() {
 
   const prices = {
     free:  { monthly: 'Free',   annual: 'Free' },
-    pro:   { monthly: '$19',    annual: '$15' },
-    team:  { monthly: '$49',    annual: '$39' },
+    pro:   { monthly: '$5',     annual: '$4' },
+    team:  { monthly: '$20',    annual: '$16' },
   };
 
   const periods = {

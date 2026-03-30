@@ -77,6 +77,7 @@ export class DraftingEngine {
       lastModified: data.lastModified ? new Date(data.lastModified) : new Date(),
       cacheIsDirty: data.cacheIsDirty ?? true,
       cachedAuditResult: data.cachedAuditResult,
+      advancedValidations: data.advancedValidations,
       cachedAssemblyPlan: data.cachedAssemblyPlan ? {
         ...data.cachedAssemblyPlan,
         generatedAt: new Date(data.cachedAssemblyPlan.generatedAt)
@@ -297,6 +298,11 @@ export class DraftingEngine {
 
   public cacheAuditActions(actions: DraftingSession['cachedAuditActions']) {
     this.session.cachedAuditActions = actions;
+    this.saveSession();
+  }
+
+  public setAdvancedValidations(validations: DraftingSession['advancedValidations']) {
+    this.session.advancedValidations = validations;
     this.saveSession();
   }
 

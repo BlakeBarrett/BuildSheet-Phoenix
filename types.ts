@@ -157,6 +157,7 @@ export interface DraftingSession {
   cachedAuditResult?: string;
   cachedAuditActions?: { type: 'addPart' | 'removePart'; partId?: string; name?: string; category?: string; quantity?: number; instanceId?: string; reason: string }[];
   cachedAssemblyPlan?: AssemblyPlan;
+  advancedValidations?: AdvancedValidationOption[];
   cacheIsDirty: boolean; // True if BOM changed since last audit/plan
 }
 
@@ -167,6 +168,19 @@ export interface User {
   email: string;
   avatar: string;
 }
+
+export interface AdvancedValidationOption {
+  id: string;
+  label: string;
+  enabled: boolean;
+  /** Built-in checks are 'builtin'; user-created ones are 'custom' */
+  kind: 'builtin' | 'custom';
+}
+
+export const DEFAULT_ADVANCED_VALIDATIONS: AdvancedValidationOption[] = [
+  { id: 'vin-lookup',          label: 'VIN / Serial Number Lookup',  enabled: false, kind: 'builtin' },
+  { id: 'patent-verification', label: 'Patent & IP Verification',    enabled: false, kind: 'builtin' },
+];
 
 export interface UserActivityLog {
   id: string;

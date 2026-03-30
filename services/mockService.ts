@@ -1,6 +1,6 @@
 
 import { AIService, ArchitectResponse, AskArchitectResult } from './aiTypes.ts';
-import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, PortType, Gender } from '../types.ts';
+import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, PortType, Gender, AdvancedValidationOption } from '../types.ts';
 
 export class MockService implements AIService {
   public name = "Simulation Engine (Offline)";
@@ -74,7 +74,7 @@ export class MockService implements AIService {
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
   }
 
-  async findPartSources(query: string): Promise<ShoppingOption[]> {
+  async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[]> {
     await new Promise(r => setTimeout(r, 1000));
     return [
       { title: "Mouser Electronics - Fast Ship", url: "https://www.mouser.com", source: "Mouser", price: "$12.99" },
@@ -92,7 +92,7 @@ export class MockService implements AIService {
     ];
   }
 
-  async verifyDesign(bom: any[], requirements: string): Promise<ArchitectResponse> {
+  async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse> {
     await new Promise(r => setTimeout(r, 2000));
 
     // Simple check for simulation mode consistency
@@ -198,7 +198,7 @@ export class MockService implements AIService {
     };
   }
 
-  async hydratePartDetails(name: string, category: string): Promise<Partial<Part> | null> {
+  async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
     await new Promise(r => setTimeout(r, 1500));
     return {
       brand: 'Simulated Brand',

@@ -1,5 +1,5 @@
 
-import { Part, VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec } from '../types.ts';
+import { Part, VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, AdvancedValidationOption } from '../types.ts';
 
 export interface ArchitectResponse {
   reasoning: string;
@@ -43,16 +43,16 @@ export interface AIService {
 
   generateProductImage(description: string, referenceImage?: string): Promise<string | null>;
 
-  findPartSources?(query: string): Promise<ShoppingOption[] | null>;
+  findPartSources?(query: string, designContext?: string): Promise<ShoppingOption[] | null>;
 
   findLocalSuppliers?(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null>;
 
   /**
    * Uses Google Search grounding to hydrate a virtual part with real-world data.
    */
-  hydratePartDetails?(name: string, category: string): Promise<Partial<Part> | null>;
+  hydratePartDetails?(name: string, category: string, designContext?: string): Promise<Partial<Part> | null>;
 
-  verifyDesign?(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse>;
+  verifyDesign?(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse>;
 
   generateFabricationBrief?(partName: string, context: string): Promise<string>;
 

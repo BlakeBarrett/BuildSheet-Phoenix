@@ -6,7 +6,7 @@ import { getDraftingEngine, ProjectIndexEntry } from './services/draftingEngine.
 import { UserService } from './services/userService.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
-import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -737,11 +737,35 @@ const AuditModal: React.FC<{
     isDirty: boolean;
     isApplying?: boolean;
     proposedActions?: DraftingSession['cachedAuditActions'];
+    advancedValidations: AdvancedValidationOption[];
+    onAdvancedChange: (updated: AdvancedValidationOption[]) => void;
     onRefresh: () => void;
     onApplyChanges?: () => void;
-}> = ({ isOpen, onClose, result, isRunning, isDirty, isApplying, proposedActions, onRefresh, onApplyChanges }) => {
+}> = ({ isOpen, onClose, result, isRunning, isDirty, isApplying, proposedActions, advancedValidations, onAdvancedChange, onRefresh, onApplyChanges }) => {
+    const [advancedOpen, setAdvancedOpen] = useState(true);
+    const [customInput, setCustomInput] = useState('');
     if (!isOpen) return null;
     const hasActions = proposedActions && proposedActions.length > 0;
+
+    const toggleCheck = (id: string) => {
+        onAdvancedChange(advancedValidations.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c));
+    };
+
+    const addCustomCheck = () => {
+        const label = customInput.trim();
+        if (!label) return;
+        const id = `custom-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+        if (advancedValidations.some(c => c.id === id)) return;
+        onAdvancedChange([...advancedValidations, { id, label, enabled: true, kind: 'custom' }]);
+        setCustomInput('');
+    };
+
+    const removeCustomCheck = (id: string) => {
+        onAdvancedChange(advancedValidations.filter(c => c.id !== id));
+    };
+
+    const anyAdvancedEnabled = advancedValidations.some(c => c.enabled);
+
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="audit-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -753,9 +777,10 @@ const AuditModal: React.FC<{
                             </span>
                         </div>
                         <div>
-                            <h3 id="audit-title" className="text-xl font-bold text-slate-800 tracking-tight">Technical Audit</h3>
+                            <h3 id="audit-title" className="text-xl font-bold text-slate-800 tracking-tight">Build Feasibility Check</h3>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-600 font-medium">System Integrity Verification</span>
+                                <span className="text-xs text-slate-600 font-medium">Quick Validation</span>
+                                {anyAdvancedEnabled && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">+ Advanced</span>}
                                 {isDirty && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Stale</span>}
                             </div>
                         </div>
@@ -770,7 +795,9 @@ const AuditModal: React.FC<{
                                 <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
                                 <div className="absolute inset-0 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
                             </div>
-                            <p className="text-slate-500 font-medium animate-pulse">Analyzing BOM against requirements...</p>
+                            <p className="text-slate-500 font-medium animate-pulse">
+                                {anyAdvancedEnabled ? 'Running feasibility check + advanced validations...' : 'Checking build feasibility...'}
+                            </p>
                         </div>
                     ) : isApplying ? (
                         <div className="flex flex-col items-center justify-center h-64 space-y-6">
@@ -820,13 +847,71 @@ const AuditModal: React.FC<{
                             No audit results available. Run a verification check.
                         </div>
                     )}
+
+                    {/* Advanced Validation Section */}
+                    <div className="mt-6 border border-slate-200 rounded-[20px] overflow-hidden">
+                        <button
+                            className="w-full px-5 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors"
+                            onClick={() => setAdvancedOpen(!advancedOpen)}
+                            aria-expanded={advancedOpen}
+                            type="button"
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-rounded text-slate-500 text-[18px]" aria-hidden="true">tune</span>
+                                <span className="text-sm font-bold text-slate-700 uppercase tracking-wider">Advanced Validation</span>
+                                {anyAdvancedEnabled && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">{advancedValidations.filter(c => c.enabled).length} active</span>}
+                            </div>
+                            <span className={`material-symbols-rounded text-slate-400 text-[20px] transition-transform ${advancedOpen ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
+                        </button>
+
+                        {advancedOpen && (
+                            <div className="px-5 py-4 space-y-3 bg-white">
+                                <p className="text-xs text-slate-500">Enable additional checks to include in the next audit run. These run on top of the standard feasibility check.</p>
+
+                                {/* Built-in + custom checks */}
+                                {advancedValidations.map(check => (
+                                    <label key={check.id} className="flex items-center gap-3 py-1.5 group cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={check.enabled}
+                                            onChange={() => toggleCheck(check.id)}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-sm text-slate-700 flex-1">{check.label}</span>
+                                        {check.kind === 'custom' && (
+                                            <button
+                                                onClick={(e) => { e.preventDefault(); removeCustomCheck(check.id); }}
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500"
+                                                aria-label={`Remove ${check.label}`}
+                                                type="button"
+                                            >
+                                                <span className="material-symbols-rounded text-[16px]" aria-hidden="true">close</span>
+                                            </button>
+                                        )}
+                                    </label>
+                                ))}
+
+                                {/* Add custom check */}
+                                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                                    <input
+                                        type="text"
+                                        value={customInput}
+                                        onChange={e => setCustomInput(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomCheck(); } }}
+                                        placeholder='e.g. "GDPR Compliant", "UL Listed"...'
+                                        className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        maxLength={120}
+                                    />
+                                    <Button variant="tonal" onClick={addCustomCheck} disabled={!customInput.trim()} className="h-9 text-xs shrink-0" icon="add">Add</Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-                    {isDirty && (
-                        <Button variant="tonal" onClick={onRefresh} disabled={isRunning || isApplying} icon="refresh">Re-Run Audit</Button>
-                    )}
-                    {hasActions && !isDirty && !isRunning && onApplyChanges && (
+                    <Button variant="tonal" onClick={onRefresh} disabled={isRunning || isApplying} icon={result ? "refresh" : "play_arrow"}>{result ? 'Re-Run' : 'Run Check'}</Button>
+                    {hasActions && !isRunning && onApplyChanges && (
                         <Button variant="tonal" onClick={onApplyChanges} disabled={isApplying} className="bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="auto_fix_high">Apply Recommended Changes</Button>
                     )}
                     <Button variant="primary" onClick={onClose} disabled={isApplying}>Done</Button>
@@ -1255,6 +1340,9 @@ const AppContent: React.FC = () => {
     const [auditOpen, setAuditOpen] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
     const [isApplyingAudit, setIsApplyingAudit] = useState(false);
+    const [advancedValidations, setAdvancedValidations] = useState<AdvancedValidationOption[]>(
+        () => session.advancedValidations ?? [...DEFAULT_ADVANCED_VALIDATIONS]
+    );
 
     const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
     const [assemblyOpen, setAssemblyOpen] = useState(false);
@@ -1399,7 +1487,8 @@ const AppContent: React.FC = () => {
             bom: prev.bom.map(b => b.instanceId === entry.instanceId ? { ...b, sourcing: { ...b.sourcing, loading: true } } : b)
         }));
         try {
-            const result = await aiService.findPartSources?.(entry.part.name);
+            const designReqs = draftingEngine.getSession().designRequirements;
+            const result = await aiService.findPartSources?.(entry.part.name, designReqs);
             const local = await aiService.findLocalSuppliers?.(entry.part.name);
             draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
             refreshState();
@@ -1414,7 +1503,8 @@ const AppContent: React.FC = () => {
         if (!aiService.hydratePartDetails || isHydrating) return;
         setIsHydrating(true);
         try {
-            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category);
+            const designReqs = draftingEngine.getSession().designRequirements;
+            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category, designReqs);
             if (details) {
                 draftingEngine.updatePartDetails(entry.instanceId, details);
                 refreshState();
@@ -1435,13 +1525,14 @@ const AppContent: React.FC = () => {
         const latestSession = draftingEngine.getSession();
         const virtualParts = latestSession.bom.filter(b => b.part.brand === 'TBD');
         if (virtualParts.length === 0) return;
+        const designReqs = latestSession.designRequirements;
 
         // Process in batches of 3 for speed
         for (let i = 0; i < virtualParts.length; i += 3) {
             const batch = virtualParts.slice(i, i + 3);
             await Promise.all(batch.map(async (entry) => {
                 try {
-                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category);
+                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category, designReqs);
                     if (details) {
                         draftingEngine.updatePartDetails(entry.instanceId, details);
                     }
@@ -1450,6 +1541,12 @@ const AppContent: React.FC = () => {
                 }
             }));
         }
+        refreshState();
+    };
+
+    const handleAdvancedValidationsChange = (updated: AdvancedValidationOption[]) => {
+        setAdvancedValidations(updated);
+        draftingEngine.setAdvancedValidations(updated);
         refreshState();
     };
 
@@ -1466,14 +1563,14 @@ const AppContent: React.FC = () => {
             // Hydrate all virtual parts before running audit
             await hydrateAllVirtualParts();
             const latestSession = draftingEngine.getSession();
-            const res = await aiService.verifyDesign(latestSession.bom, latestSession.designRequirements, latestSession.cachedAuditResult);
+            const res = await aiService.verifyDesign(latestSession.bom, latestSession.designRequirements, latestSession.cachedAuditResult, advancedValidations);
             draftingEngine.cacheAuditResult(res.reasoning);
 
             // Use actions from verifyDesign response (single API call approach)
             if (res.auditActions && res.auditActions.length > 0) {
                 draftingEngine.cacheAuditActions(res.auditActions);
             } else if (aiService.applyAuditRecommendations) {
-                // Fallback: separate API call if verifyDesign didn't return actions
+                // Fallback: separate structured-output API call to extract actions from audit text
                 try {
                     const freshSession = draftingEngine.getSession();
                     const { actions } = await aiService.applyAuditRecommendations(
@@ -1481,14 +1578,20 @@ const AppContent: React.FC = () => {
                         res.reasoning,
                         freshSession.designRequirements
                     );
-                    draftingEngine.cacheAuditActions(actions);
+                    if (actions && actions.length > 0) {
+                        draftingEngine.cacheAuditActions(actions);
+                    }
                 } catch (e) {
                     console.error('Failed to pre-compute audit actions:', e);
                 }
             }
-
-            if (!silent) refreshState();
-        } catch (e) { console.error(e); } finally { if (!silent) setIsAuditing(false); }
+        } catch (e) { console.error(e); } finally {
+            // Always refresh state so the modal shows the latest data
+            if (!silent) {
+                refreshState();
+                setIsAuditing(false);
+            }
+        }
     }
 
     const performPlanAssembly = async (silent = false) => {
@@ -1580,12 +1683,8 @@ const AppContent: React.FC = () => {
     };
 
     const handleVerifyAudit = async () => {
-        const currentSession = draftingEngine.getSession();
-        if (currentSession.cachedAuditResult && !currentSession.cacheIsDirty) {
-            setAuditOpen(true);
-            return;
-        }
-        await performVerifyAudit();
+        // Always open the modal to show cached results or let user configure
+        setAuditOpen(true);
     };
 
     const handleApplyAuditChanges = async () => {
@@ -1976,7 +2075,7 @@ const AppContent: React.FC = () => {
                 onFixAll={handleOneClickKit}
             />
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
-            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} proposedActions={session.cachedAuditActions} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
+            <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} proposedActions={session.cachedAuditActions} advancedValidations={advancedValidations} onAdvancedChange={handleAdvancedValidationsChange} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
             <PartDetailModal 
                 entry={selectedPart} 
                 onClose={() => setSelectedPart(null)} 

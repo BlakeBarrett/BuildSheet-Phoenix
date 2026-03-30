@@ -189,12 +189,13 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async findPartSources(query: string): Promise<ShoppingOption[] | null> {
+    async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[] | null> {
         try {
             const ai = this.getClient();
+            const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
-                contents: `Find real-world purchase options and actual prices for: ${query}. For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
+                contents: `Find real-world purchase options and actual prices for: ${query}.${contextClause} For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
                 config: {
                     tools: [{ googleSearch: {} }],
                 }
@@ -217,12 +218,13 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async hydratePartDetails(name: string, category: string): Promise<Partial<Part> | null> {
+    async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
         try {
             const ai = this.getClient();
+            const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
-                contents: `Look up the real-world hardware component: "${name}" (category: ${category}). Return its manufacturer/brand, a brief technical description, typical retail price in USD, and its physical/electrical connectors (ports). Use current market data.`,
+                contents: `Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause} Return its manufacturer/brand, a brief technical description, typical retail price in USD, and its physical/electrical connectors (ports). Use current market data.`,
                 config: {
                     tools: [{ googleSearch: {} }],
                     responseMimeType: "application/json",
@@ -286,18 +288,54 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async verifyDesign(bom: any[], requirements: string, previousAudit?: string): Promise<ArchitectResponse & { auditActions?: import('./aiTypes.ts').AuditAction[] }> {
+    async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: import('../types.ts').AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: import('./aiTypes.ts').AuditAction[] }> {
         try {
             const ai = this.getClient();
-            const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} - Price: $${b.part.price} - Description: ${b.part.description}`).join('\n');
+            const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category}, Brand: ${b.part.brand || 'TBD'}) - Price: $${b.part.price} - Description: ${b.part.description}`).join('\n');
+
+            const enabledAdvanced = (advancedChecks || []).filter(c => c.enabled);
 
             let prompt = `
-        PERFORM A TECHNICAL AND PATENT AUDIT.
+        PERFORM A BUILD FEASIBILITY CHECK.
+        Your primary goal is to verify that the following BOM will produce a functional, buildable system.
+        
+        CRITICAL — COMPATIBILITY CROSS-CHECK:
+        Every single part in the BOM MUST be verified against the DESIGN CONTEXT below.
+        If the design specifies a particular platform (e.g. "Big Block Chevy 454"), EVERY part must be compatible with that exact platform.
+        Flag ANY part that belongs to a different platform, make, model, or family (e.g. a Small Block Ford part in a Big Block Chevy build).
+        This is the MOST IMPORTANT check. A build with cross-platform parts is fundamentally broken.
+
+        Focus on:
+        1. **Platform/make/model mismatch** — parts from the wrong engine family, vehicle platform, chipset, or connector ecosystem
+        2. **Missing critical parts** — essential components absent from the BOM
+        3. **Incompatible connections** — electrical, mechanical, or fluid port mismatches
+        4. **Quantity errors** — wrong counts or missing multiples
+        5. **Obvious engineering issues** — thermal, structural, or dimensional problems
+
+        For any incompatible part found, you MUST include a removePart action AND an addPart action with the correct replacement.
+
         DESIGN CONTEXT/REQUIREMENTS: ${requirements}
         
         CURRENT BILL OF MATERIALS:
         ${digest}
+`;
 
+            // Append advanced check sections when enabled
+            if (enabledAdvanced.length > 0) {
+                prompt += `\n--- ADVANCED CHECKS REQUESTED ---\nIn addition to the feasibility check above, perform the following advanced validations:\n`;
+                for (const check of enabledAdvanced) {
+                    if (check.id === 'vin-lookup') {
+                        prompt += `\n### VIN / Serial Number Lookup\nFor each part that may have a VIN, serial number, or model number, attempt to verify it via Google Search grounding. Report any mismatches or recalls.\n`;
+                    } else if (check.id === 'patent-verification') {
+                        prompt += `\n### Patent & IP Verification\nCheck whether any parts or the overall design may infringe on known patents. Cite specific patent numbers where possible.\n`;
+                    } else {
+                        // Custom user-defined check
+                        prompt += `\n### ${check.label}\nResearch and validate: "${check.label}". Provide a thorough assessment of compliance or applicability.\n`;
+                    }
+                }
+            }
+
+            prompt += `
         IMPORTANT: After your audit text, you MUST append a structured JSON block with the exact BOM changes you recommend.
         Use the delimiter ===ACTIONS_JSON=== on its own line, followed by a JSON object with this exact format:
         {"actions":[{"type":"addPart","partId":"kebab-id","name":"Full Name","category":"Category","quantity":1,"reason":"Why"},{"type":"removePart","instanceId":"exact-instance-id-from-bom","name":"Part Name","reason":"Why"}],"summary":"Brief summary"}
@@ -312,32 +350,49 @@ export class GeminiService implements AIService {
                 prompt += `\nPREVIOUS AUDIT RESULT:\n${previousAudit}\n`;
             }
 
+            // Scale thinking budget based on advanced checks
+            const thinkingBudget = enabledAdvanced.length > 0 ? 4096 : 2048;
+
             const response = await ai.models.generateContent({
                 model: 'gemini-3.1-pro-preview',
                 contents: prompt,
                 config: {
                     maxOutputTokens: 8192,
-                    thinkingConfig: { thinkingBudget: 4096 }
+                    thinkingConfig: { thinkingBudget }
                 }
             });
 
             const fullText = response.text || "";
             
-            // Parse the actions JSON from the delimiter
+            // Parse the actions JSON from the delimiter (robust against markdown fences & whitespace)
             let auditText = fullText;
             let auditActions: import('./aiTypes.ts').AuditAction[] | undefined;
 
             const delimiterIndex = fullText.indexOf('===ACTIONS_JSON===');
             if (delimiterIndex !== -1) {
                 auditText = fullText.substring(0, delimiterIndex).trim();
-                const jsonPart = fullText.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
+                let jsonPart = fullText.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
+                // Strip markdown code fences if the model wrapped the JSON
+                jsonPart = jsonPart.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
                 try {
                     const parsed = JSON.parse(jsonPart);
                     if (parsed.actions && Array.isArray(parsed.actions)) {
                         auditActions = parsed.actions;
                     }
                 } catch (jsonErr) {
-                    console.warn('[GeminiService] Failed to parse audit actions JSON:', jsonErr);
+                    // Try to extract JSON object from the text as a last resort
+                    const jsonMatch = jsonPart.match(/\{[\s\S]*"actions"[\s\S]*\}/);
+                    if (jsonMatch) {
+                        try {
+                            const fallbackParsed = JSON.parse(jsonMatch[0]);
+                            if (fallbackParsed.actions && Array.isArray(fallbackParsed.actions)) {
+                                auditActions = fallbackParsed.actions;
+                            }
+                        } catch (_) { /* give up, will fall back to applyAuditRecommendations */ }
+                    }
+                    if (!auditActions) {
+                        console.warn('[GeminiService] Failed to parse audit actions JSON:', jsonErr);
+                    }
                 }
             }
 
