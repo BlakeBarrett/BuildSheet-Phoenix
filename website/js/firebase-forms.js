@@ -34,6 +34,18 @@ function getDb() {
 
   // Use a different app name so it doesn't collide if the React app is also loaded
   const app = firebase.initializeApp(config, 'marketing');
+
+  // Enable App Check with reCAPTCHA Enterprise to protect against abuse.
+  // The site key comes from window._env_ (set up in Google Cloud Console → reCAPTCHA Enterprise).
+  const recaptchaKey = env.VITE_RECAPTCHA_SITE_KEY || '';
+  if (recaptchaKey && firebase.appCheck) {
+    const appCheck = firebase.appCheck(app);
+    appCheck.activate(
+      new firebase.appCheck.ReCaptchaEnterpriseProvider(recaptchaKey),
+      /* isTokenAutoRefreshEnabled= */ true
+    );
+  }
+
   _db = firebase.firestore(app);
   return _db;
 }

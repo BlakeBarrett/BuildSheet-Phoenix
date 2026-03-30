@@ -30,6 +30,7 @@
   <!-- Firebase SDK (compat) for form submissions -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
   <!-- Runtime env config (written by env.sh on Cloud Run, also used by /app/) -->
   <script>
     window._env_ = window._env_ || {};
@@ -323,6 +324,7 @@
             <span class="pricing-card__amount" id="price-pro" style="transition: all 0.15s ease">$5</span>
             <span class="pricing-card__period" id="period-pro">/mo</span>
           </div>
+          <p style="font-size: 0.8rem; color: var(--color-accent-teal); font-weight: 600; margin-top: -0.75rem; margin-bottom: 0.75rem;">✦ Introductory Pricing</p>
           <p class="pricing-card__annual-note" style="display: none; font-size: 0.8rem; color: var(--color-success); margin-top: -1rem; margin-bottom: 1rem;">Billed at $48/year</p>
           <ul class="pricing-card__features">
             <li class="pricing-card__feature">
@@ -354,10 +356,9 @@
           <h3 class="pricing-card__name">Team</h3>
           <p class="pricing-card__description">For hardware teams and organizations at scale.</p>
           <div class="pricing-card__price">
-            <span class="pricing-card__amount" id="price-team" style="transition: all 0.15s ease">$20</span>
-            <span class="pricing-card__period" id="period-team">/user/mo</span>
+            <span class="pricing-card__amount" id="price-team" style="font-size: 1.5rem; transition: all 0.15s ease">Contact us</span>
+            <span class="pricing-card__period" id="period-team">for pricing</span>
           </div>
-          <p class="pricing-card__annual-note" style="display: none; font-size: 0.8rem; color: var(--color-success); margin-top: -1rem; margin-bottom: 1rem;">Billed annually</p>
           <ul class="pricing-card__features">
             <li class="pricing-card__feature">
               <svg class="pricing-card__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>

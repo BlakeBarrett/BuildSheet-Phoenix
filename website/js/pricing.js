@@ -19,15 +19,15 @@ function initPricingToggle() {
   let isAnnual = false;
 
   const prices = {
-    free:  { monthly: 'Free',   annual: 'Free' },
-    pro:   { monthly: '$5',     annual: '$4' },
-    team:  { monthly: '$20',    annual: '$16' },
+    free:  { monthly: 'Free',        annual: 'Free' },
+    pro:   { monthly: '$5',          annual: '$4' },
+    team:  { monthly: 'Contact us',  annual: 'Contact us' },
   };
 
   const periods = {
-    free:  { monthly: 'forever', annual: 'forever' },
-    pro:   { monthly: '/mo',     annual: '/mo' },
-    team:  { monthly: '/user/mo', annual: '/user/mo' },
+    free:  { monthly: 'forever',      annual: 'forever' },
+    pro:   { monthly: '/mo',          annual: '/mo' },
+    team:  { monthly: 'for pricing',  annual: 'for pricing' },
   };
 
   function updatePrices() {
