@@ -53,7 +53,7 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[x]` **Paste-in BOM import** — `importPastedText()` in DraftingEngine; supports free-text lists, quantity prefixes/suffixes, tab-separated, and CSV auto-detection. Accessible via the Import modal.
 
 ### Project Management
-- `[~]` **Project list / history** — `ProjectNavigator` shows local projects stored in `localStorage`. Limited to the current browser/device.
+- `[x]` **Project list / history** — `ProjectNavigator` shows projects from localStorage (Guest) or Firestore (Authenticated). Includes login CTA, migration banner, and i18n support.
 - `[x]` **Project search and filtering** — live search input in `ProjectNavigator`; filters by name and preview text.
 - `[ ]` **Project tags / labels**
 - `[x]` **Project archiving** — `archiveProject()` / `unarchiveProject()` in DraftingEngine; toggle archived view in ProjectNavigator.
@@ -68,11 +68,11 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[x]` **Dependency graph / port-connection diagram** — Dashed connection lines with arrowheads drawn between adjacent components; port dots displayed at bottom of each block, color-coded by `PortType`.
 
 ### Authentication & User Accounts
-- `[~]` **Google Sign-In** — `UserService.login()` exists but returns a **hardcoded mock user** (`google-oauth2|...`). No real OAuth flow is implemented. `firebase.ts` is intentionally blank.
-- `[ ]` **Real Auth0 / Firebase Auth integration** — The import comment says "Auth0 (Simulated)". Replace with the real SDK.
-- `[ ]` **Session persistence tied to real user identity** — Currently all data lives in `localStorage` keyed by a random ID, not by user account. Logging in/out does nothing to project ownership.
+- `[x]` **Google Sign-In** — `UserService.login()` uses `signInWithPopup` with `GoogleAuthProvider` via Firebase Auth SDK v10 (Modular). `firebase.ts` initialises from `import.meta.env` vars.
+- `[x]` **Real Firebase Auth integration** — `UserService` delegates to `onAuthStateChanged` / `signInWithPopup` / `signOut`. Falls back to guest mode when Firebase is not configured.
+- `[x]` **Session persistence tied to real user identity** — Authenticated users' projects are mirrored to Firestore (`users/{uid}/projects/{projectId}`). On login, guest localStorage data is auto-migrated and cleared. Guest mode limited to 1 project with a CTA to sign in.
 - `[ ]` **User profile page** — avatar, name, email, account settings.
-- `[ ]` **Password reset / magic link flows**
+- `[x]` **Password reset / magic link flows** — Passwordless email-link sign-in via `sendSignInLinkToEmail` / `signInWithEmailLink`. Email input in ProjectNavigator footer; link completion handler runs on page load. All i18n strings translated.
 - `[ ]` **SSO / Enterprise SAML** (advertised in Team tier)
 
 ### Collaboration & Sharing

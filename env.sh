@@ -1,10 +1,19 @@
 #!/bin/sh
 
 # Create the env-config.js file in the React app webroot
-echo "window._env_ = {" > /var/www/app/env-config.js
-echo "  API_KEY: \"${API_KEY}\"," >> /var/www/app/env-config.js
-echo "  GEMINI_API_KEY: \"${GEMINI_API_KEY}\"" >> /var/www/app/env-config.js
-echo "};" >> /var/www/app/env-config.js
+cat <<EOF > /var/www/app/env-config.js
+window._env_ = {
+  API_KEY: "${API_KEY}",
+  GEMINI_API_KEY: "${GEMINI_API_KEY}",
+  VITE_FIREBASE_API_KEY: "${VITE_FIREBASE_API_KEY}",
+  VITE_FIREBASE_AUTH_DOMAIN: "${VITE_FIREBASE_AUTH_DOMAIN}",
+  VITE_FIREBASE_PROJECT_ID: "${VITE_FIREBASE_PROJECT_ID}",
+  VITE_FIREBASE_STORAGE_BUCKET: "${VITE_FIREBASE_STORAGE_BUCKET}",
+  VITE_FIREBASE_MESSAGING_SENDER_ID: "${VITE_FIREBASE_MESSAGING_SENDER_ID}",
+  VITE_FIREBASE_APP_ID: "${VITE_FIREBASE_APP_ID}",
+  VITE_FIREBASE_MEASUREMENT_ID: "${VITE_FIREBASE_MEASUREMENT_ID}"
+};
+EOF
 
 # Start nginx
 exec nginx -g 'daemon off;'

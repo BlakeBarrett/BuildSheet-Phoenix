@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
+import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS } from './types.ts';
@@ -60,10 +61,34 @@ const ProjectNavigator: React.FC<{
     onDuplicate?: (id: string) => void;
     onArchive?: (id: string) => void;
     onUnarchive?: (id: string) => void;
-}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate, onDuplicate, onArchive, onUnarchive }) => {
+    isGuest?: boolean;
+    guestLimitReached?: boolean;
+    onLogin?: () => void;
+    onSendEmailLink?: (email: string) => Promise<void>;
+    isMigrating?: boolean;
+}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate, onDuplicate, onArchive, onUnarchive, isGuest, guestLimitReached, onLogin, onSendEmailLink, isMigrating }) => {
+    const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
     const [showArchived, setShowArchived] = useState(false);
+    const [emailInput, setEmailInput] = useState('');
+    const [emailLinkSent, setEmailLinkSent] = useState(false);
+    const [emailLinkSending, setEmailLinkSending] = useState(false);
+    const [emailLinkError, setEmailLinkError] = useState('');
     if (!isOpen) return null;
+
+    const handleSendLink = async () => {
+        if (!onSendEmailLink || !emailInput.trim()) return;
+        setEmailLinkSending(true);
+        setEmailLinkError('');
+        try {
+            await onSendEmailLink(emailInput.trim());
+            setEmailLinkSent(true);
+        } catch (e: any) {
+            setEmailLinkError(e?.message || 'Failed to send link');
+        } finally {
+            setEmailLinkSending(false);
+        }
+    };
 
     const filtered = projects.filter(p => {
       if (!showArchived && p.archived) return false;
@@ -99,14 +124,25 @@ const ProjectNavigator: React.FC<{
                 </div>
 
                 <div className="px-4 py-2 flex gap-2">
-                    <Button
-                        variant="tonal"
-                        icon="add_circle"
-                        onClick={() => { onNewProject(); onClose(); }}
-                        className="flex-1 justify-start bg-white hover:bg-white/80 shadow-sm"
-                    >
-                        New Build Sheet
-                    </Button>
+                    {isGuest && guestLimitReached ? (
+                        <Button
+                            variant="tonal"
+                            icon="lock"
+                            onClick={onLogin}
+                            className="flex-1 justify-start bg-indigo-50 hover:bg-indigo-100 text-indigo-800 shadow-sm"
+                        >
+                            {t('nav.loginToSave')}
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="tonal"
+                            icon="add_circle"
+                            onClick={() => { onNewProject(); onClose(); }}
+                            className="flex-1 justify-start bg-white hover:bg-white/80 shadow-sm"
+                        >
+                            {t('app.newProject')}
+                        </Button>
+                    )}
                     <button
                         onClick={() => setShowArchived(!showArchived)}
                         className={`px-3 py-2 rounded-[16px] text-xs font-bold transition-colors ${showArchived ? 'bg-amber-100 text-amber-800' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
@@ -180,10 +216,61 @@ const ProjectNavigator: React.FC<{
                 </div>
 
                 <footer className="p-4 bg-white/50 border-t border-gray-200/50">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">Project Tools</p>
+                    {isMigrating && (
+                        <div className="flex items-center gap-2 mb-3 p-3 bg-indigo-50 rounded-[16px] text-xs font-medium text-indigo-700" role="status" aria-live="polite">
+                            <span className="material-symbols-rounded animate-spin text-[16px]" aria-hidden="true">sync</span>
+                            {t('nav.migrating')}
+                        </div>
+                    )}
+                    {isGuest && onLogin && (
+                        <div className="mb-3 space-y-2">
+                            <GoogleSignInButton onClick={onLogin} label={t('app.signInGoogle')} />
+                            {onSendEmailLink && (
+                                emailLinkSent ? (
+                                    <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-[16px] text-xs font-medium text-emerald-700" role="status" aria-live="polite">
+                                        <span className="material-symbols-rounded text-[16px]" aria-hidden="true">mark_email_read</span>
+                                        {t('auth.emailLinkSent')}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold uppercase tracking-widest px-1">
+                                            <span className="flex-1 h-[1px] bg-slate-200"></span>
+                                            {t('auth.orEmail')}
+                                            <span className="flex-1 h-[1px] bg-slate-200"></span>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <input
+                                                type="email"
+                                                value={emailInput}
+                                                onChange={e => setEmailInput(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && handleSendLink()}
+                                                placeholder={t('auth.emailPlaceholder')}
+                                                aria-label={t('auth.emailPlaceholder')}
+                                                autoComplete="email"
+                                                className="flex-1 min-w-0 px-3 py-2 bg-white rounded-[12px] border border-gray-200 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 placeholder:text-slate-400"
+                                            />
+                                            <Button
+                                                variant="tonal"
+                                                icon={emailLinkSending ? 'sync' : 'send'}
+                                                onClick={handleSendLink}
+                                                disabled={emailLinkSending || !emailInput.trim()}
+                                                className={`shrink-0 px-3 ${emailLinkSending ? 'animate-spin' : ''}`}
+                                            >
+                                                {t('auth.sendLink')}
+                                            </Button>
+                                        </div>
+                                        {emailLinkError && (
+                                            <p className="text-[11px] text-rose-600 font-medium px-1" role="alert">{emailLinkError}</p>
+                                        )}
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    )}
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">{t('nav.projectTools')}</p>
                     <div className="grid grid-cols-2 gap-2">
-                        <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-800 hover:bg-rose-100" icon="health_and_safety">Health Check</Button>
-                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="output">Export</Button>
+                        <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-800 hover:bg-rose-100" icon="health_and_safety">{t('nav.healthCheck')}</Button>
+                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="output">{t('app.export')}</Button>
                     </div>
                 </footer>
             </div>
@@ -1391,6 +1478,83 @@ const AppContent: React.FC = () => {
     // BOM Import
     const [importModalOpen, setImportModalOpen] = useState(false);
 
+    // Auth State
+    const [currentUser, setCurrentUser] = useState<User | null>(UserService.getCurrentUser());
+    const [isMigrating, setIsMigrating] = useState(false);
+
+    useEffect(() => {
+        return UserService.onUserChange(setCurrentUser);
+    }, []);
+
+    const handleLogin = useCallback(async () => {
+        // Capture whether guest data exists BEFORE login
+        const hadLocalProjects = draftingEngine.getProjectsList(true).length > 0;
+        try {
+            await UserService.login();
+        } catch (e: any) {
+            console.error('Login failed', e);
+            return;
+        }
+        // Post-login migration
+        if (hadLocalProjects && UserService.isAuthenticated()) {
+            setIsMigrating(true);
+            try {
+                await draftingEngine.migrateLocalProjectsToFirestore();
+                draftingEngine.clearLocalProjects();
+            } finally {
+                setIsMigrating(false);
+            }
+        }
+        // Load all Firestore projects into local index
+        if (UserService.isAuthenticated()) {
+            await draftingEngine.loadProjectsFromFirestore();
+        }
+        refreshState();
+    }, [draftingEngine]);
+
+    const handleLogout = useCallback(async () => {
+        await UserService.logout();
+        // Reload to reset all in-memory state cleanly
+        window.location.href = '/';
+    }, []);
+
+    const handleNewProject = useCallback(() => {
+        if (draftingEngine.isGuestProjectLimitReached()) {
+            // Don't create – the UI will show the CTA instead
+            return;
+        }
+        draftingEngine.createNewProject();
+        refreshState();
+    }, [draftingEngine]);
+
+    const handleSendEmailLink = useCallback(async (email: string) => {
+        await UserService.sendEmailLink(email);
+    }, []);
+
+    // Complete passwordless email-link sign-in if the URL contains the link params.
+    useEffect(() => {
+        (async () => {
+            try {
+                const completed = await UserService.completeEmailLinkSignIn();
+                if (completed && UserService.isAuthenticated()) {
+                    // Run the same post-login migration as handleLogin
+                    const hadLocal = draftingEngine.getProjectsList(true).length > 0;
+                    if (hadLocal) {
+                        setIsMigrating(true);
+                        try {
+                            await draftingEngine.migrateLocalProjectsToFirestore();
+                            draftingEngine.clearLocalProjects();
+                        } finally { setIsMigrating(false); }
+                    }
+                    await draftingEngine.loadProjectsFromFirestore();
+                    refreshState();
+                }
+            } catch (e) {
+                console.error('Email link sign-in failed', e);
+            }
+        })();
+    }, [draftingEngine]);
+
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [session.messages, mobileTab, isThinking]);
@@ -2061,12 +2225,17 @@ const AppContent: React.FC = () => {
                 currentId={session.id}
                 onSelect={(id) => { draftingEngine.loadProject(id); refreshState(); }}
                 onDelete={handleDeleteWithConfirm}
-                onNewProject={() => { draftingEngine.createNewProject(); refreshState(); }}
+                onNewProject={handleNewProject}
                 onExport={handleExport}
                 onValidate={runValidationSuite}
                 onDuplicate={handleDuplicateProject}
                 onArchive={handleArchiveProject}
                 onUnarchive={handleUnarchiveProject}
+                isGuest={!currentUser}
+                guestLimitReached={draftingEngine.isGuestProjectLimitReached()}
+                onLogin={handleLogin}
+                onSendEmailLink={handleSendEmailLink}
+                isMigrating={isMigrating}
             />
             <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
             <BOMImportModal isOpen={importModalOpen} onClose={() => { setImportModalOpen(false); refreshState(); }} onImportCSV={handleImportCSV} onImportPaste={handleImportPaste} />
@@ -2117,7 +2286,7 @@ const AppContent: React.FC = () => {
                     />
                     <IconButton
                         icon="add_box"
-                        onClick={() => { draftingEngine.createNewProject(); refreshState(); }}
+                        onClick={handleNewProject}
                         title="New Project"
                     />
 
@@ -2166,12 +2335,21 @@ const AppContent: React.FC = () => {
 
                 <div className="pb-2 flex flex-col gap-2">
                     <IconButton icon="tune" title="Settings" onClick={() => setIsSettingsOpen(true)} />
-                    <IconButton
-                        icon="logout"
-                        title="Log Out"
-                        className="text-slate-500 hover:bg-red-50 hover:text-red-600"
-                        onClick={async () => { await UserService.logout(); window.location.href = '/'; }}
-                    />
+                    {currentUser ? (
+                        <IconButton
+                            icon="logout"
+                            title="Log Out"
+                            className="text-slate-500 hover:bg-red-50 hover:text-red-600"
+                            onClick={handleLogout}
+                        />
+                    ) : isFirebaseConfigured() ? (
+                        <IconButton
+                            icon="login"
+                            title="Sign In"
+                            className="text-indigo-600 hover:bg-indigo-50"
+                            onClick={handleLogin}
+                        />
+                    ) : null}
                 </div>
             </nav>
 

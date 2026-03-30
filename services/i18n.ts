@@ -46,7 +46,15 @@ const resources = {
       "vis.generating": "Generating...",
       "vis.empty": "Generate a photorealistic concept of your assembly using the Gemini Nano Banana model.",
       "vis.new": "New",
-      "lang.select": "Language"
+      "lang.select": "Language",
+      "nav.loginToSave": "Sign in to save more projects",
+      "nav.migrating": "Migrating your projects to the cloud…",
+      "nav.projectTools": "Project Tools",
+      "nav.healthCheck": "Health Check",
+      "auth.orEmail": "or use email",
+      "auth.emailPlaceholder": "you@example.com",
+      "auth.sendLink": "Send Link",
+      "auth.emailLinkSent": "Check your inbox! A sign-in link has been sent."
     }
   },
   es: {
@@ -92,7 +100,15 @@ const resources = {
       "vis.generating": "Generando...",
       "vis.empty": "Genera un concepto fotorrealista de tu ensamblaje usando el modelo Gemini Nano Banana.",
       "vis.new": "Nuevo",
-      "lang.select": "Idioma"
+      "lang.select": "Idioma",
+      "nav.loginToSave": "Inicia sesión para guardar más proyectos",
+      "nav.migrating": "Migrando tus proyectos a la nube…",
+      "nav.projectTools": "Herramientas de Proyecto",
+      "nav.healthCheck": "Verificación de Salud",
+      "auth.orEmail": "o usar correo",
+      "auth.emailPlaceholder": "tu@ejemplo.com",
+      "auth.sendLink": "Enviar Enlace",
+      "auth.emailLinkSent": "¡Revisa tu bandeja de entrada! Se envió un enlace de acceso."
     }
   },
   pt: {
@@ -138,7 +154,15 @@ const resources = {
       "vis.generating": "Gerando...",
       "vis.empty": "Gere um conceito fotorrealista da sua montagem usando o modelo Gemini Nano Banana.",
       "vis.new": "Novo",
-      "lang.select": "Idioma"
+      "lang.select": "Idioma",
+      "nav.loginToSave": "Faça login para salvar mais projetos",
+      "nav.migrating": "Migrando seus projetos para a nuvem…",
+      "nav.projectTools": "Ferramentas do Projeto",
+      "nav.healthCheck": "Verificação de Saúde",
+      "auth.orEmail": "ou usar e-mail",
+      "auth.emailPlaceholder": "voce@exemplo.com",
+      "auth.sendLink": "Enviar Link",
+      "auth.emailLinkSent": "Verifique sua caixa de entrada! Um link de acesso foi enviado."
     }
   },
   de: {
@@ -184,7 +208,15 @@ const resources = {
       "vis.generating": "Generieren...",
       "vis.empty": "Erstellen Sie ein fotorealistisches Konzept Ihrer Montage mit dem Gemini Nano Banana Modell.",
       "vis.new": "Neu",
-      "lang.select": "Sprache"
+      "lang.select": "Sprache",
+      "nav.loginToSave": "Anmelden, um mehr Projekte zu speichern",
+      "nav.migrating": "Projekte werden in die Cloud migriert…",
+      "nav.projectTools": "Projekt-Werkzeuge",
+      "nav.healthCheck": "Systemprüfung",
+      "auth.orEmail": "oder per E-Mail",
+      "auth.emailPlaceholder": "du@beispiel.de",
+      "auth.sendLink": "Link senden",
+      "auth.emailLinkSent": "Prüfen Sie Ihren Posteingang! Ein Anmeldelink wurde gesendet."
     }
   },
   fr: {
@@ -230,7 +262,15 @@ const resources = {
       "vis.generating": "Génération...",
       "vis.empty": "Générez un concept photoréaliste de votre assemblage à l'aide du modèle Gemini Nano Banana.",
       "vis.new": "Nouveau",
-      "lang.select": "Langue"
+      "lang.select": "Langue",
+      "nav.loginToSave": "Connectez-vous pour sauvegarder plus de projets",
+      "nav.migrating": "Migration de vos projets vers le cloud…",
+      "nav.projectTools": "Outils de Projet",
+      "nav.healthCheck": "Vérification de Santé",
+      "auth.orEmail": "ou par e-mail",
+      "auth.emailPlaceholder": "vous@exemple.fr",
+      "auth.sendLink": "Envoyer le lien",
+      "auth.emailLinkSent": "Vérifiez votre boîte de réception! Un lien de connexion a été envoyé."
     }
   },
   hi: {
@@ -276,7 +316,15 @@ const resources = {
       "vis.generating": "उत्पन्न हो रहा है...",
       "vis.empty": "जेमिनी नैनो बनाना मॉडल का उपयोग करके अपनी असेंबली का एक फोटोरिलिस्टिक कॉन्सेप्ट उत्पन्न करें।",
       "vis.new": "नया",
-      "lang.select": "भाषा"
+      "lang.select": "भाषा",
+      "nav.loginToSave": "अधिक प्रोजेक्ट सहेजने के लिए साइन इन करें",
+      "nav.migrating": "आपकी परियोजनाएं क्लाउड पर माइग्रेट हो रही हैं…",
+      "nav.projectTools": "परियोजना उपकरण",
+      "nav.healthCheck": "स्वास्थ्य जांच",
+      "auth.orEmail": "या ईमेल से",
+      "auth.emailPlaceholder": "aap@example.com",
+      "auth.sendLink": "लिंक भेजें",
+      "auth.emailLinkSent": "अपना इनबॉक्स देखें! एक साइन-इन लिंक भेजा गया है।"
     }
   }
 };

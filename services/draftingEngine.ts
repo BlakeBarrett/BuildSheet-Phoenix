@@ -1,6 +1,8 @@
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
+import { getFirebaseDb } from './firebase.ts';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { get, set, del } from 'idb-keyval';
 
 export interface ProjectIndexEntry {
@@ -139,6 +141,47 @@ export class DraftingEngine {
     this.saveSessionToStorage(this.session);
   }
 
+  // --- Firestore helpers ---
+
+  private getFirestoreProjectsCollection() {
+    const db = getFirebaseDb();
+    const user = UserService.getCurrentUser();
+    if (!db || !user || !UserService.isAuthenticated()) return null;
+    return collection(db, 'users', user.id, 'projects');
+  }
+
+  private async saveSessionToFirestore(session: DraftingSession) {
+    const col = this.getFirestoreProjectsCollection();
+    if (!col) return;
+    try {
+      const plain = {
+        ...session,
+        createdAt: session.createdAt.toISOString(),
+        lastModified: session.lastModified.toISOString(),
+        generatedImages: [], // large blobs stay in IDB
+        cachedAssemblyPlan: session.cachedAssemblyPlan
+          ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
+          : undefined,
+        messages: session.messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
+        bom: session.bom.map(b => ({
+          ...b,
+          sourcing: b.sourcing
+            ? { ...b.sourcing, lastUpdated: b.sourcing.lastUpdated?.toISOString() }
+            : undefined,
+        })),
+      };
+      await setDoc(doc(col, session.id), plain);
+    } catch (e) {
+      console.error('Firestore save failed', e);
+    }
+  }
+
+  private async deleteSessionFromFirestore(id: string) {
+    const col = this.getFirestoreProjectsCollection();
+    if (!col) return;
+    try { await deleteDoc(doc(col, id)); } catch (e) { console.error('Firestore delete failed', e); }
+  }
+
   private saveSessionToStorage(session: DraftingSession) {
     try {
       const key = this.SESSION_PREFIX + session.id;
@@ -162,6 +205,11 @@ export class DraftingEngine {
 
       this.updateProjectIndex(session);
       localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
+
+      // Mirror to Firestore for authenticated users (fire-and-forget).
+      if (UserService.isAuthenticated()) {
+        this.saveSessionToFirestore(session);
+      }
     } catch (e) {
       console.error("Persistence failed", e);
     }
@@ -206,6 +254,8 @@ export class DraftingEngine {
       index = index.filter((i: any) => i.id !== id);
       localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
     }
+    // Also remove from Firestore
+    this.deleteSessionFromFirestore(id);
     // If we deleted the active one, start fresh
     if (this.session.id === id) {
       this.createNewProject();
@@ -216,9 +266,100 @@ export class DraftingEngine {
     return { ...this.session };
   }
 
+  /**
+   * Returns true when a guest user has reached the project limit.
+   * Authenticated users have no local cap.
+   */
+  public isGuestProjectLimitReached(): boolean {
+    if (UserService.isAuthenticated()) return false;
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return false;
+    try {
+      const index = JSON.parse(indexRaw);
+      return Array.isArray(index) && index.filter((p: any) => !p.archived).length >= 1;
+    } catch { return false; }
+  }
+
   public createNewProject() {
     this.session = this.createNewSessionTemplate();
     this.saveSession();
+  }
+
+  // --- Firestore-backed project loading ---
+
+  /**
+   * Loads all projects from Firestore into localStorage, merging
+   * with any existing local entries. Called once after login.
+   */
+  public async loadProjectsFromFirestore(): Promise<void> {
+    const col = this.getFirestoreProjectsCollection();
+    if (!col) return;
+    try {
+      const snap = await getDocs(query(col));
+      for (const d of snap.docs) {
+        const data = d.data();
+        const session = this.hydrateSession(data);
+        // Write into localStorage so the rest of the engine works identically
+        const key = this.SESSION_PREFIX + session.id;
+        const sessionNoImages = { ...session, generatedImages: [] };
+        try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+        this.updateProjectIndex(session);
+      }
+    } catch (e) {
+      console.error('Failed to load projects from Firestore', e);
+    }
+  }
+
+  /**
+   * Migrate all localStorage projects to Firestore.
+   * Called after a successful login when the user had local guest data.
+   * Returns the number of projects migrated.
+   */
+  public async migrateLocalProjectsToFirestore(): Promise<number> {
+    if (!UserService.isAuthenticated()) return 0;
+    const col = this.getFirestoreProjectsCollection();
+    if (!col) return 0;
+    const user = UserService.getCurrentUser();
+    if (!user) return 0;
+
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return 0;
+    let index: any[];
+    try { index = JSON.parse(indexRaw); } catch { return 0; }
+    if (!Array.isArray(index) || index.length === 0) return 0;
+
+    let migrated = 0;
+    for (const entry of index) {
+      const stored = localStorage.getItem(this.SESSION_PREFIX + entry.id);
+      if (!stored) continue;
+      try {
+        const session = this.hydrateSession(JSON.parse(stored));
+        // Re-assign ownership to the authenticated user
+        session.ownerId = user.id;
+        await this.saveSessionToFirestore(session);
+        migrated++;
+      } catch (e) {
+        console.error('Migration failed for project', entry.id, e);
+      }
+    }
+    return migrated;
+  }
+
+  /**
+   * Clear all guest projects from localStorage after migration.
+   */
+  public clearLocalProjects() {
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return;
+    try {
+      const index = JSON.parse(indexRaw);
+      for (const entry of index) {
+        localStorage.removeItem(this.SESSION_PREFIX + entry.id);
+        del(this.SESSION_PREFIX + entry.id + '_images').catch(() => {});
+      }
+    } catch { /* ignore */ }
+    localStorage.removeItem(this.INDEX_KEY);
+    localStorage.removeItem(this.ACTIVE_ID_KEY);
   }
 
   public addPart(partId: string, name?: string, category?: string, quantity: number = 1) {
