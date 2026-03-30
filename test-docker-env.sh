@@ -15,6 +15,7 @@ CONTAINER_PORT=8080
 # Use host env vars if set, otherwise use default canary keys
 TEST_API_KEY="${API_KEY:-TEST_API_KEY_abc123xyz789_CANARY}"
 TEST_GEMINI_KEY="${GEMINI_API_KEY:-TEST_GEMINI_KEY_def456uvw012_CANARY}"
+TEST_FIREBASE_KEY="${VITE_FIREBASE_API_KEY:-TEST_FIREBASE_KEY_canary}"
 
 PASS=0
 FAIL=0
@@ -61,6 +62,7 @@ docker run -d \
   -p "${HOST_PORT}:${CONTAINER_PORT}" \
   -e "API_KEY=${TEST_API_KEY}" \
   -e "GEMINI_API_KEY=${TEST_GEMINI_KEY}" \
+  -e "VITE_FIREBASE_API_KEY=${TEST_FIREBASE_KEY}" \
   "$IMAGE_NAME"
 
 # Wait for the container to be ready
@@ -104,6 +106,12 @@ else
     pass "env-config.js contains test GEMINI_API_KEY ($TEST_GEMINI_KEY)"
   else
     fail "env-config.js does NOT contain test GEMINI_API_KEY" "Got: $ENV_CONFIG"
+  fi
+
+  if echo "$ENV_CONFIG" | grep -q "$TEST_FIREBASE_KEY"; then
+    pass "env-config.js contains test VITE_FIREBASE_API_KEY ($TEST_FIREBASE_KEY)"
+  else
+    fail "env-config.js does NOT contain test VITE_FIREBASE_API_KEY" "Got: $ENV_CONFIG"
   fi
 fi
 

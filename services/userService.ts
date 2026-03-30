@@ -1,5 +1,5 @@
 import { User } from '../types.ts';
-import { signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, type Unsubscribe } from 'firebase/auth';
+import { signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, deleteUser, type Unsubscribe } from 'firebase/auth';
 import { getFirebaseAuth, googleProvider, isFirebaseConfigured } from './firebase.ts';
 
 /** localStorage key used to remember the email between send → click. */
@@ -124,6 +124,20 @@ export class UserService {
       await signOut(auth);
     }
     // onAuthStateChanged will set currentUser = null
+  }
+
+  /**
+   * Permanently delete the current user's Firebase Auth account.
+   * This is a destructive, irreversible action. The caller should
+   * confirm with the user beforehand and handle Firestore data cleanup.
+   */
+  static async deleteAccount(): Promise<void> {
+    const auth = getFirebaseAuth();
+    if (!auth?.currentUser) {
+      throw new Error('No authenticated user to delete.');
+    }
+    await deleteUser(auth.currentUser);
+    // onAuthStateChanged fires → currentUser = null
   }
 
   static onUserChange(callback: (user: User | null) => void) {

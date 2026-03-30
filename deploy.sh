@@ -19,9 +19,24 @@ SERVICE_NAME="buildsheet"
 REPO_NAME="buildsheet"  # Artifact Registry repository name
 IMAGE_NAME="buildsheet"
 
-# API keys — set these as env vars or they'll be read from the current env
+# load .env variables if file is present
+if [ -f .env ]; then
+  # shellcheck disable=SC1091
+  set -a
+  source .env
+  set +a
+fi
+
+# API keys and Firebase config — set these as env vars or they'll be read from the current env
 API_KEY="${API_KEY:-}"
 GEMINI_API_KEY="${GEMINI_API_KEY:-}"
+VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY:-}"
+VITE_FIREBASE_AUTH_DOMAIN="${VITE_FIREBASE_AUTH_DOMAIN:-}"
+VITE_FIREBASE_PROJECT_ID="${VITE_FIREBASE_PROJECT_ID:-}"
+VITE_FIREBASE_STORAGE_BUCKET="${VITE_FIREBASE_STORAGE_BUCKET:-}"
+VITE_FIREBASE_MESSAGING_SENDER_ID="${VITE_FIREBASE_MESSAGING_SENDER_ID:-}"
+VITE_FIREBASE_APP_ID="${VITE_FIREBASE_APP_ID:-}"
+VITE_FIREBASE_MEASUREMENT_ID="${VITE_FIREBASE_MEASUREMENT_ID:-}"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -115,7 +130,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --platform=managed \
   --port=8080 \
   --allow-unauthenticated \
-  --set-env-vars="API_KEY=${API_KEY},GEMINI_API_KEY=${GEMINI_API_KEY}" \
+  --set-env-vars="API_KEY=${API_KEY},GEMINI_API_KEY=${GEMINI_API_KEY},VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY},VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN},VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID},VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET},VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID},VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID},VITE_FIREBASE_MEASUREMENT_ID=${VITE_FIREBASE_MEASUREMENT_ID}" \
   --memory=512Mi \
   --cpu=1 \
   --min-instances=0 \

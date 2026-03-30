@@ -16,6 +16,7 @@ import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent, hasFullConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { VisualManifestRenderer } from './components/VisualManifestRenderer.tsx';
+import UserProfileModal from './components/UserProfileModal.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -1495,10 +1496,24 @@ const AppContent: React.FC = () => {
     // Auth State
     const [currentUser, setCurrentUser] = useState<User | null>(UserService.getCurrentUser());
     const [isMigrating, setIsMigrating] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     useEffect(() => {
         return UserService.onUserChange(setCurrentUser);
     }, []);
+
+    // Auto-trigger login when arriving from marketing site with ?login=true
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('login') === 'true' && isFirebaseConfigured() && !UserService.isAuthenticated()) {
+            // Clean the query param so it doesn't re-trigger on refresh
+            if (window.history?.replaceState) {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+            // Kick off login flow (async, but fire-and-forget is fine here)
+            handleLogin();
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleLogin = useCallback(async () => {
         // Capture whether guest data exists BEFORE login
@@ -1528,9 +1543,30 @@ const AppContent: React.FC = () => {
 
     const handleLogout = useCallback(async () => {
         await UserService.logout();
-        // Reload to reset all in-memory state cleanly
+        // De-authenticate and redirect to marketing site
         window.location.href = '/';
     }, []);
+
+    const handleDeleteAccount = useCallback(async () => {
+        await UserService.deleteAccount();
+        window.location.href = '/';
+    }, []);
+
+    const handleExportUserData = useCallback(() => {
+        const data = {
+            account: currentUser,
+            projects: draftingEngine.getProjectsList(),
+            activityLog: ActivityLogService.getLogs(),
+            exportedAt: new Date().toISOString(),
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `buildsheet-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [currentUser, draftingEngine]);
 
     const handleNewProject = useCallback(() => {
         if (draftingEngine.isGuestProjectLimitReached()) {
@@ -2285,6 +2321,16 @@ const AppContent: React.FC = () => {
 
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
             <CookieConsent />
+            {currentUser && (
+                <UserProfileModal
+                    isOpen={isProfileOpen}
+                    onClose={() => setIsProfileOpen(false)}
+                    user={currentUser}
+                    onLogout={handleLogout}
+                    onDeleteAccount={handleDeleteAccount}
+                    onExportData={handleExportUserData}
+                />
+            )}
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
             <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100" aria-label="Main navigation">
@@ -2294,14 +2340,14 @@ const AppContent: React.FC = () => {
 
                 <div className="flex flex-col gap-3 flex-1 items-center w-full">
                     <IconButton
-                        icon="folder_open"
-                        onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }}
-                        title="Projects"
-                    />
-                    <IconButton
                         icon="add_box"
                         onClick={handleNewProject}
                         title="New Project"
+                    />
+                    <IconButton
+                        icon="folder_open"
+                        onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }}
+                        title="Projects"
                     />
 
                     <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
@@ -2347,15 +2393,23 @@ const AppContent: React.FC = () => {
                     />
                 </div>
 
-                <div className="pb-2 flex flex-col gap-2">
+                <div className="pb-2 flex flex-col gap-2 items-center">
                     <IconButton icon="tune" title="Settings" onClick={() => setIsSettingsOpen(true)} />
                     {currentUser ? (
-                        <IconButton
-                            icon="logout"
-                            title="Log Out"
-                            className="text-slate-500 hover:bg-red-50 hover:text-red-600"
-                            onClick={handleLogout}
-                        />
+                        <button
+                            onClick={() => setIsProfileOpen(true)}
+                            className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            title={`Profile: ${currentUser.name}`}
+                            aria-label="Open profile"
+                        >
+                            {currentUser.avatar ? (
+                                <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                                    {currentUser.name.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                        </button>
                     ) : isFirebaseConfigured() ? (
                         <IconButton
                             icon="login"
@@ -2466,6 +2520,14 @@ const AppContent: React.FC = () => {
                                                         <p className="text-sm font-bold text-slate-800 truncate">{currentUser.name}</p>
                                                         <p className="text-[11px] text-slate-500 truncate mt-0.5">{currentUser.email}</p>
                                                     </div>
+                                                    <button
+                                                        onClick={() => { setAuthMenuOpen(false); setIsProfileOpen(true); }}
+                                                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                                                        role="menuitem"
+                                                    >
+                                                        <span className="material-symbols-rounded text-[18px]" aria-hidden="true">person</span>
+                                                        Profile &amp; Privacy
+                                                    </button>
                                                     <button
                                                         onClick={() => { setAuthMenuOpen(false); handleLogout(); }}
                                                         className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
@@ -2869,10 +2931,10 @@ const AppContent: React.FC = () => {
                     </button>
                     {isFirebaseConfigured() && (
                         <button
-                            onClick={currentUser ? handleLogout : handleLogin}
+                            onClick={currentUser ? () => setIsProfileOpen(true) : handleLogin}
                             role="tab"
                             aria-selected={false}
-                            aria-label={currentUser ? `Sign out (${currentUser.name})` : 'Sign in'}
+                            aria-label={currentUser ? `Profile (${currentUser.name})` : 'Sign in'}
                             className="flex flex-col items-center justify-center w-full h-full gap-1"
                         >
                             <div className="px-5 py-1 rounded-full transition-colors">
@@ -2889,7 +2951,7 @@ const AppContent: React.FC = () => {
                                 )}
                             </div>
                             <span className={`text-[11px] font-bold ${currentUser ? 'text-slate-600' : 'text-indigo-600'}`}>
-                                {currentUser ? 'Sign Out' : 'Sign In'}
+                                {currentUser ? 'Profile' : 'Sign In'}
                             </span>
                         </button>
                     )}
