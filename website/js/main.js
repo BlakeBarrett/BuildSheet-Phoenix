@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavbar();
   initSmoothScroll();
   initActiveNavHighlight();
+  initNewsletterSubscribe();
 });
 
 /* ── Theme Toggle ───────────────────────────── */
@@ -134,4 +135,31 @@ function initActiveNavHighlight() {
   });
 
   sections.forEach(section => observer.observe(section));
+}
+
+/* ── Newsletter Subscribe ───────────────────── */
+function initNewsletterSubscribe() {
+  const input = document.getElementById('newsletter-email-input');
+  const btn = document.getElementById('newsletter-subscribe-btn');
+  if (!input || !btn) return;
+
+  btn.addEventListener('click', () => {
+    const email = input.value.trim();
+    if (!email || !email.includes('@')) {
+      input.focus();
+      return;
+    }
+
+    const subject = encodeURIComponent('New BuildSheet Newsletter Subscriber');
+    const body = encodeURIComponent(`New subscriber email: ${email}`);
+    window.location.href = `mailto:hello@buildsheet.cloud?subject=${subject}&body=${body}`;
+
+    btn.textContent = 'Thank you!';
+    btn.disabled = true;
+    input.value = '';
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btn.click();
+  });
 }
