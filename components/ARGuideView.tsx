@@ -63,8 +63,8 @@ export const ARGuideView: React.FC<ARGuideViewProps> = ({ plan, aiService, onClo
   const stepInfo = plan.steps.find(s => s.stepNumber === currentStep);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-80" />
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col" role="dialog" aria-modal="true" aria-label="AR Assembly Guide">
+        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-80" aria-label="Camera feed for AR assembly guide" />
         <canvas ref={canvasRef} className="hidden" />
 
         <div className="relative z-10 flex-1 flex flex-col p-6">
@@ -76,7 +76,7 @@ export const ARGuideView: React.FC<ARGuideViewProps> = ({ plan, aiService, onClo
                         <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500 text-white px-2 py-1 rounded">🔧 {stepInfo?.requiredTool}</span>
                     </div>
                 </div>
-                <button onClick={onClose} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white text-2xl">&times;</button>
+                <button onClick={onClose} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white text-2xl" aria-label="Close AR Guide">&times;</button>
             </div>
 
             <div className="mt-auto mb-8">

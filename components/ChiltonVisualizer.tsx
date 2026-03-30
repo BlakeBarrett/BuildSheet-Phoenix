@@ -100,6 +100,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                                                 onChange={(e) => setEditablePrompt(e.target.value)}
                                                 className="bg-transparent border-none text-white outline-none w-full min-w-[250px] font-mono text-xs placeholder:text-white/40"
                                                 placeholder="Enter custom prompt..."
+                                                aria-label="Edit generation prompt"
                                                 autoFocus
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -111,11 +112,11 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                                                     }
                                                 }}
                                             />
-                                            <button onClick={() => { setIsEditingPrompt(false); onGenerate(editablePrompt); }} className="text-white hover:text-indigo-300 ml-1 p-1 flex items-center justify-center bg-white/20 rounded-full transition-colors" title="Regenerate with new prompt">
-                                                <span className="material-symbols-rounded text-[14px]">refresh</span>
+                                            <button onClick={() => { setIsEditingPrompt(false); onGenerate(editablePrompt); }} className="text-white hover:text-indigo-300 ml-1 p-1 flex items-center justify-center bg-white/20 rounded-full transition-colors" title="Regenerate with new prompt" aria-label="Regenerate with new prompt">
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">refresh</span>
                                             </button>
-                                            <button onClick={() => { setIsEditingPrompt(false); setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || ''); }} className="text-white/60 hover:text-white p-1" title="Cancel">
-                                                <span className="material-symbols-rounded text-[14px]">close</span>
+                                            <button onClick={() => { setIsEditingPrompt(false); setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || ''); }} className="text-white/60 hover:text-white p-1" title="Cancel" aria-label="Cancel editing prompt">
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">close</span>
                                             </button>
                                         </div>
                                     ) : (

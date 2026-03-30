@@ -12,7 +12,7 @@ import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
 import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
-import { CookieConsent } from './components/CookieConsent.tsx';
+import { CookieConsent, hasFullConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { VisualManifestRenderer } from './components/VisualManifestRenderer.tsx';
 
@@ -74,8 +74,8 @@ const ProjectNavigator: React.FC<{
     });
 
     return (
-        <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="nav-title">
-            <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden">
+        <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="nav-title" onClick={onClose}>
+            <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
                 <header className="p-6 pb-2 flex justify-between items-center">
                     <div>
                         <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">Build History</h3>
@@ -213,13 +213,13 @@ const KitSummaryModal: React.FC<{
                     <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="p-6 bg-slate-900 rounded-[24px] text-white shadow-lg">
-                            <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Build Cost</label>
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Build Cost</span>
                             <div className="text-4xl font-mono font-medium mt-1 tracking-tight">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         </div>
                         <div className="p-6 bg-indigo-100 rounded-[24px] text-indigo-900">
-                            <label className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Kit Progress</label>
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Kit Progress</span>
                             <div className="text-4xl font-medium mt-1 tracking-tight">{Math.round((sourcedParts.length / session.bom.length) * 100)}%</div>
                         </div>
                     </div>
@@ -427,9 +427,9 @@ const PartDetailModal: React.FC<{
                             <p className="text-sm text-slate-700 leading-relaxed">{displayDescription}</p>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Qty</label>
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest" aria-hidden="true">Qty</span>
                                 {onUpdateQuantity ? (
                                     <input
                                         type="number" min="1"
@@ -444,11 +444,11 @@ const PartDetailModal: React.FC<{
                                 )}
                             </div>
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SKU</label>
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest" aria-hidden="true">SKU</span>
                                 <p className="text-sm font-mono text-slate-900 mt-1 truncate">{entry.part.sku}</p>
                             </div>
                             <div className="p-4 border border-gray-100 rounded-[20px]">
-                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Price</label>
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest" aria-hidden="true">Price</span>
                                 <p className="text-sm text-slate-900 mt-1 font-bold">${entry.part.price.toFixed(2)}</p>
                             </div>
                         </div>
@@ -457,7 +457,7 @@ const PartDetailModal: React.FC<{
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="material-symbols-rounded text-violet-600 text-[18px]" aria-hidden="true">cable</span>
-                                    <label className="text-[11px] font-bold text-violet-900 uppercase tracking-widest">Ports & Connectors</label>
+                                    <span className="text-[11px] font-bold text-violet-900 uppercase tracking-widest">Ports & Connectors</span>
                                 </div>
                                 <div className="space-y-2">
                                     {entry.part.ports.map((port, i) => (
@@ -487,7 +487,7 @@ const PartDetailModal: React.FC<{
                                     <div>
                                         <div className="flex items-center gap-2 mb-3">
                                             <span className="material-symbols-rounded text-indigo-600 text-[18px]" aria-hidden="true">public</span>
-                                            <label className="text-[11px] font-bold text-indigo-900 uppercase tracking-widest">Global Marketplace</label>
+                                            <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-widest">Global Marketplace</span>
                                         </div>
                                         <div className="space-y-2">
                                             {entry.sourcing.online.map((s, i) => (
@@ -511,7 +511,7 @@ const PartDetailModal: React.FC<{
                                     <div className="mt-6">
                                         <div className="flex items-center gap-2 mb-3">
                                             <span className="material-symbols-rounded text-emerald-600 text-[18px]" aria-hidden="true">location_on</span>
-                                            <label className="text-[11px] font-bold text-emerald-900 uppercase tracking-widest">Local Availability</label>
+                                            <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-widest">Local Availability</span>
                                         </div>
                                         <div className="space-y-2">
                                             {entry.sourcing.local.map((s, i) => (
@@ -534,7 +534,7 @@ const PartDetailModal: React.FC<{
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="material-symbols-rounded text-teal-600 text-[18px]" aria-hidden="true">account_tree</span>
-                                    <label className="text-[11px] font-bold text-teal-900 uppercase tracking-widest">Sub-Assembly</label>
+                                    <span className="text-[11px] font-bold text-teal-900 uppercase tracking-widest">Sub-Assembly</span>
                                 </div>
                                 <select
                                     value={entry.parentInstanceId || ''}
@@ -555,7 +555,7 @@ const PartDetailModal: React.FC<{
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="material-symbols-rounded text-cyan-600 text-[18px]" aria-hidden="true">deployed_code</span>
-                                    <label className="text-[11px] font-bold text-cyan-900 uppercase tracking-widest">Enclosure Design</label>
+                                    <span className="text-[11px] font-bold text-cyan-900 uppercase tracking-widest">Enclosure Design</span>
                                 </div>
                                 <div className="space-y-3">
                                     {(entry as any).enclosure.description && (
@@ -669,7 +669,7 @@ const AssemblyModal: React.FC<{
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="p-4 bg-blue-50 rounded-[20px]">
                                     <div className="text-[10px] uppercase font-bold text-blue-400 mb-1 tracking-wider">Feasibility</div>
                                     <div className="text-2xl font-bold text-blue-900 tracking-tight">{plan.automationFeasibility}%</div>
@@ -901,6 +901,7 @@ const AuditModal: React.FC<{
                                         placeholder='e.g. "GDPR Compliant", "UL Listed"...'
                                         className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                         maxLength={120}
+                                        aria-label="Add custom validation check"
                                     />
                                     <Button variant="tonal" onClick={addCustomCheck} disabled={!customInput.trim()} className="h-9 text-xs shrink-0" icon="add">Add</Button>
                                 </div>
@@ -1015,7 +1016,7 @@ const ScanPartModal: React.FC<{
                     {/* Upload Area */}
                     {!previewImage && !isScanning && !result && (
                         <label className="block cursor-pointer">
-                            <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} />
+                            <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} aria-label="Upload component photo" />
                             <div className="border-2 border-dashed border-violet-200 rounded-[24px] p-10 text-center hover:border-violet-400 hover:bg-violet-50/50 transition-all">
                                 <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center mx-auto mb-4">
                                     <span className="material-symbols-rounded text-violet-400 text-[32px]">add_a_photo</span>
@@ -1061,11 +1062,11 @@ const ScanPartModal: React.FC<{
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="p-4 border border-gray-100 rounded-[16px]">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Est. Price</label>
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Est. Price</span>
                                     <p className="text-lg font-bold text-slate-900 mt-1">${result.estimatedPrice.toFixed(2)}</p>
                                 </div>
                                 <div className="p-4 border border-gray-100 rounded-[16px]">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Part ID</label>
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Part ID</span>
                                     <p className="text-sm font-mono text-slate-700 mt-1 truncate">{result.suggestedPartId}</p>
                                 </div>
                             </div>
@@ -1299,6 +1300,7 @@ const BOMImportModal: React.FC<{
                                 onChange={e => setPasteText(e.target.value)}
                                 placeholder={"Paste a parts list here...\n\nExamples:\n2x Ball Bearing 6004\nTimken 42690 Tapered Roller\nCalifornia Mini Truck CV Axle\n\nCSV and tab-separated data also accepted."}
                                 className="w-full h-48 p-4 bg-slate-50 rounded-[16px] border border-gray-200 text-sm text-slate-800 resize-none outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 placeholder:text-slate-400 font-mono"
+                                aria-label="Paste parts list"
                             />
                             <Button
                                 variant="primary"
@@ -1423,8 +1425,10 @@ const AppContent: React.FC = () => {
     useEffect(() => {
         setProjectsList(draftingEngine.getProjectsList());
         
-        // Load persistent activity log from IndexedDB
-        ActivityLogService.loadFromStorage();
+        // Load persistent activity log from IndexedDB (only with full consent)
+        if (hasFullConsent()) {
+            ActivityLogService.loadFromStorage();
+        }
 
         // Listen for async image loading from IndexedDB
         draftingEngine.setOnImagesLoaded(() => {
@@ -2046,7 +2050,7 @@ const AppContent: React.FC = () => {
     const kitReady = draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan;
 
     return (
-        <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col md:flex-row p-0 pb-[90px] md:p-3 md:pb-[90px] lg:pb-3 gap-3">
+        <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col lg:flex-row p-0 pb-[90px] lg:p-3 lg:pb-3 gap-3">
 
             <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:px-6 focus:py-3 focus:bg-indigo-600 focus:text-white focus:rounded-full focus:shadow-xl focus:font-bold">Skip to Main Content</a>
 
@@ -2100,7 +2104,7 @@ const AppContent: React.FC = () => {
             <CookieConsent />
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
-            <nav className="hidden md:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100">
+            <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100" aria-label="Main navigation">
                 <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md">
                     <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
                 </div>
@@ -2172,8 +2176,8 @@ const AppContent: React.FC = () => {
                 <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
                     {/* Toolbar */}
                     <header className="px-6 py-4 flex justify-between items-center bg-white z-20 shrink-0">
-                        <div className="flex items-center gap-3 md:hidden">
-                            <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="md:hidden -ml-2" title="Menu" />
+                        <div className="flex items-center gap-3 lg:hidden">
+                            <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="lg:hidden -ml-2" title="Menu" />
                         </div>
 
                         <div className="flex flex-col flex-1 min-w-0">
@@ -2239,7 +2243,7 @@ const AppContent: React.FC = () => {
                     </header>
 
                     {/* Hero Visualizer — Block Diagram + Image Gallery */}
-                    <div className="px-4 pb-2 h-[40%] shrink-0 flex flex-col">
+                    <div className="px-4 pb-2 h-[30%] md:h-[40%] shrink-0 flex flex-col">
                         {session.visualManifest && session.visualManifest.components.length > 0 ? (
                             <div className="flex-1 flex gap-2 min-h-0">
                                 <div className="flex-1 min-w-0">
@@ -2262,7 +2266,7 @@ const AppContent: React.FC = () => {
                     </div>
 
                     {/* Conversation Feed */}
-                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed" tabIndex={0}>
+                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed" role="log" aria-live="polite" tabIndex={0}>
                         {session.messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full opacity-60">
                                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
@@ -2356,8 +2360,8 @@ const AppContent: React.FC = () => {
                         {selectedImage && (
                             <div className="mb-3 relative inline-block p-1 bg-white border border-gray-200 rounded-xl shadow-sm">
                                 <img src={selectedImage} alt="Upload preview" className="w-16 h-16 object-cover rounded-lg" />
-                                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-700 shadow-sm" title="Remove image">
-                                    <span className="material-symbols-rounded text-[14px]">close</span>
+                                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-700 shadow-sm" title="Remove image" aria-label="Remove attached image">
+                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">close</span>
                                 </button>
                             </div>
                         )}
@@ -2402,6 +2406,7 @@ const AppContent: React.FC = () => {
                                 htmlFor="image-upload" 
                                 className="w-12 h-12 ml-1 text-slate-400 hover:text-indigo-600 rounded-full flex items-center justify-center transition-all cursor-pointer hover:bg-white shrink-0"
                                 title="Upload image"
+                                aria-label="Upload image"
                             >
                                 <span className="material-symbols-rounded">image</span>
                             </label>
@@ -2587,10 +2592,13 @@ const AppContent: React.FC = () => {
                 </div>
 
                 {/* Mobile Bottom Navigation Bar */}
-                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-[80px] z-50 px-2 pb-4">
+                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-[80px] z-50 px-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }} role="tablist" aria-label="Mobile navigation">
                     <button
                         onClick={() => setMobileTab('draft')}
-                        className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-500'}`}
+                        role="tab"
+                        aria-selected={mobileTab === 'draft'}
+                        aria-label="Switch to Draft tab"
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-600'}`}
                     >
                         <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'draft' ? 'bg-indigo-100' : 'bg-transparent'}`}>
                             <span className="material-symbols-rounded text-[24px]" aria-hidden="true">edit_note</span>
@@ -2599,7 +2607,10 @@ const AppContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setMobileTab('bom')}
-                        className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-500'}`}
+                        role="tab"
+                        aria-selected={mobileTab === 'bom'}
+                        aria-label="Switch to Parts tab"
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-600'}`}
                     >
                         <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'bom' ? 'bg-indigo-100' : 'bg-transparent'}`}>
                             <span className="material-symbols-rounded text-[24px]" aria-hidden="true">inventory_2</span>

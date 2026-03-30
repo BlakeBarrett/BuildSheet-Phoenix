@@ -1,6 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './Material3UI.tsx';
 
+/** Check if user has given full (non-essential) consent */
+export const hasFullConsent = (): boolean => {
+  try {
+    return localStorage.getItem('buildsheet_consent') === 'full';
+  } catch {
+    return false;
+  }
+};
+
+/** Check if any consent decision has been made */
+export const hasConsentDecision = (): boolean => {
+  try {
+    return localStorage.getItem('buildsheet_consent') !== null;
+  } catch {
+    return false;
+  }
+};
+
+/** Clear all user data from localStorage and IndexedDB (GDPR right to erasure) */
+export const clearAllUserData = async (): Promise<void> => {
+  // Clear localStorage
+  const keysToKeep: string[] = []; // keep nothing
+  const allKeys = Object.keys(localStorage);
+  allKeys.forEach(key => {
+    if (!keysToKeep.includes(key)) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  // Clear IndexedDB databases
+  if ('indexedDB' in window) {
+    const databases = await window.indexedDB.databases?.() || [];
+    databases.forEach(db => {
+      if (db.name) window.indexedDB.deleteDatabase(db.name);
+    });
+  }
+};
+
 export const CookieConsent: React.FC = () => {
   const [visible, setVisible] = useState(false);
 
@@ -32,7 +70,7 @@ export const CookieConsent: React.FC = () => {
             Privacy & Data Control
           </h3>
           <p id="cookie-desc" className="text-sm text-[#C4C7C5] leading-relaxed">
-            We use <strong>Local Storage</strong> to persist your drafting sessions on your device and the <strong>Gemini API</strong> to process your requests. No personal data is sold to third parties.
+            We use <strong>Local Storage</strong> to save your projects on-device. Project descriptions, images, and BOM data are sent to <strong>Google Gemini</strong> for AI processing (subject to <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer" className="underline text-indigo-300 hover:text-indigo-200">Google's API Terms</a>). No personal data is sold to third parties.
           </p>
         </div>
         <div className="flex gap-3 shrink-0 w-full md:w-auto">

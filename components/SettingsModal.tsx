@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, IconButton } from './Material3UI.tsx';
 import { useService } from '../contexts/ServiceContext.tsx';
 import { LocalModelProvider } from '../services/localAiService.ts';
+import { clearAllUserData } from './CookieConsent.tsx';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -98,21 +99,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 pb-2 flex justify-between items-center border-b border-gray-100">
-                    <h3 className="text-xl font-bold text-slate-800 tracking-tight">AI Settings</h3>
+                    <h3 id="settings-title" className="text-xl font-bold text-slate-800 tracking-tight">AI Settings</h3>
                     <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 
                 <div className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Server Address</label>
-                        <p className="text-xs text-slate-500 mb-2">
+                        <label htmlFor="server-address" className="block text-sm font-bold text-slate-700 mb-1">Server Address</label>
+                        <p className="text-xs text-slate-600 mb-2">
                             The IP address or hostname of your AI server.
                         </p>
                         <div className="flex gap-2 mb-4">
                             <input 
+                                id="server-address"
                                 type="text" 
                                 value={serverAddress}
                                 onChange={(e) => setServerAddress(e.target.value)}
@@ -124,8 +126,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             </Button>
                         </div>
 
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Local Architect Model</label>
-                        <p className="text-xs text-slate-500 mb-3">
+                        <label htmlFor="local-model" className="block text-sm font-bold text-slate-700 mb-2">Local Architect Model</label>
+                        <p className="text-xs text-slate-600 mb-3">
                             Override the default Architect role by pointing to a local model on your network.
                         </p>
                         
@@ -136,6 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             </div>
                         ) : (
                             <select 
+                                id="local-model"
                                 value={selectedModelId}
                                 onChange={(e) => setSelectedModelId(e.target.value)}
                                 className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
@@ -155,9 +158,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-slate-50">
-                    <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>Refresh Models</Button>
-                    <Button variant="primary" onClick={handleSave}>Save Changes</Button>
+                <div className="p-6 border-t border-gray-100 flex flex-col gap-3 bg-slate-50">
+                    <div className="flex justify-end gap-3">
+                        <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>Refresh Models</Button>
+                        <Button variant="primary" onClick={handleSave}>Save Changes</Button>
+                    </div>
+                    <div className="border-t border-gray-200 pt-3">
+                        <p className="text-xs text-slate-600 mb-2 font-medium">Privacy & Data (GDPR)</p>
+                        <div className="flex gap-2">
+                            <Button variant="ghost" className="text-xs text-red-600 hover:bg-red-50 flex-1" icon="delete_forever" onClick={async () => {
+                                if (window.confirm('This will permanently delete all your projects, settings, and stored data. This action cannot be undone.')) {
+                                    await clearAllUserData();
+                                    window.location.reload();
+                                }
+                            }}>Delete All My Data</Button>
+                            <Button variant="ghost" className="text-xs text-slate-600 hover:bg-slate-100 flex-1" icon="download" onClick={() => {
+                                const data: Record<string, string | null> = {};
+                                for (let i = 0; i < localStorage.length; i++) {
+                                    const key = localStorage.key(i);
+                                    if (key) data[key] = localStorage.getItem(key);
+                                }
+                                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = 'buildsheet-data-export.json';
+                                link.click();
+                                URL.revokeObjectURL(url);
+                            }}>Download My Data</Button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

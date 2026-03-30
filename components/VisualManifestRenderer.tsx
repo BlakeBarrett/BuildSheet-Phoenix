@@ -138,11 +138,10 @@ export const VisualManifestRenderer: React.FC<VisualManifestRendererProps> = ({ 
   return (
     <div className="h-full w-full overflow-auto bg-[#F8FAFC] rounded-[16px] border border-gray-100">
       <svg
-        width={layout.width}
-        height={layout.height}
         viewBox={`0 0 ${layout.width} ${layout.height}`}
-        className="min-w-full min-h-full"
-        style={{ minWidth: layout.width, minHeight: layout.height }}
+        className="w-full h-auto"
+        role="img"
+        aria-label="Block diagram of hardware components"
       >
         {/* Connection lines */}
         {layout.connections.map((conn, i) => (
@@ -176,9 +175,15 @@ export const VisualManifestRenderer: React.FC<VisualManifestRendererProps> = ({ 
             <g
               key={item.partId}
               className="cursor-pointer"
+              tabIndex={0}
+              role="button"
+              aria-label={item.label}
               onMouseEnter={() => setHoveredId(item.partId)}
               onMouseLeave={() => setHoveredId(null)}
               onClick={() => onComponentClick?.(item.partId)}
+              onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onComponentClick?.(item.partId); } }}
+              onFocus={() => setHoveredId(item.partId)}
+              onBlur={() => setHoveredId(null)}
             >
               {/* Drop shadow */}
               {isHovered && (
