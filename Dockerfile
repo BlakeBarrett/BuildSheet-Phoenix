@@ -1,4 +1,4 @@
-# Use Node to build and serve
+# Use Node to build
 FROM node:18-slim
 
 # Set working directory
@@ -11,18 +11,25 @@ RUN npm install
 # Copy the rest of your code
 COPY . .
 
-# Build your app (assuming you have a 'build' script in package.json)
+# Build the React app
 RUN npm run build
 
-# Install a simple server that handles SPA routing
-RUN npm install -g serve
+# Install nginx
+RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
+
+# Place marketing site and React app into nginx webroot
+RUN mkdir -p /var/www/marketing && cp -r website/. /var/www/marketing/
+RUN mkdir -p /var/www/app && cp -r dist/. /var/www/app/
+
+# Copy nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy the startup script
 COPY env.sh .
 RUN chmod +x env.sh
 
-# Expose the port for LAN access
+# Expose the port
 EXPOSE 8080
 
-# Start the server using the startup script
+# Start nginx via the startup script
 CMD ["./env.sh"]
