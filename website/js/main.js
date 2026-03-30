@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSmoothScroll();
   initActiveNavHighlight();
   initNewsletterSubscribe();
+  initContactSalesModal();
 });
 
 /* ── Theme Toggle ───────────────────────────── */
@@ -143,23 +144,98 @@ function initNewsletterSubscribe() {
   const btn = document.getElementById('newsletter-subscribe-btn');
   if (!input || !btn) return;
 
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     const email = input.value.trim();
     if (!email || !email.includes('@')) {
       input.focus();
       return;
     }
 
-    const subject = encodeURIComponent('New BuildSheet Newsletter Subscriber');
-    const body = encodeURIComponent(`New subscriber email: ${email}`);
-    window.location.href = `mailto:hello@buildsheet.cloud?subject=${subject}&body=${body}`;
-
-    btn.textContent = 'Thank you!';
     btn.disabled = true;
-    input.value = '';
+    btn.textContent = 'Subscribing…';
+
+    try {
+      if (window._bsForms) {
+        await window._bsForms.submitNewsletterSubscription(email);
+      }
+      btn.textContent = 'Thank you!';
+      input.value = '';
+    } catch (err) {
+      console.error('Newsletter subscribe error:', err);
+      btn.textContent = 'Error – try again';
+      btn.disabled = false;
+    }
   });
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') btn.click();
+  });
+}
+
+/* ── Contact Sales Modal ────────────────────── */
+function initContactSalesModal() {
+  const openBtn = document.getElementById('contact-sales-btn');
+  const modal = document.getElementById('contact-sales-modal');
+  if (!openBtn || !modal) return;
+
+  const backdrop = modal.querySelector('.modal-overlay__backdrop');
+  const closeBtn = document.getElementById('cs-modal-close');
+  const form = document.getElementById('cs-form');
+  const submitBtn = document.getElementById('cs-submit');
+  const errorEl = document.getElementById('cs-error');
+  const successEl = document.getElementById('cs-success');
+
+  function openModal() {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    document.getElementById('cs-name')?.focus();
+  }
+
+  function closeModal() {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    errorEl.style.display = 'none';
+  }
+
+  openBtn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', closeModal);
+
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+
+    const name = document.getElementById('cs-name').value.trim();
+    const email = document.getElementById('cs-email').value.trim();
+    const company = document.getElementById('cs-company').value.trim();
+    const message = document.getElementById('cs-message').value.trim();
+
+    if (!name || !email) {
+      errorEl.textContent = 'Name and email are required.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+
+    try {
+      if (window._bsForms) {
+        await window._bsForms.submitContactSalesInquiry({ name, email, company, message });
+      }
+      form.style.display = 'none';
+      successEl.style.display = 'block';
+      setTimeout(closeModal, 3000);
+    } catch (err) {
+      console.error('Contact sales error:', err);
+      errorEl.textContent = 'Something went wrong. Please try again.';
+      errorEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Message';
+    }
   });
 }

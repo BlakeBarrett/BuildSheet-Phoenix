@@ -26,6 +26,15 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/sections.css">
   <link rel="stylesheet" href="css/responsive.css">
+
+  <!-- Firebase SDK (compat) for form submissions -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <!-- Runtime env config (written by env.sh on Cloud Run, also used by /app/) -->
+  <script>
+    window._env_ = window._env_ || {};
+  </script>
+  <script src="/app/env-config.js"></script>
 </head>
 <body>
 
@@ -302,7 +311,7 @@
               Standard parts catalog
             </li>
           </ul>
-          <a href="#" class="btn btn--secondary" style="width: 100%;">Get Started</a>
+          <a href="/app/" class="btn btn--secondary" style="width: 100%;">Get Started</a>
         </div>
 
         <!-- Pro Tier (Popular) -->
@@ -337,7 +346,7 @@
               Visual assembly view
             </li>
           </ul>
-          <a href="#" class="btn btn--primary" style="width: 100%;">Start Free Trial</a>
+          <a href="/app/?login=true" class="btn btn--primary" style="width: 100%;">Start Free Trial</a>
         </div>
 
         <!-- Team Tier -->
@@ -371,7 +380,7 @@
               Dedicated support
             </li>
           </ul>
-          <a href="mailto:sales@buildsheet.cloud?subject=BuildSheet%20Enterprise%20Inquiry" class="btn btn--secondary" style="width: 100%;">Contact Sales</a>
+          <button type="button" id="contact-sales-btn" class="btn btn--secondary" style="width: 100%;">Contact Sales</button>
         </div>
       </div>
     </div>
@@ -550,8 +559,37 @@
     </div>
   </footer>
 
+  <!-- Contact Sales Modal -->
+  <div id="contact-sales-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cs-modal-title" style="display:none">
+    <div class="modal-overlay__backdrop"></div>
+    <div class="modal-overlay__panel">
+      <button type="button" class="modal-overlay__close" id="cs-modal-close" aria-label="Close">&times;</button>
+      <h2 id="cs-modal-title" style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.5rem; font-weight:700; margin-bottom:0.25rem;">Contact Sales</h2>
+      <p style="color:var(--color-text-secondary); font-size:0.875rem; margin-bottom:1.5rem;">Tell us about your team and we'll get back to you within one business day.</p>
+      <form id="cs-form" autocomplete="on">
+        <label for="cs-name" style="display:block; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin-bottom:0.25rem;">Name</label>
+        <input id="cs-name" name="name" type="text" required autocomplete="name" placeholder="Jane Smith" style="width:100%; padding:0.625rem 0.875rem; border-radius:0.75rem; border:1px solid var(--color-border); background:var(--color-bg-secondary); color:var(--color-text-primary); font-size:0.875rem; margin-bottom:0.75rem; outline:none;">
+
+        <label for="cs-email" style="display:block; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin-bottom:0.25rem;">Work Email</label>
+        <input id="cs-email" name="email" type="email" required autocomplete="email" placeholder="jane@acme.com" style="width:100%; padding:0.625rem 0.875rem; border-radius:0.75rem; border:1px solid var(--color-border); background:var(--color-bg-secondary); color:var(--color-text-primary); font-size:0.875rem; margin-bottom:0.75rem; outline:none;">
+
+        <label for="cs-company" style="display:block; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin-bottom:0.25rem;">Company</label>
+        <input id="cs-company" name="company" type="text" autocomplete="organization" placeholder="Acme Corp" style="width:100%; padding:0.625rem 0.875rem; border-radius:0.75rem; border:1px solid var(--color-border); background:var(--color-bg-secondary); color:var(--color-text-primary); font-size:0.875rem; margin-bottom:0.75rem; outline:none;">
+
+        <label for="cs-message" style="display:block; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-secondary); margin-bottom:0.25rem;">Message</label>
+        <textarea id="cs-message" name="message" rows="3" placeholder="Tell us about your use case..." style="width:100%; padding:0.625rem 0.875rem; border-radius:0.75rem; border:1px solid var(--color-border); background:var(--color-bg-secondary); color:var(--color-text-primary); font-size:0.875rem; margin-bottom:1rem; outline:none; resize:vertical; font-family:inherit;"></textarea>
+
+        <p id="cs-error" style="display:none; color:var(--color-error, #ef4444); font-size:0.8rem; margin-bottom:0.75rem;"></p>
+        <p id="cs-success" style="display:none; color:var(--color-success, #22c55e); font-size:0.875rem; font-weight:600; text-align:center; padding:1rem 0;">Thank you! We'll be in touch soon.</p>
+
+        <button type="submit" id="cs-submit" class="btn btn--primary" style="width:100%;">Send Message</button>
+      </form>
+    </div>
+  </div>
+
 
   <!-- Scripts -->
+  <script src="js/firebase-forms.js"></script>
   <script src="js/main.js" defer></script>
   <script src="js/animations.js" defer></script>
   <script src="js/carousel.js" defer></script>

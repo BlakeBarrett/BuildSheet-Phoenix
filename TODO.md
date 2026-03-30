@@ -207,13 +207,16 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` `GET /api/projects/:id/provenance` — return the cryptographically chained build record
 - `[ ]` Export provenance chain as a signed JSON manifest (`.buildrecord` format)
 
-#### Billing / Stripe Integration
-- `[ ]` Stripe customer / subscription creation on signup
-- `[ ]` Webhook handler for `invoice.paid`, `customer.subscription.deleted`
-- `[ ]` Plan tier enforcement middleware (free: 3 projects, Pro: unlimited, etc.)
-- `[ ]` Metered billing for AI usage (token counting already in `UserMessage.metadata.tokens`)
-- `[ ]` `GET /api/billing/portal` — Stripe customer portal redirect
-- `[ ]` `GET /api/billing/usage` — current billing period usage
+### 💳 Monetization & Tiers (Self-Service)
+- [ ] **Stripe Integration** — Deploy the "Run Subscription Payments with Stripe" Firebase Extension.
+- [ ] **Pricing Schema** — Define `products` and `prices` collections in Firestore (synced from Stripe).
+- [ ] **User Tier Metadata** — Update `users` schema to include `planTier` ('free' | 'pro' | 'enterprise') and `subscriptionStatus`.
+- [ ] **Feature-Flag Gating** — Implement a `useTier()` hook to control access to:
+    - AI Audit frequency (Free: 3/mo, Pro: Unlimited)
+    - Project limits (Free: 1, Pro: Unlimited)
+    - Advanced features (CAD Export, AR Guide, Voice Mode)
+- [ ] **Checkout Workflow** — `createCheckoutSession()` logic to redirect users to the Stripe-hosted billing portal.
+- [ ] **Tier-Specific UI** — "Upgrade to Pro" buttons, plan badges, and "Feature Locked" overlays.
 
 ---
 
