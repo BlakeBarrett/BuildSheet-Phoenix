@@ -2164,8 +2164,14 @@ const AppContent: React.FC = () => {
                     />
                 </div>
 
-                <div className="pb-2">
+                <div className="pb-2 flex flex-col gap-2">
                     <IconButton icon="tune" title="Settings" onClick={() => setIsSettingsOpen(true)} />
+                    <IconButton
+                        icon="logout"
+                        title="Log Out"
+                        className="text-slate-500 hover:bg-red-50 hover:text-red-600"
+                        onClick={async () => { await UserService.logout(); window.location.href = '/'; }}
+                    />
                 </div>
             </nav>
 
