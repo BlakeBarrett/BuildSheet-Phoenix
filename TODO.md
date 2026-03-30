@@ -79,7 +79,7 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[ ]` **Real shareable project URLs** — `getShareUrl()` generates a path like `/username/project-slug` but there is no router, no server, and no way to load a shared project by URL. Clicking the share button only copies a dead link.
 - `[ ]` **Shared workspaces** (advertised in Team tier) — no concept of org-level project ownership.
 - `[ ]` **Role-based access control** (advertised in Team tier) — no roles exist beyond "owner" (mock).
-- `[ ]` **Commenting / annotation on build sheets**
+- `[ ]` **Commenting / annotation on build sheets** Integrate with "Lore App" (also by Blake Barrett)
 - `[ ]` **Real-time collaborative editing** (implied by "Collaborate" feature card)
 
 ### Data Security (advertised in FAQ)
