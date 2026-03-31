@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy &amp; AI Transparency — BuildSheet</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  
+  <style>
+    body { background: var(--bg-primary); }
+    .legal-container {
+      max-width: 800px;
+      margin: 80px auto;
+      padding: 0 20px 100px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    .legal-container h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      color: var(--text-primary);
+      text-align: center;
+    }
+    .legal-container h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      color: var(--text-primary);
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+    }
+    .legal-container h3 {
+      font-size: 1.25rem;
+      color: var(--text-primary);
+      margin-top: 2rem;
+      margin-bottom: 0.5rem;
+    }
+    .legal-container a {
+      color: var(--color-accent-cyan);
+      text-decoration: none;
+    }
+    .legal-container a:hover { text-decoration: underline; }
+    .back-nav {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-nav">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+    Return Home
+  </a>
+
+  <div class="legal-container">
+    <h1>Privacy Policy &amp; AI Transparency</h1>
+    <p>Last Updated: March 2026</p>
+
+    <div style="background: rgba(99, 102, 241, 0.1); padding: 1.5rem; border-radius: 12px; margin: 2rem 0; border: 1px solid rgba(99, 102, 241, 0.2);">
+      <h3 style="margin-top: 0;">Our AI "No-Training" Promise</h3>
+      <p>BuildSheet is built on SOC 2 Type II compliant infrastructure. Your proprietary mechanical specifications, uploaded images, and structural build data are <strong>never</strong> used to train our AI models or third-party global models. All data processing using Google Gemini via Vertex AI is strictly governed by the Google Cloud Data Protection Addendum (CDPA), honoring enterprise-grade data residency and privacy controls.</p>
+    </div>
+
+    <h2>1. Introduction</h2>
+    <p>BuildSheet ("we", "our", or "us") respects your privacy. This Privacy Policy outlines how we collect, use, and protect your personal information when you use our website and application (the "Service"). This policy applies globally, adhering to the General Data Protection Regulation (GDPR) for European users, the California Consumer Privacy Act (CCPA/CPRA) for California residents, and the Lei Geral de Proteção de Dados (LGPD) for Brazilian users.</p>
+
+    <h2>2. Information We Collect</h2>
+    <p>We collect information to provide and improve our Service. This includes:</p>
+    <ul>
+      <li><strong>Account Information:</strong> Name, email address, and authentication credentials (handled via Google/Firebase Auth).</li>
+      <li><strong>Project Data:</strong> Build sheets, bills of material, design requirements, and uploaded mechanical images. Because this is your intellectual property, it is strictly isolated per tenant.</li>
+      <li><strong>Usage Data & Analytics:</strong> How you interact with our platform (with your explicit consent where required by law).</li>
+      <li><strong>Payment Information:</strong> Handled securely via Stripe. We do not store raw credit card numbers.</li>
+    </ul>
+
+    <h2>3. How We Process Data (Legal Basis)</h2>
+    <p>Under GDPR and LGPD, we process your data on the following bases:</p>
+    <ul>
+      <li><strong>Contractual Necessity:</strong> To provide the core functionality of the Application (saving projects, AI drafting).</li>
+      <li><strong>Consent:</strong> For non-essential cookies, analytics, and marketing communications. You may withdraw this at any time.</li>
+      <li><strong>Legitimate Interest:</strong> To prevent fraud, ensure security, and improve platform performance.</li>
+    </ul>
+
+    <h2>4. Enterprise-Grade Data Security</h2>
+    <p>We implement AES-256 encryption at rest and TLS in transit. Our database infrastructure (Google Firestore) resides within secure U.S. regions configured to comply with SOC 2 standards.</p>
+
+    <h2>5. Your Global Privacy Rights (GDPR, CCPA, LGPD)</h2>
+    <p>Depending on your jurisdiction, you have the right to:</p>
+    <ul>
+      <li><strong>Access / Portability:</strong> Request a copy of the personal data we hold about you.</li>
+      <li><strong>Correction:</strong> Fix inaccurate or incomplete data.</li>
+      <li><strong>Deletion ("Right to be Forgotten"):</strong> Request that we delete your account and associated data.</li>
+      <li><strong>Opt-Out of "Sale/Sharing" (CCPA):</strong> We do <strong>not</strong> sell your personal data. You may opt out of sharing for cross-context behavioral advertising via our <a href="#" id="open-cookie-preferences">Cookie Preferences</a>.</li>
+    </ul>
+    
+    <p>To exercise any of these rights, please contact us via our support channels or you may export/delete your data directly from your account profile inside the Application.</p>
+
+    <h2>6. Artificial Intelligence & Sub-processors</h2>
+    <p>To provide AI drafting and part-hydration capabilities, we utilize Google Cloud (Vertex AI) as a strict data sub-processor. As detailed in our promise above, inputs are not used for generative model training. We may also query public APIs (like NHTSA for safety recalls) on your behalf; such queries do not include your personally identifiable information.</p>
+
+    <h2>7. Contact Us</h2>
+    <p>If you have any questions or concerns regarding this policy, or your data subject rights, please contact our Data Protection Officer (DPO) at privacy@buildsheet.cloud.</p>
+  </div>
+
+  <script src="js/cookie-consent.js"></script>
+</body>
+</html>

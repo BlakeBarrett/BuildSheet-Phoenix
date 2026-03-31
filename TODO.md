@@ -93,11 +93,11 @@ These are features the `website/index.html` explicitly advertises that are **not
 ## 🔒 Compliance & Trust (2026 Standards)
 
 ### Legal & Privacy Policy
-- `[ ]` **Privacy Policy 2026 Update — AI Transparency clauses**
+- `[x]` **Privacy Policy 2026 Update — AI Transparency clauses**
     - Define "No-Training" policy for Gemini Vertex AI calls.
     - Document data residency (Firebase Firestore in `us-central1`).
     - Explicitly state legal basis for processing (Contractual Necessity for engine builds).
-- `[ ]` **GDPR/CCPA "Layered Notice" Footer** — Sticky footer with:
+- `[x]` **GDPR/CCPA "Layered Notice" Footer** — Sticky footer with:
     - Direct links to Privacy, Terms, and DPA (Data Processing Agreement).
     - "Your Privacy Choices" toggle for California/EU users.
 - `[ ]` **Just-in-Time Disclosures** — Add "Privacy Pings" when the user first uploads an image or enters a VIN, explaining exactly how that specific data is processed.

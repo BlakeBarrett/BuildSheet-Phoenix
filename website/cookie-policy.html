@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cookie Policy — BuildSheet</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  
+  <style>
+    body { background: var(--bg-primary); }
+    .legal-container {
+      max-width: 800px;
+      margin: 80px auto;
+      padding: 0 20px 100px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    .legal-container h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      color: var(--text-primary);
+      text-align: center;
+    }
+    .legal-container h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      color: var(--text-primary);
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+    }
+    .legal-container a { color: var(--color-accent-cyan); }
+    .back-nav {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-nav">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+    Return Home
+  </a>
+
+  <div class="legal-container">
+    <h1>Cookie Policy</h1>
+    <p>Last Updated: March 2026</p>
+
+    <h2>1. What are cookies?</h2>
+    <p>Cookies are small text files stored on your browser or device by websites, apps, and online media. BuildSheet uses cookies and similar technologies to remember your preferences (like Dark Mode), authenticate your login session, and analyze platform traffic.</p>
+
+    <h2>2. Types of Cookies We Use</h2>
+    
+    <h3>Strictly Necessary Cookies</h3>
+    <p>These cookies are essential for the Service to function properly. They cannot be turned off. Without these, you cannot log in securely or save your Build Sheet offline (via IndexedDB/localStorage). We do not require consent for these.</p>
+    
+    <h3>Preferences Cookies</h3>
+    <p>These allow us to remember your site settings, such as your selected theme (dark/light) or your accepted cookie policy preferences (`buildsheet-cookie-consent`).</p>
+
+    <h3>Analytics &amp; Performance Cookies</h3>
+    <p>If you explicitly opt-in, we use analytics cookies (like Google Analytics) to help us understand how visitors interact with our Service. This allows us to improve performance and usability.</p>
+
+    <h3>Marketing &amp; Advertising Cookies</h3>
+    <p>We do not currently use third-party tracking pixels or marketing cookies for cross-context behavioral advertising.</p>
+
+    <h2>3. How to Control Your Preferences</h2>
+    <p>You can manage your cookie preferences directly on our website at any time using our preference center.</p>
+    <br>
+    <button style="background: var(--color-border); color: var(--color-text-primary); border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;" onclick="document.getElementById('cookie-consent-banner').style.display = 'flex'">Open Cookie Preferences</button>
+
+    <h2>4. California "Do Not Sell" Rights</h2>
+    <p>Under the CCPA, California residents have the right to opt-out of the "sale" or "sharing" of personal data. BuildSheet does not sell your personal data. By rejecting non-essential cookies via our consent manager, you disable all third-party tracking that might be construed as "sharing."</p>
+  </div>
+  
+  <script src="js/cookie-consent.js"></script>
+</body>
+</html>

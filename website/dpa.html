@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Processing Agreement (DPA) — BuildSheet</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  
+  <style>
+    body { background: var(--bg-primary); }
+    .legal-container {
+      max-width: 800px;
+      margin: 80px auto;
+      padding: 0 20px 100px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    .legal-container h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      color: var(--text-primary);
+      text-align: center;
+    }
+    .legal-container h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      color: var(--text-primary);
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+    }
+    .legal-container a { color: var(--color-accent-cyan); }
+    .back-nav {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-nav">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+    Return Home
+  </a>
+
+  <div class="legal-container">
+    <h1>Data Processing Agreement (DPA)</h1>
+    <p>Last Updated: March 2026</p>
+
+    <h2>Overview</h2>
+    <p>This Data Processing Agreement ("DPA") governs the processing of personal and proprietary data by BuildSheet on behalf of "Team" tier and enterprise customers. It supplements our Terms of Service and Privacy Policy, ensuring compliance with global privacy regulations including GDPR (EU) and LGPD (Brazil).</p>
+
+    <h2>Sub-processors</h2>
+    <p>BuildSheet engages the following essential sub-processors to deliver its service:</p>
+    <ul>
+      <li><strong>Google Cloud (Firestore, Vertex AI)</strong>: Hosting, storage, and AI processing. Governed by <a href="https://cloud.google.com/terms/data-processing-addendum" target="_blank">Google Cloud CDPA</a>.</li>
+      <li><strong>Stripe</strong>: Payment processing. Governed by their global privacy terms.</li>
+    </ul>
+
+    <h2>Data Subject Requests</h2>
+    <p>BuildSheet provides the necessary tools via its UI for customers to export (JSON/CSV) and permanently delete their data. Should an organization receive an access request under GDPR or LGPD that requires our assistance, requests may be routed to our DPO at dpa@buildsheet.cloud.</p>
+
+    <p>If you require a countersigned DPA for your organization's legal compliance, please contact our sales team.</p>
+  </div>
+</body>
+</html>
