@@ -2514,7 +2514,7 @@ const AppContent: React.FC = () => {
                                 <span className="material-symbols-rounded" aria-hidden="true">more_horiz</span>
                             </button>
                             {navOverflowOpen && (
-                                <div className="absolute left-[calc(100%+12px)] top-0 w-56 bg-white rounded-[24px] shadow-xl border border-gray-100 overflow-hidden z-[100] animate-in slide-in-from-left-2 duration-200" role="menu">
+                                <div className="absolute left-[calc(100%+12px)] top-0 w-56 bg-white rounded-[24px] shadow-xl border border-gray-100 overflow-y-auto z-[100] animate-in slide-in-from-left-2 duration-200" style={{ maxHeight: `calc(${windowHeight}px - 48px)` }} role="menu">
                                     <div className="p-2 flex flex-col gap-1">
                                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1">Export & Import</div>
                                         <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportJSON ? handleExport() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors text-left" role="menuitem">
