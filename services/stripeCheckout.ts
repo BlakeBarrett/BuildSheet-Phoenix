@@ -43,7 +43,9 @@ export async function redirectToCheckout(priceId: string): Promise<void> {
     price: priceId,
     success_url: window.location.href,
     cancel_url: window.location.href,
-  });
+    automatic_tax: true,
+    tax_id_collection: true,
+  } as any);
 
   window.location.assign(session.url);
 }
