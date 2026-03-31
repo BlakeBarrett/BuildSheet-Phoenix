@@ -159,6 +159,9 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('export buttons should be gated for guest users', async ({ page }) => {
+        // Use a tall viewport so the nav rail renders individual icon buttons
+        // (isShortScreen is true when height < 900, which collapses exports into an overflow menu)
+        await page.setViewportSize({ width: 1280, height: 960 });
         await page.goto('http://localhost:3000');
         // Wait for the app to fully render
         await page.waitForSelector('#main-content', { timeout: 10000 });

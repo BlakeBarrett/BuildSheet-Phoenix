@@ -12,7 +12,7 @@
     "@google/genai": "^1.38.0",
     "@invertase/firestore-stripe-payments": "^0.0.8",
     "@types/three": "^0.183.1",
-    "firebase": "^10.14.1",
+    "firebase": "^11.10.0",
     "heic2any": "^0.0.4",
     "i18next": "23.10.0",
     "i18next-browser-languagedetector": "7.2.0",
