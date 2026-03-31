@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button, IconButton } from './Material3UI.tsx';
 import { redirectToCheckout } from '../services/stripeCheckout.ts';
+import { UserService } from '../services/userService.ts';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -31,9 +32,16 @@ const STRIPE_PRICES: Record<BillingCycle, string> = {
   annual: env('VITE_STRIPE_PRO_ANNUAL_PRICE_ID'),
 };
 
+/** Direct Stripe Payment Links — ad-blocker-proof fallback (set in .env). */
+const STRIPE_PAYMENT_LINKS: Record<BillingCycle, string> = {
+  monthly: env('VITE_STRIPE_PRO_MONTHLY_LINK'),
+  annual: env('VITE_STRIPE_PRO_ANNUAL_LINK'),
+};
+
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isAuthenticated, onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [blocked, setBlocked] = useState(false);
   const [billing, setBilling] = useState<BillingCycle>('annual');
 
   if (!isOpen) return null;
@@ -54,7 +62,12 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
     try {
       await redirectToCheckout(selectedPriceId);
     } catch (e: any) {
-      setError(e.message || 'Failed to start checkout.');
+      const msg = e.message || 'Failed to start checkout.';
+      if (msg.includes('BLOCKED') || msg.includes('Failed to get document') || msg.includes('network')) {
+        setError('Request blocked — please disable your ad blocker for this site and try again.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +103,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
               className={`flex-1 py-2.5 text-sm font-bold rounded-[12px] transition-all flex items-center justify-center gap-1.5 ${billing === 'annual' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Annual
-              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Save 17%</span>
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Save 20%</span>
             </button>
           </div>
         </div>
