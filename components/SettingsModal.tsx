@@ -14,6 +14,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [models, setModels] = useState<LocalModelProvider[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedModelId, setSelectedModelId] = useState<string>('');
+    const [selectedAuditModelId, setSelectedAuditModelId] = useState<string>('');
+    const [selectedPlanModelId, setSelectedPlanModelId] = useState<string>('');
     const [serverAddress, setServerAddress] = useState<string>('192.168.1.41');
 
     useEffect(() => {
@@ -30,6 +32,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 try {
                     const parsed = JSON.parse(saved);
                     setSelectedModelId(parsed.id);
+                } catch (e) { }
+            }
+            const savedAudit = localStorage.getItem('localAuditProvider');
+            if (savedAudit) {
+                try {
+                    setSelectedAuditModelId(JSON.parse(savedAudit).id);
+                } catch (e) { }
+            }
+            const savedPlan = localStorage.getItem('localPlanProvider');
+            if (savedPlan) {
+                try {
+                    setSelectedPlanModelId(JSON.parse(savedPlan).id);
                 } catch (e) { }
             }
         }
@@ -93,6 +107,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 updateLocalProvider(provider);
             }
         }
+        // Save audit model
+        if (selectedAuditModelId) {
+            const auditProvider = models.find(m => m.id === selectedAuditModelId);
+            if (auditProvider) {
+                localStorage.setItem('localAuditProvider', JSON.stringify(auditProvider));
+            }
+        } else {
+            localStorage.removeItem('localAuditProvider');
+        }
+        // Save plan model
+        if (selectedPlanModelId) {
+            const planProvider = models.find(m => m.id === selectedPlanModelId);
+            if (planProvider) {
+                localStorage.setItem('localPlanProvider', JSON.stringify(planProvider));
+            }
+        } else {
+            localStorage.removeItem('localPlanProvider');
+        }
         onClose();
     };
 
@@ -154,6 +186,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             <p className="text-xs text-amber-600 mt-2">
                                 No local models found. Make sure LM Studio or Ollama is running on {serverAddress} and CORS is enabled.
                             </p>
+                        )}
+
+                        {models.length > 0 && (
+                            <>
+                                <div className="mt-5 pt-4 border-t border-gray-100">
+                                    <label htmlFor="audit-model" className="block text-sm font-bold text-slate-700 mb-2">Local Validation Audit Model</label>
+                                    <p className="text-xs text-slate-600 mb-3">
+                                        Override the default Gemini model for the Validation Audit (design feasibility check).
+                                    </p>
+                                    <select
+                                        id="audit-model"
+                                        value={selectedAuditModelId}
+                                        onChange={(e) => setSelectedAuditModelId(e.target.value)}
+                                        className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    >
+                                        <option value="">Default (Gemini Cloud API)</option>
+                                        {models.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="mt-5 pt-4 border-t border-gray-100">
+                                    <label htmlFor="plan-model" className="block text-sm font-bold text-slate-700 mb-2">Local Assembly Plan Model</label>
+                                    <p className="text-xs text-slate-600 mb-3">
+                                        Override the default Gemini model for the Assembly Plan generation.
+                                    </p>
+                                    <select
+                                        id="plan-model"
+                                        value={selectedPlanModelId}
+                                        onChange={(e) => setSelectedPlanModelId(e.target.value)}
+                                        className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    >
+                                        <option value="">Default (Gemini Cloud API)</option>
+                                        {models.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>

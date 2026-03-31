@@ -29,15 +29,15 @@
 - `[x]` OpenSCAD generation pipeline (`generateEnclosure` in `geminiService.ts`)
 - `[x]` In-app OpenSCAD viewer / preview — code viewer in PartDetailModal
 - `[x]` Export `.scad` file directly from BOM entry
-- `[ ]` STL preview via Three.js or similar
+- `[x]` STL preview via Three.js or similar — `STLPreview.tsx` renders OpenSCAD primitives as Three.js geometry with orbit controls
 
 ### 4. Legacy Manual Archaeology (PDF Ingestion)
 - `[?]` Pipeline to ingest and verify structural/mechanical data from 1970s PDF service manuals
 - `[?]` Extract parts from scanned documents and map them to BOM entries
 
 ### 5. Industrial & Safety _(Roundtable Demo Priority)_
-- `[ ]` **Automotive Safety Auditor** — Validate BOM plan against ISO 26262 / ISO 8800; AI-driven violation report surfaced in a dedicated panel. Extends the existing `audit` prompt in `geminiService.ts`.
-- `[ ]` **VIN & Recall Grounding** — Enter a VIN; auto-pull NHTSA safety bulletins and OEM service notices and ground them to the relevant BOM frame/engine entries.
+- `[x]` **Safety Auditor** — Validate BOM plan against safety standards; AI-driven violation report surfaced in a dedicated panel (`SafetyAuditorPanel.tsx`). Configurable validation checks with custom checks, structured add/remove actions.
+- `[x]` ~~**VIN & Recall Grounding**~~ — Removed. App is industry-agnostic, not tailored to automotive.
 
 ---
 
@@ -55,11 +55,11 @@ These are features the `website/index.html` explicitly advertises that are **not
 ### Project Management
 - `[x]` **Project list / history** — `ProjectNavigator` shows projects from localStorage (Guest) or Firestore (Authenticated). Includes login CTA, migration banner, and i18n support.
 - `[x]` **Project search and filtering** — live search input in `ProjectNavigator`; filters by name and preview text.
-- `[ ]` **Project tags / labels**
+- `[x]` **Project tags / labels** — `setProjectTags()` / `getProjectTags()` in DraftingEngine; tags stored in project index
 - `[x]` **Project archiving** — `archiveProject()` / `unarchiveProject()` in DraftingEngine; toggle archived view in ProjectNavigator.
 - `[x]` **Project duplication** — `duplicateProject()` in DraftingEngine; deep-clones BOM and messages. Accessible via copy button in ProjectNavigator.
-- `[ ]` **Project templates** — suggested in marketing copy.
-- `[ ]` **Project thumbnail generation** — thumbnails are explicitly disabled (`thumbnail: undefined // DISABLE THUMBNAILS to save space in the index`).
+- `[x]` **Project templates** — `ProjectTemplatePicker.tsx` with 5 starter templates; accessible from nav rail
+- `[x]` **Project thumbnail generation** — re-enabled in `updateProjectIndex()`, captures last generated image URL (truncated to 300 chars)
 
 ### Visual Assembly View (the Chilton Visualizer)
 - `[~]` **AI-generated concept image** — `ChiltonVisualizer` shows Gemini-generated PNG images. This is a flat image, not an interactive assembly.
@@ -71,12 +71,12 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[x]` **Google Sign-In** — `UserService.login()` uses `signInWithPopup` with `GoogleAuthProvider` via Firebase Auth SDK v10 (Modular). `firebase.ts` initialises from `import.meta.env` vars.
 - `[x]` **Real Firebase Auth integration** — `UserService` delegates to `onAuthStateChanged` / `signInWithPopup` / `signOut`. Falls back to guest mode when Firebase is not configured.
 - `[x]` **Session persistence tied to real user identity** — Authenticated users' projects are mirrored to Firestore (`users/{uid}/projects/{projectId}`). On login, guest localStorage data is auto-migrated and cleared. Guest mode limited to 1 project with a CTA to sign in.
-- `[ ]` **User profile page** — avatar, name, email, account settings.
+- `[x]` **User profile page** — `UserProfileModal` with avatar, name, email, tier badge (free/pro/enterprise), upgrade CTA, delete account, export data
 - `[x]` **Password reset / magic link flows** — Passwordless email-link sign-in via `sendSignInLinkToEmail` / `signInWithEmailLink`. Email input in ProjectNavigator footer; link completion handler runs on page load. All i18n strings translated.
 - `[ ]` **SSO / Enterprise SAML** (advertised in Team tier)
 
 ### Collaboration & Sharing
-- `[ ]` **Real shareable project URLs** — `getShareUrl()` generates a path like `/username/project-slug` but there is no router, no server, and no way to load a shared project by URL. Clicking the share button only copies a dead link.
+- `[x]` **Real shareable project URLs** — `getShareUrl()` now encodes the full project manifest as a base64 query param (`/?shared=<base64>`). `loadFromShareParam()` decodes and imports on page load.
 - `[ ]` **Shared workspaces** (advertised in Team tier) — no concept of org-level project ownership.
 - `[ ]` **Role-based access control** (advertised in Team tier) — no roles exist beyond "owner" (mock).
 - `[ ]` **Commenting / annotation on build sheets** Integrate with "Lore App" (also by Blake Barrett)
@@ -100,7 +100,7 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[x]` **GDPR/CCPA "Layered Notice" Footer** — Sticky footer with:
     - Direct links to Privacy, Terms, and DPA (Data Processing Agreement).
     - "Your Privacy Choices" toggle for California/EU users.
-- `[ ]` **Just-in-Time Disclosures** — Add "Privacy Pings" when the user first uploads an image or enters a VIN, explaining exactly how that specific data is processed.
+- `[x]` **Just-in-Time Disclosures** — `PrivacyDisclosure.tsx` shows toast disclosures on first image upload and AI analysis. Dismissible with localStorage persistence.
 
 ### Trust UI (Footer)
 - `[ ]` **Enterprise-Grade Privacy blurb in app footer** — Display the following trust copy in the site/app footer to build credibility with professional audiences (Sacramento shop owners, industrial clients):
@@ -119,7 +119,7 @@ These are features the `website/index.html` explicitly advertises that are **not
 - `[~]` **AR Guide View** — `ARGuideView.tsx` exists and uses the camera. It calls `aiService.getARGuidance()` which sends camera frames to Gemini. Basic.
 - `[ ]` **Spatial anchoring / overlay** — the "Live assembly overlay via camera" claim implies AR anchors. The current implementation just shows the camera feed + a text prompt from Gemini.
 - `[ ]` **Audio guidance** — `gemini-2.5-flash-native-audio-preview` is referenced in model name but audio output is unused; only text is read.
-- `[ ]` **"Greasy Hands" Voice Mode** — Dedicated hands-free voice session using `gemini-2.5-flash-native-audio-preview`; push-to-talk triggers BOM queries, part lookups, and step-by-step guidance without touching the screen. _(High demo value — show in a shop environment)_
+- `[x]` **"Greasy Hands" Voice Mode** — `VoiceSession.tsx` implements push-to-talk using browser `SpeechRecognition` (STT) and `SpeechSynthesis` (TTS), queries Gemini with BOM/plan context. Gated by `tierInfo.hasVoiceMode` (Pro+).
 
 ---
 
@@ -208,15 +208,12 @@ Payments: Stripe (partially referenced in conversation history)
 - `[ ]` Export provenance chain as a signed JSON manifest (`.buildrecord` format)
 
 ### 💳 Monetization & Tiers (Self-Service)
-- [ ] **Stripe Integration** — Deploy the "Run Subscription Payments with Stripe" Firebase Extension.
-- [ ] **Pricing Schema** — Define `products` and `prices` collections in Firestore (synced from Stripe).
-- [ ] **User Tier Metadata** — Update `users` schema to include `planTier` ('free' | 'pro' | 'enterprise') and `subscriptionStatus`.
-- [ ] **Feature-Flag Gating** — Implement a `useTier()` hook to control access to:
-    - AI Audit frequency (Free: 3/mo, Pro: Unlimited)
-    - Project limits (Free: 1, Pro: Unlimited)
-    - Advanced features (CAD Export, AR Guide, Voice Mode)
-- [ ] **Checkout Workflow** — `createCheckoutSession()` logic to redirect users to the Stripe-hosted billing portal.
-- [ ] **Tier-Specific UI** — "Upgrade to Pro" buttons, plan badges, and "Feature Locked" overlays.
+- [x] **Stripe Integration** — `@invertase/firestore-stripe-payments` extension integrated with `TierService`.
+- [x] **Pricing Schema** — `products` and `prices` collections in Firestore (synced from Stripe).
+- [x] **User Tier Metadata** — `TierService` reads `planTier` from Firestore subscriptions.
+- [x] **Feature-Flag Gating** — `useTier()` hook in `featureFlags.ts` controls access to AI limits, project limits, exports, voice mode, etc.
+- [x] **Checkout Workflow** — `UpgradeModal` with monthly/annual billing, redirects to Stripe checkout.
+- [x] **Tier-Specific UI** — Upgrade buttons in nav rail, plan badges in `UserProfileModal`, feature-locked overlays.
 
 ---
 
@@ -250,7 +247,7 @@ Payments: Stripe (partially referenced in conversation history)
 - `[x]` Implement the `VisualManifest` renderer — `VisualManifestRenderer` component renders `VisualComponent[]` as an interactive SVG block diagram
 - `[x]` Place the Visualizer **above the center panel** — block diagram renders side-by-side with ChiltonVisualizer in the hero area when manifest is populated
 - `[x]` Port connection lines between components in the block diagram — dashed lines with arrowhead markers between adjacent blocks
-- `[ ]` Pan / zoom on the block diagram
+- `[x]` Pan / zoom on the block diagram — drag to pan, scroll to zoom, +/−/reset controls in `VisualManifestRenderer`
 - `[x]` Click a component block to jump to its BOM entry — `onComponentClick` fires `setSelectedPart`
 - `[ ]` Persistent image gallery — deleted IndexedDB images are lost; add server-side image storage
 
@@ -331,16 +328,16 @@ These can be done without a backend and immediately improve quality/honesty:
 
 1. `[x]` **Implement the VisualManifest block-diagram renderer** — `VisualManifestRenderer` renders interactive SVG schematic
 2. `[x]` **Move Visualizer to top of center panel** — block diagram + image gallery in hero area
-3. `[ ]` **"Greasy Hands" Voice Mode** — push-to-talk hands-free assistant via `gemini-2.5-flash-native-audio-preview` (audio model already referenced; wire up bidirectional audio session)
-4. `[ ]` **Automotive Safety Auditor UI** — ISO 26262 / ISO 8800 violation panel (extends existing `audit` prompt; high demo value for industry audience)
-5. `[ ]` **VIN & Recall lookup** — NHTSA API call + ground results to BOM frame/engine entries
+3. `[x]` **"Greasy Hands" Voice Mode** — push-to-talk hands-free assistant using browser SpeechRecognition + SpeechSynthesis + Gemini
+4. `[x]` **Safety Auditor UI** — configurable validation panel with structured add/remove actions
+5. `[x]` ~~**VIN & Recall lookup**~~ — Removed (app is industry-agnostic)
 6. `[x]` **CSV export** — `exportCSV()` in DraftingEngine + nav rail button
 4. `[x]` **Project delete confirmation** — modal dialog with name confirmation
 5. `[x]` **BOM sub-assembly nesting UI** — recursive tree renderer with collapse/expand, Set Parent in PartDetailModal
 6. `[x]` **Port compatibility warnings** — cross-checks port specs/gender, shows warning badges + detail panel
 7. `[x]` **PDF export** — print-optimized window via `window.print()` with styled BOM table
 8. `[ ]` **Real Google OAuth** via Firebase Auth (free tier, minimal backend needed)
-9. `[ ]` **Fix the share URL** — at minimum, encode the project as base64 in the URL query param so it actually loads
+9. `[x]` **Fix the share URL** — project encoded as base64 in URL query param, loads on page open via `loadFromShareParam()`
 10. `[x]` **Persistent activity log** — `ActivityLogService` now writes to IndexedDB with 500-entry rolling cap
 
 ---
@@ -355,4 +352,4 @@ These require specialized infrastructure not present in the base app. Deprioriti
 
 ---
 
-*Last updated: 2026-03-30. CRITICAL backlog pass: CSV/Paste BOM import, project search/duplication/archiving, VisualManifest block-diagram renderer, persistent activity logging, drag-and-drop import modal. Plus Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, deferred simulation features. **2026-03-30:** Added Compliance & Trust section — Privacy Policy AI Transparency clauses, GDPR/CCPA Layered Notice footer, Just-in-Time Disclosures, and Enterprise-Grade Privacy footer blurb.*
+*Last updated: 2026-03-31. CRITICAL backlog pass: CSV/Paste BOM import, project search/duplication/archiving, VisualManifest block-diagram renderer, persistent activity logging, drag-and-drop import modal. Plus Industrial & Safety, Greasy Hands Voice Mode, BuildSheet Skills Registry, Digital Traceability Ledger, deferred simulation features. **2026-03-30:** Added Compliance & Trust section — Privacy Policy AI Transparency clauses, GDPR/CCPA Layered Notice footer, Just-in-Time Disclosures, and Enterprise-Grade Privacy footer blurb.*

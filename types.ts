@@ -175,11 +175,13 @@ export interface AdvancedValidationOption {
   enabled: boolean;
   /** Built-in checks are 'builtin'; user-created ones are 'custom' */
   kind: 'builtin' | 'custom';
+  /** Optional user-provided value (e.g. VIN for vin-lookup). */
+  metadata?: string;
 }
 
 export const DEFAULT_ADVANCED_VALIDATIONS: AdvancedValidationOption[] = [
-  { id: 'vin-lookup',          label: 'VIN / Serial Number Lookup',  enabled: false, kind: 'builtin' },
-  { id: 'patent-verification', label: 'Patent & IP Verification',    enabled: false, kind: 'builtin' },
+  { id: 'vin-lookup',           label: 'VIN / Serial Number Lookup', enabled: false, kind: 'builtin' },
+  { id: 'patent-verification',  label: 'Patent & IP Verification',   enabled: false, kind: 'builtin' },
 ];
 
 export interface UserActivityLog {

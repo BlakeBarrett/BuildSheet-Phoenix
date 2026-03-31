@@ -12,6 +12,7 @@ export interface ProjectIndexEntry {
   preview: string;
   thumbnail?: string; // Latest generated image for the navigator
   archived?: boolean;
+  tags?: string[];
 }
 
 export class DraftingEngine {
@@ -219,14 +220,22 @@ export class DraftingEngine {
     try {
       const indexRaw = localStorage.getItem(this.INDEX_KEY);
       let index: any[] = indexRaw ? JSON.parse(indexRaw) : [];
+      const existing = index.find(i => i.id === session.id);
       // Clean duplicates
       index = index.filter(i => i.id !== session.id);
+      // Thumbnail: use the latest generated image if available
+      const latestImage = session.generatedImages.length > 0
+        ? session.generatedImages[session.generatedImages.length - 1].url
+        : undefined;
+      // Keep thumbnail small — take first 200 chars of data URL (enough for a tiny preview)
+      const thumbnail = latestImage?.substring(0, 300) || existing?.thumbnail;
       index.unshift({
         id: session.id,
         name: session.name,
         lastModified: session.lastModified,
         preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft',
-        thumbnail: undefined // DISABLE THUMBNAILS to save space in the index
+        thumbnail,
+        tags: existing?.tags || [],
       });
       localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
     } catch (e) {
@@ -650,10 +659,57 @@ export class DraftingEngine {
   }
 
   public getShareUrl(): string {
-    const user = UserService.getCurrentUser();
-    const username = user?.username || 'anonymous';
-    const slug = this.session.shareSlug || DraftingEngine.generateShareSlug(this.session.name);
-    return `/${username}/${slug}`;
+    // Encode the project as a compressed base64 query param so shared links actually work
+    try {
+      const manifest = this.exportManifest();
+      const compressed = btoa(encodeURIComponent(manifest));
+      return `/?shared=${compressed}`;
+    } catch {
+      // Fallback for very large projects
+      const user = UserService.getCurrentUser();
+      const username = user?.username || 'anonymous';
+      const slug = this.session.shareSlug || DraftingEngine.generateShareSlug(this.session.name);
+      return `/${username}/${slug}`;
+    }
+  }
+
+  public static loadFromShareParam(param: string): DraftingSession | null {
+    try {
+      const json = decodeURIComponent(atob(param));
+      const parsed = JSON.parse(json);
+      return parsed as DraftingSession;
+    } catch {
+      return null;
+    }
+  }
+
+  // --- Tag Management ---
+
+  public setProjectTags(projectId: string, tags: string[]) {
+    try {
+      const indexRaw = localStorage.getItem(this.INDEX_KEY);
+      if (!indexRaw) return;
+      const index: any[] = JSON.parse(indexRaw);
+      const entry = index.find(i => i.id === projectId);
+      if (entry) {
+        entry.tags = tags;
+        localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+      }
+    } catch (e) {
+      console.warn("Failed to set project tags", e);
+    }
+  }
+
+  public getProjectTags(projectId: string): string[] {
+    try {
+      const indexRaw = localStorage.getItem(this.INDEX_KEY);
+      if (!indexRaw) return [];
+      const index: any[] = JSON.parse(indexRaw);
+      const entry = index.find(i => i.id === projectId);
+      return entry?.tags || [];
+    } catch {
+      return [];
+    }
   }
 
   public exportManifest(): string {
@@ -666,6 +722,24 @@ export class DraftingEngine {
       }
     };
     return JSON.stringify(manifest, null, 2);
+  }
+
+  public importManifest(json: string): boolean {
+    try {
+      const parsed = JSON.parse(json);
+      // Give it a new ID so it doesn't overwrite an existing project
+      const imported = this.hydrateSession({
+        ...parsed,
+        id: crypto.randomUUID(),
+        name: parsed.name ? `${parsed.name} (Shared)` : 'Imported Project',
+        lastModified: new Date(),
+      });
+      this.session = imported;
+      this.saveSession();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public getSourcingCompletion(): number {

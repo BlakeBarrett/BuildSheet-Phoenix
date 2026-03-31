@@ -1,15 +1,26 @@
 import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { GeminiService } from "./geminiService.ts";
-import { LocalArchitectService, LocalModelProvider } from "./localAiService.ts";
+import { LocalArchitectService, LocalModelProvider, getLocalProvider } from "./localAiService.ts";
 import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
 
 export class HybridAIService implements AIService {
     public isOffline = false;
     private geminiService: GeminiService;
     private localService: LocalArchitectService | null = null;
+    private localAuditService: LocalArchitectService | null = null;
+    private localPlanService: LocalArchitectService | null = null;
 
     constructor(apiKey: string) {
         this.geminiService = new GeminiService(apiKey);
+        // Auto-load audit/plan providers from localStorage
+        const auditProvider = getLocalProvider('localAuditProvider');
+        if (auditProvider) {
+            this.localAuditService = new LocalArchitectService(auditProvider, this.geminiService);
+        }
+        const planProvider = getLocalProvider('localPlanProvider');
+        if (planProvider) {
+            this.localPlanService = new LocalArchitectService(planProvider, this.geminiService);
+        }
     }
 
     public setLocalArchitect(provider: LocalModelProvider | null) {
@@ -18,6 +29,11 @@ export class HybridAIService implements AIService {
         } else {
             this.localService = null;
         }
+        // Re-read audit/plan providers in case they changed
+        const auditProvider = getLocalProvider('localAuditProvider');
+        this.localAuditService = auditProvider ? new LocalArchitectService(auditProvider, this.geminiService) : null;
+        const planProvider = getLocalProvider('localPlanProvider');
+        this.localPlanService = planProvider ? new LocalArchitectService(planProvider, this.geminiService) : null;
     }
 
     public get name() {
@@ -63,6 +79,9 @@ export class HybridAIService implements AIService {
     }
 
     async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: import('../types.ts').AdvancedValidationOption[]): Promise<ArchitectResponse> {
+        if (this.localAuditService) {
+            return this.localAuditService.verifyDesign(bom, requirements, previousAudit, advancedChecks);
+        }
         return this.geminiService.verifyDesign(bom, requirements, previousAudit, advancedChecks);
     }
 
@@ -75,6 +94,9 @@ export class HybridAIService implements AIService {
     }
 
     async generateAssemblyPlan(bom: any[], previousPlan?: AssemblyPlan): Promise<AssemblyPlan | null> {
+        if (this.localPlanService) {
+            return this.localPlanService.generateAssemblyPlan(bom, previousPlan);
+        }
         return this.geminiService.generateAssemblyPlan(bom, previousPlan);
     }
 

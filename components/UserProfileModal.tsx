@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types.ts';
-import { Button, IconButton } from './Material3UI.tsx';
+import { Button, IconButton, Chip } from './Material3UI.tsx';
 
 interface UserProfileModalProps {
     isOpen: boolean;
@@ -9,9 +9,11 @@ interface UserProfileModalProps {
     onLogout: () => void;
     onDeleteAccount: () => Promise<void>;
     onExportData: () => void;
+    planTier?: string;
+    onUpgrade?: () => void;
 }
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user, onLogout, onDeleteAccount, onExportData }) => {
+const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user, onLogout, onDeleteAccount, onExportData, planTier, onUpgrade }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteInput, setDeleteInput] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
@@ -46,19 +48,29 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                         <IconButton icon="close" onClick={onClose} className="text-white/80 hover:bg-white/10 hover:text-white" title="Close" />
                     </div>
                     <h2 id="profile-title" className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-200 mb-1">Account</h2>
-                    <p className="text-xl font-bold tracking-tight">{user.name}</p>
+                    <p className="text-xl font-bold tracking-tight flex items-center gap-2">
+                        {user.name}
+                        {planTier && (
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                planTier === 'pro' ? 'bg-amber-400 text-amber-900'
+                                : planTier === 'enterprise' ? 'bg-violet-400 text-violet-900'
+                                : 'bg-white/20 text-white/80'
+                            }`}>
+                                {planTier}
+                            </span>
+                        )}
+                    </p>
                 </div>
 
                 {/* Avatar — overlapping the header */}
                 <div className="relative -mt-10 px-8">
                     <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-indigo-100">
                         {user.avatar ? (
-                            <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-indigo-600 text-3xl font-bold">
-                                {user.name.charAt(0).toUpperCase()}
-                            </div>
-                        )}
+                            <img src={user.avatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+                        ) : null}
+                        <div className={`w-full h-full flex items-center justify-center text-indigo-600 text-3xl font-bold ${user.avatar ? 'hidden' : ''}`}>
+                            {user.name.charAt(0).toUpperCase()}
+                        </div>
                     </div>
                 </div>
 
@@ -104,6 +116,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                     </section>
 
                     <hr className="border-gray-100" />
+
+                    {/* Upgrade Prompt */}
+                    {planTier === 'free' && onUpgrade && (
+                        <>
+                            <section>
+                                <Button
+                                    variant="primary"
+                                    icon="rocket_launch"
+                                    onClick={onUpgrade}
+                                    className="w-full"
+                                >
+                                    Upgrade to Pro
+                                </Button>
+                                <p className="text-[11px] text-slate-400 leading-relaxed px-1 mt-2">
+                                    Unlock unlimited projects, exports, voice mode, AR guide, and more.
+                                </p>
+                            </section>
+                            <hr className="border-gray-100" />
+                        </>
+                    )}
 
                     {/* Sign Out */}
                     <section>

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { VisualManifest, VisualComponent, BOMEntry } from '../types.ts';
 
 interface VisualManifestRendererProps {
@@ -40,6 +40,43 @@ function shapeElement(comp: VisualComponent, x: number, y: number, w: number, h:
 
 export const VisualManifestRenderer: React.FC<VisualManifestRendererProps> = ({ manifest, bom, onComponentClick }) => {
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const isPanning = useRef(false);
+  const lastPointer = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only start pan on middle-click or if holding space, or on the background
+    if (e.button === 1 || (e.target as Element).tagName === 'svg' || (e.target as Element).classList.contains('pan-bg')) {
+      isPanning.current = true;
+      lastPointer.current = { x: e.clientX, y: e.clientY };
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    }
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isPanning.current) return;
+    const dx = e.clientX - lastPointer.current.x;
+    const dy = e.clientY - lastPointer.current.y;
+    lastPointer.current = { x: e.clientX, y: e.clientY };
+    setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    isPanning.current = false;
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.stopPropagation();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(prev => Math.max(0.25, Math.min(4, prev * delta)));
+  }, []);
+
+  const resetView = useCallback(() => {
+    setPan({ x: 0, y: 0 });
+    setZoom(1);
+  }, []);
 
   const layout = useMemo(() => {
     const components = manifest.components;
@@ -136,10 +173,27 @@ export const VisualManifestRenderer: React.FC<VisualManifestRendererProps> = ({ 
   }
 
   return (
-    <div className="h-full w-full overflow-auto bg-[#F8FAFC] rounded-[16px] border border-gray-100">
+    <div
+      ref={containerRef}
+      className="h-full w-full overflow-hidden bg-[#F8FAFC] rounded-[16px] border border-gray-100 relative"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onWheel={handleWheel}
+    >
+      {/* Zoom controls */}
+      <div className="absolute top-2 right-2 z-10 flex gap-1 bg-white/80 rounded-[12px] p-1 shadow-sm border border-gray-100">
+        <button onClick={() => setZoom(z => Math.min(4, z * 1.2))} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-bold" title="Zoom in">+</button>
+        <button onClick={resetView} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" title="Reset view">
+          <span className="material-symbols-rounded text-[16px]">fit_screen</span>
+        </button>
+        <button onClick={() => setZoom(z => Math.max(0.25, z * 0.8))} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-bold" title="Zoom out">&minus;</button>
+      </div>
       <svg
         viewBox={`0 0 ${layout.width} ${layout.height}`}
-        className="w-full h-auto"
+        className="w-full h-auto pan-bg"
+        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center center', cursor: isPanning.current ? 'grabbing' : 'grab' }}
         role="img"
         aria-label="Block diagram of hardware components"
       >

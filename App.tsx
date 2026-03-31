@@ -2,7 +2,7 @@ import React, { Component, useState, useRef, useEffect, useCallback, ErrorInfo }
 import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
-import { getDraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
+import { getDraftingEngine, DraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
 import { UserService } from './services/userService.ts';
 import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
@@ -19,6 +19,11 @@ import { VisualManifestRenderer } from './components/VisualManifestRenderer.tsx'
 import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
+import { VoiceSession } from './components/VoiceSession.tsx';
+import { SafetyAuditorPanel } from './components/SafetyAuditorPanel.tsx';
+import { ProjectTemplatePicker, ProjectTemplate } from './components/ProjectTemplates.tsx';
+import { PrivacyDisclosureToast, usePrivacyDisclosure } from './components/PrivacyDisclosure.tsx';
+import { STLPreview } from './components/STLPreview.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -273,7 +278,7 @@ const ProjectNavigator: React.FC<{
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">{t('nav.projectTools')}</p>
                     <div className="grid grid-cols-2 gap-2">
                         <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-800 hover:bg-rose-100" icon="health_and_safety">{t('nav.healthCheck')}</Button>
-                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="output">{t('app.export')}</Button>
+                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="data_object">{t('app.export')}</Button>
                     </div>
                 </footer>
             </div>
@@ -447,7 +452,8 @@ const PartDetailModal: React.FC<{
     onSetParent?: (instanceId: string, parentInstanceId: string | null) => void;
     onGenerateEnclosure?: (entry: BOMEntry) => void;
     onExportSCAD?: (entry: BOMEntry) => void;
-}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove, allEntries, onSetParent, onGenerateEnclosure, onExportSCAD }) => {
+    onPreview3D?: (openSCADCode: string) => void;
+}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove, allEntries, onSetParent, onGenerateEnclosure, onExportSCAD, onPreview3D }) => {
     const [editName, setEditName] = useState(entry?.part.name || '');
     const [editQty, setEditQty] = useState(entry?.quantity || 1);
 
@@ -668,6 +674,9 @@ const PartDetailModal: React.FC<{
                                     <div className="flex gap-2">
                                         {onExportSCAD && (entry as any).enclosure.openSCAD && (
                                             <Button variant="tonal" onClick={() => onExportSCAD(entry)} icon="download" className="flex-1">Download .scad</Button>
+                                        )}
+                                        {onPreview3D && (entry as any).enclosure.openSCAD && (
+                                            <Button variant="tonal" onClick={() => onPreview3D((entry as any).enclosure.openSCAD)} icon="view_in_ar" className="flex-1">3D Preview</Button>
                                         )}
                                         {onGenerateEnclosure && (
                                             <Button variant="ghost" onClick={() => onGenerateEnclosure(entry)} icon="refresh" className="flex-1">Regenerate</Button>
@@ -1509,6 +1518,14 @@ const AppContent: React.FC = () => {
     const [isMigrating, setIsMigrating] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+    // New feature state
+    const [voiceOpen, setVoiceOpen] = useState(false);
+    const [safetyPanelOpen, setSafetyPanelOpen] = useState(false);
+    const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+    const [stlPreviewOpen, setStlPreviewOpen] = useState(false);
+    const [stlPreviewCode, setStlPreviewCode] = useState('');
+    const privacyDisclosure = usePrivacyDisclosure();
+
     useEffect(() => {
         return UserService.onUserChange(setCurrentUser);
     }, []);
@@ -1523,6 +1540,24 @@ const AppContent: React.FC = () => {
             }
             // Kick off login flow (async, but fire-and-forget is fine here)
             handleLogin();
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Load shared project from URL ?shared= parameter
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const shared = params.get('shared');
+        if (shared) {
+            const sharedSession = DraftingEngine.loadFromShareParam(shared);
+            if (sharedSession) {
+                // Load the shared session as a new project
+                draftingEngine.importManifest(JSON.stringify(sharedSession));
+                refreshState();
+            }
+            // Clean the query param
+            if (window.history?.replaceState) {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1588,6 +1623,19 @@ const AppContent: React.FC = () => {
         }
         draftingEngine.createNewProject();
         refreshState();
+    }, [draftingEngine, tierInfo.maxProjects]);
+
+    const handleTemplateSelect = useCallback((template: ProjectTemplate) => {
+        const activeProjects = draftingEngine.getProjectsList().filter((p: any) => !p.archived).length;
+        if (activeProjects >= tierInfo.maxProjects) {
+            setUpgradeOpen(true);
+            return;
+        }
+        draftingEngine.createNewProject();
+        draftingEngine.updateSessionName(template.name);
+        refreshState();
+        // Seed the chat with the template requirements
+        setInput(template.requirements);
     }, [draftingEngine, tierInfo.maxProjects]);
 
     const handleSendEmailLink = useCallback(async (email: string) => {
@@ -1785,6 +1833,8 @@ const AppContent: React.FC = () => {
         const currentSession = draftingEngine.getSession();
         if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
+
+        if (!silent) await privacyDisclosure.triggerDisclosure('ai-analysis');
 
         // Tier-based validator limit (skip for silent/cached calls)
         if (!silent && validatorCallCount >= tierInfo.maxValidatorCalls) {
@@ -2104,6 +2154,7 @@ const AppContent: React.FC = () => {
     // Visual Audit Handlers
     const handleScanPart = async (image: string) => {
         if (!aiService.identifyComponent) return;
+        await privacyDisclosure.triggerDisclosure('image-upload');
         setIsScanning(true);
         setScanResult(null);
         try {
@@ -2230,6 +2281,9 @@ const AppContent: React.FC = () => {
             setUpgradeOpen(true);
             return;
         }
+
+        if (selectedImage) await privacyDisclosure.triggerDisclosure('image-upload');
+        await privacyDisclosure.triggerDisclosure('ai-analysis');
         
         const currentInput = input;
         const currentImage = selectedImage;
@@ -2345,6 +2399,7 @@ const AppContent: React.FC = () => {
                 onSetParent={handleSetParent}
                 onGenerateEnclosure={handleGenerateEnclosure}
                 onExportSCAD={handleExportSCAD}
+                onPreview3D={(code) => { setStlPreviewCode(code); setStlPreviewOpen(true); }}
             />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
@@ -2362,9 +2417,48 @@ const AppContent: React.FC = () => {
                     onLogout={handleLogout}
                     onDeleteAccount={handleDeleteAccount}
                     onExportData={handleExportUserData}
+                    planTier={tierInfo.tier}
+                    onUpgrade={() => setUpgradeOpen(true)}
                 />
             )}
             <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} isAuthenticated={tierInfo.isAuthenticated} onLogin={handleLogin} />
+
+            {/* Voice Mode */}
+            {voiceOpen && <VoiceSession bom={session.bom} plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setVoiceOpen(false)} />}
+
+            {/* Safety Auditor */}
+            <SafetyAuditorPanel
+                isOpen={safetyPanelOpen}
+                onClose={() => setSafetyPanelOpen(false)}
+                auditResult={session.cachedAuditResult || undefined}
+                auditActions={session.cachedAuditActions || undefined}
+                isAuditing={isAuditing}
+                onRunAudit={() => performVerifyAudit()}
+                onApplyActions={handleApplyAuditChanges}
+                isApplyingAudit={isApplyingAudit}
+                bom={session.bom}
+                advancedValidations={advancedValidations}
+                onToggleValidation={(id) => handleAdvancedValidationsChange(advancedValidations.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c))}
+                onAddCustomValidation={(label) => {
+                    const id = label.toLowerCase().replace(/\s+/g, '-');
+                    if (advancedValidations.some(c => c.id === id)) return;
+                    handleAdvancedValidationsChange([...advancedValidations, { id, label, enabled: true, kind: 'custom' as const }]);
+                }}
+                onUpdateValidationMetadata={(id, metadata) => handleAdvancedValidationsChange(advancedValidations.map(c => c.id === id ? { ...c, metadata } : c))}
+            />
+
+            {/* Project Templates */}
+            <ProjectTemplatePicker
+                isOpen={templatePickerOpen}
+                onClose={() => setTemplatePickerOpen(false)}
+                onSelect={handleTemplateSelect}
+            />
+
+            {/* STL / 3D Preview */}
+            <STLPreview isOpen={stlPreviewOpen} openSCADCode={stlPreviewCode} onClose={() => setStlPreviewOpen(false)} />
+
+            {/* Privacy Disclosure Toast */}
+            <PrivacyDisclosureToast type={privacyDisclosure.active} />
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
             <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100" aria-label="Main navigation">
@@ -2388,7 +2482,7 @@ const AppContent: React.FC = () => {
 
 
                     <IconButton
-                        icon="output"
+                        icon="data_object"
                         onClick={tierInfo.canExportJSON ? handleExport : () => setUpgradeOpen(true)}
                         className={`${tierInfo.canExportJSON ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' : 'text-slate-300 cursor-not-allowed'}`}
                         title={tierInfo.canExportJSON ? 'Export JSON' : 'Upgrade to export'}
@@ -2406,7 +2500,7 @@ const AppContent: React.FC = () => {
                         title={tierInfo.canExportPDF ? 'Export PDF' : 'Upgrade to export'}
                     />
                     <IconButton
-                        icon="upload_file"
+                        icon="file_open"
                         onClick={() => setImportModalOpen(true)}
                         className="text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
                         title="Import BOM"
@@ -2419,6 +2513,24 @@ const AppContent: React.FC = () => {
                         onClick={() => setScanPartOpen(true)}
                         className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
                         title="Scan Part"
+                    />
+                    <IconButton
+                        icon="mic"
+                        onClick={tierInfo.hasVoiceMode ? () => setVoiceOpen(true) : () => setUpgradeOpen(true)}
+                        className={tierInfo.hasVoiceMode ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-slate-300 cursor-not-allowed'}
+                        title={tierInfo.hasVoiceMode ? 'Voice Mode' : 'Upgrade for Voice Mode'}
+                    />
+                    <IconButton
+                        icon="health_and_safety"
+                        onClick={() => setSafetyPanelOpen(true)}
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        title="Safety Auditor"
+                    />
+                    <IconButton
+                        icon="dashboard_customize"
+                        onClick={() => setTemplatePickerOpen(true)}
+                        className="text-teal-600 hover:bg-teal-50 hover:text-teal-700"
+                        title="Project Templates"
                     />
                 </div>
 
@@ -2440,12 +2552,11 @@ const AppContent: React.FC = () => {
                             aria-label="Open profile"
                         >
                             {currentUser.avatar ? (
-                                <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
-                                    {currentUser.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
+                                <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+                            ) : null}
+                            <div className={`w-full h-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm ${currentUser.avatar ? 'hidden' : ''}`}>
+                                {currentUser.name.charAt(0).toUpperCase()}
+                            </div>
                         </button>
                     ) : isFirebaseConfigured() ? (
                         <IconButton
@@ -2989,13 +3100,14 @@ const AppContent: React.FC = () => {
                         >
                             <div className="px-5 py-1 rounded-full transition-colors">
                                 {currentUser ? (
-                                    currentUser.avatar ? (
-                                        <img src={currentUser.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-                                    ) : (
-                                        <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                                    <>
+                                        {currentUser.avatar ? (
+                                            <img src={currentUser.avatar} alt="" className="w-6 h-6 rounded-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+                                        ) : null}
+                                        <div className={`w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs ${currentUser.avatar ? 'hidden' : ''}`}>
                                             {currentUser.name.charAt(0).toUpperCase()}
                                         </div>
-                                    )
+                                    </>
                                 ) : (
                                     <span className="material-symbols-rounded text-[24px] text-indigo-600" aria-hidden="true">login</span>
                                 )}

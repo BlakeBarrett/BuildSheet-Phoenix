@@ -325,7 +325,12 @@ export class GeminiService implements AIService {
                 prompt += `\n--- ADVANCED CHECKS REQUESTED ---\nIn addition to the feasibility check above, perform the following advanced validations:\n`;
                 for (const check of enabledAdvanced) {
                     if (check.id === 'vin-lookup') {
-                        prompt += `\n### VIN / Serial Number Lookup\nFor each part that may have a VIN, serial number, or model number, attempt to verify it via Google Search grounding. Report any mismatches or recalls.\n`;
+                        const vin = check.metadata?.trim();
+                        if (vin) {
+                            prompt += `\n### VIN / Serial Number Lookup\nThe user has provided VIN: **${vin}**. Decode this VIN to identify the year, make, model, engine, and trim. Then look up all known recalls, NHTSA safety bulletins, and OEM technical service bulletins for this specific vehicle. Ground each finding to relevant BOM entries where applicable.\n`;
+                        } else {
+                            prompt += `\n### VIN / Serial Number Lookup\nIf a VIN or serial number is mentioned in the design requirements or part descriptions, look up known recalls, service bulletins, and safety notices for that vehicle or equipment. Ground findings to specific BOM entries where applicable.\n`;
+                        }
                     } else if (check.id === 'patent-verification') {
                         prompt += `\n### Patent & IP Verification\nCheck whether any parts or the overall design may infringe on known patents. Cite specific patent numbers where possible.\n`;
                     } else {
