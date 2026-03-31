@@ -1,10 +1,16 @@
 /**
  * Feature flags for gating paid features.
- * Once paid tiers are introduced, these will check the user's plan.
- * For now, all flags return true (all features available to everyone).
+ * These now check the user's plan via TierService.
+ * Falls back to `true` when TierService hasn't loaded yet (loading state).
  */
+
+import { TierService, PLAN_LIMITS } from './tierService.ts';
 
 export const FeatureFlags = {
   /** Advanced validation checks (VIN lookup, patent verification, custom checks) */
-  advancedValidation: () => true,
+  advancedValidation: () => {
+    const state = TierService.getState();
+    if (state.loading) return true; // graceful: allow while loading
+    return PLAN_LIMITS[state.tier].canAudit;
+  },
 } as const;

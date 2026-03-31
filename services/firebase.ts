@@ -44,6 +44,11 @@ function ensureInitialized() {
   }
 }
 
+export function getFirebaseApp(): FirebaseApp | null {
+  ensureInitialized();
+  return app;
+}
+
 export function getFirebaseAuth(): Auth | null {
   ensureInitialized();
   return auth;

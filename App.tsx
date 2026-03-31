@@ -17,6 +17,8 @@ import { CookieConsent, hasFullConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { VisualManifestRenderer } from './components/VisualManifestRenderer.tsx';
 import UserProfileModal from './components/UserProfileModal.tsx';
+import { useTier } from './hooks/useTier.tsx';
+import { UpgradeModal } from './components/UpgradeModal.tsx';
 
 // --- ERROR BOUNDARY ---
 interface ErrorBoundaryProps { children?: React.ReactNode; }
@@ -1427,6 +1429,15 @@ const AppContent: React.FC = () => {
     const [isThinking, setIsThinking] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
+    // Tier-based gating
+    const tierInfo = useTier();
+    const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+    // Per-session usage counters for rate-limited features
+    const [architectMessageCount, setArchitectMessageCount] = useState(0);
+    const [validatorCallCount, setValidatorCallCount] = useState(0);
+    const [plannerCallCount, setPlannerCallCount] = useState(0);
+
     const [auditOpen, setAuditOpen] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
     const [isApplyingAudit, setIsApplyingAudit] = useState(false);
@@ -1569,13 +1580,15 @@ const AppContent: React.FC = () => {
     }, [currentUser, draftingEngine]);
 
     const handleNewProject = useCallback(() => {
-        if (draftingEngine.isGuestProjectLimitReached()) {
-            // Don't create – the UI will show the CTA instead
+        // Tier-based project limit check
+        const activeProjects = draftingEngine.getProjectsList().filter((p: any) => !p.archived).length;
+        if (activeProjects >= tierInfo.maxProjects) {
+            setUpgradeOpen(true);
             return;
         }
         draftingEngine.createNewProject();
         refreshState();
-    }, [draftingEngine]);
+    }, [draftingEngine, tierInfo.maxProjects]);
 
     const handleSendEmailLink = useCallback(async (email: string) => {
         await UserService.sendEmailLink(email);
@@ -1773,6 +1786,12 @@ const AppContent: React.FC = () => {
         if (!aiService.verifyDesign || currentSession.bom.length === 0) return;
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAuditResult) return;
 
+        // Tier-based validator limit (skip for silent/cached calls)
+        if (!silent && validatorCallCount >= tierInfo.maxValidatorCalls) {
+            setUpgradeOpen(true);
+            return;
+        }
+
         if (!silent) {
             setAuditOpen(true);
             setIsAuditing(true);
@@ -1806,6 +1825,7 @@ const AppContent: React.FC = () => {
         } catch (e) { console.error(e); } finally {
             // Always refresh state so the modal shows the latest data
             if (!silent) {
+                setValidatorCallCount(prev => prev + 1);
                 refreshState();
                 setIsAuditing(false);
             }
@@ -1817,6 +1837,12 @@ const AppContent: React.FC = () => {
         if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
 
+        // Tier-based planner limit (skip for silent/cached calls)
+        if (!silent && plannerCallCount >= tierInfo.maxPlannerCalls) {
+            setUpgradeOpen(true);
+            return;
+        }
+
         if (!silent) {
             setAssemblyOpen(true);
             setIsPlanningAssembly(true);
@@ -1827,7 +1853,7 @@ const AppContent: React.FC = () => {
                 draftingEngine.cacheAssemblyPlan(plan);
                 if (!silent) refreshState();
             }
-        } catch (e) { console.error(e); } finally { if (!silent) setIsPlanningAssembly(false); }
+        } catch (e) { console.error(e); } finally { if (!silent) { setPlannerCallCount(prev => prev + 1); setIsPlanningAssembly(false); } }
     }
 
     const performVisualGeneration = async (customPrompt?: string) => {
@@ -2198,6 +2224,12 @@ const AppContent: React.FC = () => {
 
     const handleSend = async () => {
         if (!input.trim() || isThinking) return;
+
+        // Tier-based message limit
+        if (architectMessageCount >= tierInfo.maxArchitectMessages) {
+            setUpgradeOpen(true);
+            return;
+        }
         
         const currentInput = input;
         const currentImage = selectedImage;
@@ -2207,6 +2239,7 @@ const AppContent: React.FC = () => {
         setInput('');
         setSelectedImage(null);
         setIsThinking(true);
+        setArchitectMessageCount(prev => prev + 1);
         try {
             // Fix: Map 'assistant' role to 'model' for Gemini API compatibility
             const history = session.messages.map(m => {
@@ -2276,13 +2309,13 @@ const AppContent: React.FC = () => {
                 onSelect={(id) => { draftingEngine.loadProject(id); refreshState(); }}
                 onDelete={handleDeleteWithConfirm}
                 onNewProject={handleNewProject}
-                onExport={handleExport}
+                onExport={tierInfo.canExportJSON ? handleExport : () => setUpgradeOpen(true)}
                 onValidate={runValidationSuite}
                 onDuplicate={handleDuplicateProject}
                 onArchive={handleArchiveProject}
                 onUnarchive={handleUnarchiveProject}
                 isGuest={!currentUser}
-                guestLimitReached={draftingEngine.isGuestProjectLimitReached()}
+                guestLimitReached={projectsList.filter(p => !p.archived).length >= tierInfo.maxProjects}
                 onLogin={handleLogin}
                 onSendEmailLink={handleSendEmailLink}
                 isMigrating={isMigrating}
@@ -2331,6 +2364,7 @@ const AppContent: React.FC = () => {
                     onExportData={handleExportUserData}
                 />
             )}
+            <UpgradeModal isOpen={upgradeOpen} onClose={() => setUpgradeOpen(false)} isAuthenticated={tierInfo.isAuthenticated} onLogin={handleLogin} />
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
             <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100" aria-label="Main navigation">
@@ -2352,29 +2386,24 @@ const AppContent: React.FC = () => {
 
                     <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
 
-                    <IconButton
-                        icon="health_and_safety"
-                        onClick={runValidationSuite}
-                        className="text-rose-500 hover:bg-rose-50 hover:text-rose-700"
-                        title="System Health"
-                    />
+
                     <IconButton
                         icon="output"
-                        onClick={handleExport}
-                        className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                        title="Export JSON"
+                        onClick={tierInfo.canExportJSON ? handleExport : () => setUpgradeOpen(true)}
+                        className={`${tierInfo.canExportJSON ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' : 'text-slate-300 cursor-not-allowed'}`}
+                        title={tierInfo.canExportJSON ? 'Export JSON' : 'Upgrade to export'}
                     />
                     <IconButton
                         icon="table_view"
-                        onClick={handleExportCSV}
-                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                        title="Export CSV"
+                        onClick={tierInfo.canExportCSV ? handleExportCSV : () => setUpgradeOpen(true)}
+                        className={`${tierInfo.canExportCSV ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700' : 'text-slate-300 cursor-not-allowed'}`}
+                        title={tierInfo.canExportCSV ? 'Export CSV' : 'Upgrade to export'}
                     />
                     <IconButton
                         icon="picture_as_pdf"
-                        onClick={handleExportPDF}
-                        className="text-orange-600 hover:bg-orange-50 hover:text-orange-700"
-                        title="Export PDF"
+                        onClick={tierInfo.canExportPDF ? handleExportPDF : () => setUpgradeOpen(true)}
+                        className={`${tierInfo.canExportPDF ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' : 'text-slate-300 cursor-not-allowed'}`}
+                        title={tierInfo.canExportPDF ? 'Export PDF' : 'Upgrade to export'}
                     />
                     <IconButton
                         icon="upload_file"
@@ -2394,6 +2423,14 @@ const AppContent: React.FC = () => {
                 </div>
 
                 <div className="pb-2 flex flex-col gap-2 items-center">
+                    {tierInfo.tier === 'free' && (
+                        <IconButton
+                            icon="rocket_launch"
+                            title="Upgrade to Pro"
+                            onClick={() => setUpgradeOpen(true)}
+                            className="text-violet-600 hover:bg-violet-50"
+                        />
+                    )}
                     <IconButton icon="tune" title="Settings" onClick={() => setIsSettingsOpen(true)} />
                     {currentUser ? (
                         <button
@@ -2678,6 +2715,19 @@ const AppContent: React.FC = () => {
                             </div>
                         )}
                         <div className="relative bg-[#F2F6FC] rounded-[32px] transition-all hover:bg-[#EBF1F8] focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100 focus-within:shadow-md flex items-center">
+                            {/* Message limit warning */}
+                            {tierInfo.maxArchitectMessages !== Infinity && (
+                                <div className="absolute -top-7 left-3 right-3 flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        {architectMessageCount >= tierInfo.maxArchitectMessages
+                                            ? <button onClick={() => setUpgradeOpen(true)} className="text-amber-600 hover:text-amber-700 transition-colors">Message limit reached — Upgrade</button>
+                                            : `${tierInfo.maxArchitectMessages - architectMessageCount} message${tierInfo.maxArchitectMessages - architectMessageCount !== 1 ? 's' : ''} remaining`}
+                                    </span>
+                                    {!tierInfo.isAuthenticated && (
+                                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Guest</span>
+                                    )}
+                                </div>
+                            )}
                             <input 
                                 type="file" 
                                 accept="image/*,.heic,.heif,image/heic,image/heif" 
