@@ -1489,6 +1489,28 @@ const AppContent: React.FC = () => {
     // Mobile State
     const [mobileTab, setMobileTab] = useState<'draft' | 'bom'>('draft');
 
+    // Desktop Window Bounds (for Overflow logic)
+    const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+    const [navOverflowOpen, setNavOverflowOpen] = useState(false);
+    const navOverflowRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleResize = () => setWindowHeight(window.innerHeight);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        if (!navOverflowOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (navOverflowRef.current && !navOverflowRef.current.contains(e.target as Node)) {
+                setNavOverflowOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [navOverflowOpen]);
+
     // Validation State
     const [validationOpen, setValidationOpen] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
@@ -2349,6 +2371,7 @@ const AppContent: React.FC = () => {
     };
 
     const kitReady = draftingEngine.getSourcingCompletion() === 100 && !session.cacheIsDirty && session.cachedAuditResult && session.cachedAssemblyPlan;
+    const isShortScreen = windowHeight < 900;
 
     return (
         <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col lg:flex-row p-0 pb-[90px] lg:p-3 lg:pb-3 gap-3">
@@ -2461,12 +2484,12 @@ const AppContent: React.FC = () => {
             <PrivacyDisclosureToast type={privacyDisclosure.active} />
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
-            <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-20 shrink-0 h-full border border-gray-100" aria-label="Main navigation">
-                <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md">
+            <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-[60] shrink-0 h-full border border-gray-100 min-h-0" aria-label="Main navigation">
+                <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md shrink-0">
                     <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
                 </div>
 
-                <div className="flex flex-col gap-3 flex-1 items-center w-full">
+                <div className="flex flex-col gap-3 flex-1 items-center w-full min-h-max shrink-0">
                     <IconButton
                         icon="add_box"
                         onClick={handleNewProject}
@@ -2480,61 +2503,108 @@ const AppContent: React.FC = () => {
 
                     <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
 
+                    {isShortScreen ? (
+                        <div className="relative" ref={navOverflowRef}>
+                            <button
+                                onClick={() => setNavOverflowOpen(!navOverflowOpen)}
+                                className={`w-12 h-12 rounded-[16px] flex items-center justify-center transition-colors ${navOverflowOpen ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
+                                title="More Tools"
+                                aria-label="More tools menus"
+                            >
+                                <span className="material-symbols-rounded" aria-hidden="true">more_horiz</span>
+                            </button>
+                            {navOverflowOpen && (
+                                <div className="absolute left-[calc(100%+12px)] top-0 w-56 bg-white rounded-[24px] shadow-xl border border-gray-100 overflow-hidden z-[100] animate-in slide-in-from-left-2 duration-200" role="menu">
+                                    <div className="p-2 flex flex-col gap-1">
+                                        <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1">Export & Import</div>
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportJSON ? handleExport() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">data_object</span>JSON Data
+                                        </button>
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportCSV ? handleExportCSV() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">table_view</span>CSV Sheet
+                                        </button>
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportPDF ? handleExportPDF() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">picture_as_pdf</span>PDF Kit
+                                        </button>
+                                        <button onClick={() => { setNavOverflowOpen(false); setImportModalOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">file_open</span>Import BOM
+                                        </button>
+                                        
+                                        <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1 mt-1">Tools</div>
+                                        <button onClick={() => { setNavOverflowOpen(false); setScanPartOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">photo_camera</span>Scan Part
+                                        </button>
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.hasVoiceMode ? setVoiceOpen(true) : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">mic</span>Voice Mode
+                                        </button>
+                                        <button onClick={() => { setNavOverflowOpen(false); setSafetyPanelOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">health_and_safety</span>Safety Auditor
+                                        </button>
+                                        <button onClick={() => { setNavOverflowOpen(false); setTemplatePickerOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 rounded-xl transition-colors text-left" role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">dashboard_customize</span>Templates
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <IconButton
+                                icon="data_object"
+                                onClick={tierInfo.canExportJSON ? handleExport : () => setUpgradeOpen(true)}
+                                className={`${tierInfo.canExportJSON ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' : 'text-slate-300 cursor-not-allowed'}`}
+                                title={tierInfo.canExportJSON ? 'Export JSON' : 'Upgrade to export'}
+                            />
+                            <IconButton
+                                icon="table_view"
+                                onClick={tierInfo.canExportCSV ? handleExportCSV : () => setUpgradeOpen(true)}
+                                className={`${tierInfo.canExportCSV ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700' : 'text-slate-300 cursor-not-allowed'}`}
+                                title={tierInfo.canExportCSV ? 'Export CSV' : 'Upgrade to export'}
+                            />
+                            <IconButton
+                                icon="picture_as_pdf"
+                                onClick={tierInfo.canExportPDF ? handleExportPDF : () => setUpgradeOpen(true)}
+                                className={`${tierInfo.canExportPDF ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' : 'text-slate-300 cursor-not-allowed'}`}
+                                title={tierInfo.canExportPDF ? 'Export PDF' : 'Upgrade to export'}
+                            />
+                            <IconButton
+                                icon="file_open"
+                                onClick={() => setImportModalOpen(true)}
+                                className="text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
+                                title="Import BOM"
+                            />
 
-                    <IconButton
-                        icon="data_object"
-                        onClick={tierInfo.canExportJSON ? handleExport : () => setUpgradeOpen(true)}
-                        className={`${tierInfo.canExportJSON ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' : 'text-slate-300 cursor-not-allowed'}`}
-                        title={tierInfo.canExportJSON ? 'Export JSON' : 'Upgrade to export'}
-                    />
-                    <IconButton
-                        icon="table_view"
-                        onClick={tierInfo.canExportCSV ? handleExportCSV : () => setUpgradeOpen(true)}
-                        className={`${tierInfo.canExportCSV ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700' : 'text-slate-300 cursor-not-allowed'}`}
-                        title={tierInfo.canExportCSV ? 'Export CSV' : 'Upgrade to export'}
-                    />
-                    <IconButton
-                        icon="picture_as_pdf"
-                        onClick={tierInfo.canExportPDF ? handleExportPDF : () => setUpgradeOpen(true)}
-                        className={`${tierInfo.canExportPDF ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' : 'text-slate-300 cursor-not-allowed'}`}
-                        title={tierInfo.canExportPDF ? 'Export PDF' : 'Upgrade to export'}
-                    />
-                    <IconButton
-                        icon="file_open"
-                        onClick={() => setImportModalOpen(true)}
-                        className="text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
-                        title="Import BOM"
-                    />
+                            <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
 
-                    <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
-
-                    <IconButton
-                        icon="photo_camera"
-                        onClick={() => setScanPartOpen(true)}
-                        className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
-                        title="Scan Part"
-                    />
-                    <IconButton
-                        icon="mic"
-                        onClick={tierInfo.hasVoiceMode ? () => setVoiceOpen(true) : () => setUpgradeOpen(true)}
-                        className={tierInfo.hasVoiceMode ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-slate-300 cursor-not-allowed'}
-                        title={tierInfo.hasVoiceMode ? 'Voice Mode' : 'Upgrade for Voice Mode'}
-                    />
-                    <IconButton
-                        icon="health_and_safety"
-                        onClick={() => setSafetyPanelOpen(true)}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        title="Safety Auditor"
-                    />
-                    <IconButton
-                        icon="dashboard_customize"
-                        onClick={() => setTemplatePickerOpen(true)}
-                        className="text-teal-600 hover:bg-teal-50 hover:text-teal-700"
-                        title="Project Templates"
-                    />
+                            <IconButton
+                                icon="photo_camera"
+                                onClick={() => setScanPartOpen(true)}
+                                className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
+                                title="Scan Part"
+                            />
+                            <IconButton
+                                icon="mic"
+                                onClick={tierInfo.hasVoiceMode ? () => setVoiceOpen(true) : () => setUpgradeOpen(true)}
+                                className={tierInfo.hasVoiceMode ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-slate-300 cursor-not-allowed'}
+                                title={tierInfo.hasVoiceMode ? 'Voice Mode' : 'Upgrade for Voice Mode'}
+                            />
+                            <IconButton
+                                icon="health_and_safety"
+                                onClick={() => setSafetyPanelOpen(true)}
+                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                title="Safety Auditor"
+                            />
+                            <IconButton
+                                icon="dashboard_customize"
+                                onClick={() => setTemplatePickerOpen(true)}
+                                className="text-teal-600 hover:bg-teal-50 hover:text-teal-700"
+                                title="Project Templates"
+                            />
+                        </>
+                    )}
                 </div>
 
-                <div className="pb-2 flex flex-col gap-2 items-center">
+                <div className="pb-2 flex flex-col gap-2 items-center shrink-0 mt-auto">
                     {tierInfo.tier === 'free' && (
                         <IconButton
                             icon="rocket_launch"
@@ -2570,10 +2640,10 @@ const AppContent: React.FC = () => {
             </nav>
 
             {/* Main Content Area - Split Pane Layout */}
-            <main id="main-content" className="flex-1 flex overflow-hidden relative gap-3 h-full">
+            <main id="main-content" className="flex-1 flex overflow-hidden relative gap-3 h-full min-h-0 min-w-0">
 
                 {/* PANE 1: DRAFTING TABLE (Chat & Vis) */}
-                <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
+                <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative min-h-0 min-w-0 ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
                     {/* Toolbar */}
                     <header className="px-6 py-4 flex justify-between items-center bg-white z-20 shrink-0">
                         <div className="flex items-center gap-3 lg:hidden">
@@ -2703,10 +2773,10 @@ const AppContent: React.FC = () => {
                     </header>
 
                     {/* Hero Visualizer — Block Diagram + Image Gallery */}
-                    <div className="px-4 pb-2 h-[30%] md:h-[40%] shrink-0 flex flex-col">
+                    <div className="px-4 pb-2 h-[30%] md:h-[40%] shrink-0 flex flex-col min-h-0 min-w-0">
                         {session.visualManifest && session.visualManifest.components.length > 0 ? (
-                            <div className="flex-1 flex gap-2 min-h-0">
-                                <div className="flex-1 min-w-0">
+                            <div className="flex-1 flex gap-2 min-h-0 min-w-0">
+                                <div className="flex-1 min-w-0 min-h-0">
                                     <VisualManifestRenderer
                                         manifest={session.visualManifest}
                                         bom={session.bom}
@@ -2716,7 +2786,7 @@ const AppContent: React.FC = () => {
                                         }}
                                     />
                                 </div>
-                                <div className="w-[40%] min-w-0">
+                                <div className="w-[40%] min-w-0 min-h-0">
                                     <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
                                 </div>
                             </div>
@@ -2905,8 +2975,8 @@ const AppContent: React.FC = () => {
                 </div>
 
                 {/* PANE 2: BOM & ACTIONS (Right Sidebar) */}
-                <div className={`lg:w-[420px] xl:w-[460px] flex-col bg-[#F8FAFC] rounded-[32px] border border-gray-200 shadow-sm overflow-hidden ${mobileTab === 'bom' ? 'flex flex-1' : 'hidden lg:flex'}`}>
-                    <header className="px-6 py-6 bg-white border-b border-gray-100 flex flex-col gap-4">
+                <div className={`lg:w-[420px] xl:w-[460px] flex-col bg-[#F8FAFC] rounded-[32px] border border-gray-200 shadow-sm overflow-hidden min-h-0 min-w-0 ${mobileTab === 'bom' ? 'flex flex-1' : 'hidden lg:flex'}`}>
+                    <header className="px-6 py-6 bg-white border-b border-gray-100 flex flex-col gap-4 shrink-0">
                         <div className="flex justify-between items-end">
                             <div>
                                 <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Total Estimate</h2>
