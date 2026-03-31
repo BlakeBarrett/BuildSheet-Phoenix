@@ -18,28 +18,41 @@ const PRO_BENEFITS = [
   { icon: 'output', label: 'Full Export Suite', description: 'JSON, CSV, PDF, and CAD (OpenSCAD) exports' },
 ];
 
-/** Stripe Price ID — replace with your actual live/test price. */
-const STRIPE_PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || '';
+type BillingCycle = 'monthly' | 'annual';
+
+function env(key: string): string {
+  return (import.meta.env[key] as string)
+    ?? (window as any)._env_?.[key]
+    ?? '';
+}
+
+const STRIPE_PRICES: Record<BillingCycle, string> = {
+  monthly: env('VITE_STRIPE_PRO_MONTHLY_PRICE_ID'),
+  annual: env('VITE_STRIPE_PRO_ANNUAL_PRICE_ID'),
+};
 
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isAuthenticated, onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [billing, setBilling] = useState<BillingCycle>('annual');
 
   if (!isOpen) return null;
+
+  const selectedPriceId = STRIPE_PRICES[billing];
 
   const handleUpgrade = async () => {
     if (!isAuthenticated) {
       onLogin?.();
       return;
     }
-    if (!STRIPE_PRO_PRICE_ID) {
+    if (!selectedPriceId) {
       setError('Stripe is not configured. Please contact support.');
       return;
     }
     setIsLoading(true);
     setError('');
     try {
-      await redirectToCheckout(STRIPE_PRO_PRICE_ID);
+      await redirectToCheckout(selectedPriceId);
     } catch (e: any) {
       setError(e.message || 'Failed to start checkout.');
     } finally {
@@ -59,8 +72,31 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
           <IconButton icon="close" onClick={onClose} title="Close" className="text-white/70 hover:text-white hover:bg-white/20" />
         </div>
 
+        {/* Billing toggle */}
+        <div className="px-8 pt-6 pb-2">
+          <div className="flex bg-slate-100 rounded-[16px] p-1" role="radiogroup" aria-label="Billing cycle">
+            <button
+              role="radio"
+              aria-checked={billing === 'monthly'}
+              onClick={() => setBilling('monthly')}
+              className={`flex-1 py-2.5 text-sm font-bold rounded-[12px] transition-all ${billing === 'monthly' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Monthly
+            </button>
+            <button
+              role="radio"
+              aria-checked={billing === 'annual'}
+              onClick={() => setBilling('annual')}
+              className={`flex-1 py-2.5 text-sm font-bold rounded-[12px] transition-all flex items-center justify-center gap-1.5 ${billing === 'annual' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Annual
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Save 17%</span>
+            </button>
+          </div>
+        </div>
+
         {/* Benefits list */}
-        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-4">
+        <div className="flex-1 overflow-y-auto px-8 py-4 space-y-4">
           {PRO_BENEFITS.map((b, i) => (
             <div key={i} className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-[14px] bg-indigo-50 flex items-center justify-center shrink-0">
@@ -89,7 +125,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
             className="w-full h-14 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg"
             icon={isLoading ? 'sync' : isAuthenticated ? 'rocket_launch' : 'login'}
           >
-            {isLoading ? 'Redirecting to checkout...' : isAuthenticated ? 'Upgrade Now' : 'Sign In to Upgrade'}
+            {isLoading ? 'Redirecting to checkout...' : isAuthenticated ? `Upgrade — ${billing === 'annual' ? 'Annual' : 'Monthly'}` : 'Sign In to Upgrade'}
           </Button>
           <p className="text-[11px] text-slate-400 text-center">Cancel anytime. Powered by Stripe.</p>
         </div>
