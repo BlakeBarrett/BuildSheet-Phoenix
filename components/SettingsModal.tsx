@@ -3,6 +3,7 @@ import { Button, IconButton } from './Material3UI.tsx';
 import { useService } from '../contexts/ServiceContext.tsx';
 import { LocalModelProvider } from '../services/localAiService.ts';
 import { clearAllUserData } from './CookieConsent.tsx';
+import { useTier } from '../hooks/useTier.tsx';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -11,22 +12,27 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const { updateLocalProvider } = useService();
+    const { tier } = useTier();
+    const isEnterprise = tier === 'enterprise';
     const [models, setModels] = useState<LocalModelProvider[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedModelId, setSelectedModelId] = useState<string>('');
     const [selectedAuditModelId, setSelectedAuditModelId] = useState<string>('');
     const [selectedPlanModelId, setSelectedPlanModelId] = useState<string>('');
     const [serverAddress, setServerAddress] = useState<string>('192.168.1.41');
+    const [temperature, setTemperature] = useState<number>(0.7);
 
     useEffect(() => {
         if (isOpen) {
+            const savedTemp = localStorage.getItem('aiTemperature');
+            if (savedTemp) setTemperature(parseFloat(savedTemp));
             let currentAddress = '192.168.1.41';
             const savedAddress = localStorage.getItem('localArchitectAddress');
             if (savedAddress) {
                 setServerAddress(savedAddress);
                 currentAddress = savedAddress;
             }
-            fetchModels(currentAddress);
+            if (isEnterprise) fetchModels(currentAddress);
             const saved = localStorage.getItem('localArchitectProvider');
             if (saved) {
                 try {
@@ -98,32 +104,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     };
 
     const handleSave = () => {
-        localStorage.setItem('localArchitectAddress', serverAddress);
-        if (!selectedModelId) {
-            updateLocalProvider(null);
-        } else {
-            const provider = models.find(m => m.id === selectedModelId);
-            if (provider) {
-                updateLocalProvider(provider);
+        localStorage.setItem('aiTemperature', String(temperature));
+        if (isEnterprise) {
+            localStorage.setItem('localArchitectAddress', serverAddress);
+            if (!selectedModelId) {
+                updateLocalProvider(null);
+            } else {
+                const provider = models.find(m => m.id === selectedModelId);
+                if (provider) {
+                    updateLocalProvider(provider);
+                }
             }
-        }
-        // Save audit model
-        if (selectedAuditModelId) {
-            const auditProvider = models.find(m => m.id === selectedAuditModelId);
-            if (auditProvider) {
-                localStorage.setItem('localAuditProvider', JSON.stringify(auditProvider));
+            // Save audit model
+            if (selectedAuditModelId) {
+                const auditProvider = models.find(m => m.id === selectedAuditModelId);
+                if (auditProvider) {
+                    localStorage.setItem('localAuditProvider', JSON.stringify(auditProvider));
+                }
+            } else {
+                localStorage.removeItem('localAuditProvider');
             }
-        } else {
-            localStorage.removeItem('localAuditProvider');
-        }
-        // Save plan model
-        if (selectedPlanModelId) {
-            const planProvider = models.find(m => m.id === selectedPlanModelId);
-            if (planProvider) {
-                localStorage.setItem('localPlanProvider', JSON.stringify(planProvider));
+            // Save plan model
+            if (selectedPlanModelId) {
+                const planProvider = models.find(m => m.id === selectedPlanModelId);
+                if (planProvider) {
+                    localStorage.setItem('localPlanProvider', JSON.stringify(planProvider));
+                }
+            } else {
+                localStorage.removeItem('localPlanProvider');
             }
-        } else {
-            localStorage.removeItem('localPlanProvider');
         }
         onClose();
     };
@@ -139,7 +148,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
                 
                 <div className="p-6 space-y-4">
+                    {/* Temperature slider — available to all tiers */}
                     <div>
+                        <label htmlFor="ai-temperature" className="block text-sm font-bold text-slate-700 mb-1">Temperature</label>
+                        <p className="text-xs text-slate-600 mb-3">
+                            Controls AI creativity. Lower values produce more focused, deterministic responses. Higher values are more creative and varied.
+                        </p>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-500 w-14">Precise</span>
+                            <input
+                                id="ai-temperature"
+                                type="range"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={temperature}
+                                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                                className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600"
+                            />
+                            <span className="text-xs text-slate-500 w-14 text-right">Creative</span>
+                            <span className="text-sm font-mono font-bold text-slate-700 w-10 text-center bg-slate-100 rounded-lg py-1">{temperature.toFixed(1)}</span>
+                        </div>
+                    </div>
+
+                    {/* Model selection — Enterprise only */}
+                    <div className={!isEnterprise ? 'opacity-50 pointer-events-none' : ''}>
+                        {!isEnterprise && (
+                            <div className="flex items-center gap-2 mb-3 p-2.5 bg-amber-50 rounded-xl">
+                                <span className="material-symbols-rounded text-amber-600 text-[18px]" aria-hidden="true">lock</span>
+                                <span className="text-xs font-medium text-amber-700">Custom model selection requires an Enterprise plan.</span>
+                            </div>
+                        )}
                         <label htmlFor="server-address" className="block text-sm font-bold text-slate-700 mb-1">Server Address</label>
                         <p className="text-xs text-slate-600 mb-2">
                             The IP address or hostname of your AI server.
@@ -232,7 +271,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 <div className="p-6 border-t border-gray-100 flex flex-col gap-3 bg-slate-50">
                     <div className="flex justify-end gap-3">
-                        <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>Refresh Models</Button>
+                        {isEnterprise && <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>Refresh Models</Button>}
                         <Button variant="primary" onClick={handleSave}>Save Changes</Button>
                     </div>
                     <div className="border-t border-gray-200 pt-3">

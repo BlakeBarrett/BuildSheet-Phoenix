@@ -3,6 +3,7 @@ import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/ge
 import { AIService, ArchitectResponse, AskArchitectResult, ComponentIdentification } from "./aiTypes.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
+import { getAiTemperature } from "./localAiService.ts";
 
 const SYSTEM_INSTRUCTION = `
 ROLE: You are Gemini, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
@@ -110,7 +111,7 @@ export class GeminiService implements AIService {
                 contents,
                 config: {
                     systemInstruction: SYSTEM_INSTRUCTION,
-                    temperature: 0.7,
+                    temperature: getAiTemperature(0.7),
                 },
             });
 

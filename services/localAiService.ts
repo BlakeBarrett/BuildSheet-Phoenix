@@ -20,6 +20,18 @@ export function getLocalProvider(key: string): LocalModelProvider | null {
     return null;
 }
 
+/**
+ * Read the user's preferred AI temperature from localStorage.
+ * Falls back to the given default (0.7 for chat, 0.3 for audits).
+ */
+export function getAiTemperature(fallback = 0.7): number {
+    try {
+        const saved = localStorage.getItem('aiTemperature');
+        if (saved) return parseFloat(saved);
+    } catch { /* noop */ }
+    return fallback;
+}
+
 // Local service handles askArchitect via LM Studio or Ollama (OpenAI compatible)
 export class LocalArchitectService {
     public isOffline = false;
@@ -84,7 +96,7 @@ TOOLS:
             const body = {
                 model: this.provider.id,
                 messages: messages,
-                temperature: 0.7,
+                temperature: getAiTemperature(0.7),
                 max_tokens: 4096,
             };
 
@@ -151,7 +163,7 @@ TOOLS:
                     { role: 'system', content: 'You are a senior hardware engineering auditor. Verify build feasibility and recommend BOM changes as structured JSON.' },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.3,
+                temperature: getAiTemperature(0.3),
                 max_tokens: 8192,
             };
 
@@ -203,7 +215,7 @@ TOOLS:
                     { role: 'system', content: 'You are a robotics assembly planner. Output valid JSON only.' },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.3,
+                temperature: getAiTemperature(0.3),
                 max_tokens: 8192,
             };
 
