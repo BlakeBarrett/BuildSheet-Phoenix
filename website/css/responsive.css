@@ -44,7 +44,7 @@
 
   /* Hero */
   .hero {
-    padding-top: calc(var(--space-16) + 60px);
+    padding-top: calc(var(--space-16) + 60px + 52px); /* extra for wrapped promo banner on mobile */
     padding-bottom: var(--space-12);
     min-height: auto;
   }

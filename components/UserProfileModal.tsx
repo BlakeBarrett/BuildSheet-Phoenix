@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types.ts';
-import { Button, IconButton, Chip } from './Material3UI.tsx';
+import { Button, IconButton, Chip, UserAvatar } from './Material3UI.tsx';
 
 interface UserProfileModalProps {
     isOpen: boolean;
@@ -64,13 +64,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
 
                 {/* Avatar — overlapping the header */}
                 <div className="relative -mt-10 px-8">
-                    <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-indigo-100">
-                        {user.avatar ? (
-                            <img src={user.avatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-                        ) : null}
-                        <div className={`w-full h-full flex items-center justify-center text-indigo-600 text-3xl font-bold ${user.avatar ? 'hidden' : ''}`}>
-                            {user.name.charAt(0).toUpperCase()}
-                        </div>
+                    <div className="border-4 border-white shadow-lg rounded-full inline-block">
+                        <UserAvatar avatar={user.avatar} name={user.name} sizeClass="w-20 h-20" />
                     </div>
                 </div>
 

@@ -10,7 +10,7 @@
   justify-content: center;
   position: relative;
   overflow: hidden;
-  padding-top: calc(var(--space-20) + 60px); /* account for fixed navbar */
+  padding-top: calc(var(--space-20) + 60px + 36px); /* account for fixed navbar + promo banner */
   padding-bottom: var(--space-20);
   background: var(--gradient-hero);
 }

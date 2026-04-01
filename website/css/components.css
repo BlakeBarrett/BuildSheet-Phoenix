@@ -2,10 +2,66 @@
    BuildSheet — Reusable Components
    ============================================ */
 
+/* ── Launch Promo Banner ────────────────────── */
+.promo-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1100;
+  background: linear-gradient(135deg, #059669, #06B6D4);
+  color: white;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+}
+
+.promo-banner__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  max-width: var(--container-xl);
+  margin-inline: auto;
+}
+
+.promo-banner__sparkle {
+  font-size: 1rem;
+}
+
+.promo-banner__text {
+  font-weight: var(--weight-medium);
+}
+
+.promo-banner__code {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: 0.05em;
+}
+
+.promo-banner__cta {
+  color: white;
+  font-weight: var(--weight-bold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.2s;
+}
+
+.promo-banner__cta:hover {
+  opacity: 0.85;
+}
+
+/* Push navbar below promo banner */
+
 /* ── Navbar ─────────────────────────────────── */
 .navbar {
   position: fixed;
-  top: 0;
+  top: 36px;
   left: 0;
   right: 0;
   z-index: var(--z-navbar);

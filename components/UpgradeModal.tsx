@@ -85,6 +85,14 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
           <IconButton icon="close" onClick={onClose} title="Close" className="text-white/70 hover:text-white hover:bg-white/20" />
         </div>
 
+        {/* Launch promo */}
+        <div className="mx-8 mt-4 p-3 rounded-[14px] bg-gradient-to-r from-emerald-50 to-cyan-50 border border-emerald-200 text-center">
+          <p className="text-sm font-bold text-emerald-700">🚀 Free Pro until Summer 2026</p>
+          <p className="text-xs text-emerald-600 mt-0.5">
+            Code <code className="bg-emerald-100 px-1.5 py-0.5 rounded font-bold text-emerald-800">LAUNCH100</code> auto-applied at checkout
+          </p>
+        </div>
+
         {/* Billing toggle */}
         <div className="px-8 pt-6 pb-2">
           <div className="flex bg-slate-100 rounded-[16px] p-1" role="radiogroup" aria-label="Billing cycle">
@@ -138,7 +146,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
             className="w-full h-14 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg"
             icon={isLoading ? 'sync' : isAuthenticated ? 'rocket_launch' : 'login'}
           >
-            {isLoading ? 'Redirecting to checkout...' : isAuthenticated ? `Upgrade — ${billing === 'annual' ? 'Annual' : 'Monthly'}` : 'Sign In to Upgrade'}
+            {isLoading ? 'Redirecting to checkout...' : isAuthenticated ? 'Claim Free Pro' : 'Sign In to Upgrade'}
           </Button>
           <p className="text-[11px] text-slate-400 text-center">Cancel anytime. Powered by Stripe.</p>
         </div>

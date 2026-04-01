@@ -1,4 +1,55 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+
+/**
+ * UserAvatar — renders a user's photo if available, falls back to initials.
+ *
+ * Key implementation notes:
+ * - Uses React state (not nextElementSibling DOM mutation) so fallback is
+ *   stable across re-renders.
+ * - Sets referrerPolicy="no-referrer" on the <img>: Google / Firebase profile
+ *   photo URLs (lh3.googleusercontent.com) reject requests that include a
+ *   Referer header from localhost, which causes onError to fire and the photo
+ *   to never appear. no-referrer suppresses the header and the photo loads.
+ * - Resets imgError when the avatar URL changes so a later-valid URL is retried.
+ */
+export const UserAvatar: React.FC<{
+  avatar: string;
+  name: string;
+  /** Tailwind size classes, e.g. "w-8 h-8". Defaults to "w-8 h-8". */
+  sizeClass?: string;
+  /** Extra classes applied to the root element. */
+  className?: string;
+}> = ({ avatar, name, sizeClass = 'w-8 h-8', className = '' }) => {
+  const [imgError, setImgError] = useState(false);
+
+  // If the avatar URL changes (e.g. user updates profile photo), retry the image.
+  useEffect(() => { setImgError(false); }, [avatar]);
+
+  const showFallback = !avatar || imgError;
+  const initial = name ? name.charAt(0).toUpperCase() : '?';
+
+  // Derive text-size from container size heuristically
+  const textSize = sizeClass.includes('w-20') ? 'text-3xl' : sizeClass.includes('w-10') ? 'text-sm' : sizeClass.includes('w-6') ? 'text-xs' : 'text-sm';
+
+  return (
+    <div className={`${sizeClass} rounded-full overflow-hidden bg-indigo-100 flex items-center justify-center shrink-0 ${className}`}>
+      {!showFallback && (
+        <img
+          src={avatar}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      )}
+      {showFallback && (
+        <span className={`font-bold text-indigo-700 ${textSize}`} aria-hidden="true">
+          {initial}
+        </span>
+      )}
+    </div>
+  );
+};
 
 // M3 Card: Elevated or Filled surface with large corner radius
 export const Card: React.FC<{ children: React.ReactNode, className?: string, onClick?: () => void, variant?: 'elevated' | 'filled' | 'outlined', style?: React.CSSProperties }> = ({ children, className, onClick, variant = 'elevated', style }) => {

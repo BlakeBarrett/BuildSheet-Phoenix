@@ -40,6 +40,19 @@
 <body>
 
   <!-- ═══════════════════════════════════════════
+       LAUNCH PROMO BANNER
+       ═══════════════════════════════════════════ -->
+  <div class="promo-banner" role="banner" aria-label="Launch promotion">
+    <div class="promo-banner__inner">
+      <span class="promo-banner__sparkle" aria-hidden="true">🚀</span>
+      <span class="promo-banner__text">
+        <strong>Free Pro until Summer 2026</strong> — Use code <code class="promo-banner__code">LAUNCH100</code> at checkout
+      </span>
+      <a href="#pricing" class="promo-banner__cta">Get Started &rarr;</a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
        NAVBAR
        ═══════════════════════════════════════════ -->
   <nav class="navbar" role="navigation" aria-label="Main navigation">
@@ -321,10 +334,13 @@
           <h3 class="pricing-card__name">Pro</h3>
           <p class="pricing-card__description">For serious makers and professional engineers.</p>
           <div class="pricing-card__price">
-            <span class="pricing-card__amount" id="price-pro" style="transition: all 0.15s ease">$5</span>
+            <span class="pricing-card__amount" id="price-pro" style="transition: all 0.15s ease; text-decoration: line-through; opacity: 0.5;">$5</span>
             <span class="pricing-card__period" id="period-pro">/mo</span>
           </div>
-          <p style="font-size: 0.8rem; color: var(--color-accent-teal); font-weight: 600; margin-top: -0.75rem; margin-bottom: 0.75rem;">✦ Introductory Pricing</p>
+          <div style="margin-top: -0.5rem; margin-bottom: 0.75rem;">
+            <span style="font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, #10B981, #06B6D4); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Free</span>
+            <span style="font-size: 0.8rem; color: var(--color-success); font-weight: 600; display: block;">until Summer 2026 with code <code style="background: rgba(16,185,129,0.15); padding: 2px 6px; border-radius: 4px; font-weight: 700; color: var(--color-success);">LAUNCH100</code></span>
+          </div>
           <p class="pricing-card__annual-note" style="display: none; font-size: 0.8rem; color: var(--color-success); margin-top: -1rem; margin-bottom: 1rem;">Billed at $48/year</p>
           <ul class="pricing-card__features">
             <li class="pricing-card__feature">
@@ -348,7 +364,7 @@
               Visual assembly view
             </li>
           </ul>
-          <a href="/app/?login=true" class="btn btn--primary" style="width: 100%;">Start Free Trial</a>
+          <a href="/app/?login=true" class="btn btn--primary" style="width: 100%;">Claim Free Pro</a>
         </div>
 
         <!-- Team Tier -->

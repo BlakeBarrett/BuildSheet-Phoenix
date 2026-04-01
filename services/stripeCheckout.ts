@@ -6,6 +6,12 @@ import {
 } from '@invertase/firestore-stripe-payments';
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 
+/**
+ * Launch promotion — auto-applied to all checkout sessions.
+ * Free Pro / Enterprise until 30 Jun 2026.  Expires 1 Jul 2026.
+ */
+const LAUNCH_PROMO_CODE = 'promo_1THXv5DWtg9s0tYcn8ElRlE6';
+
 let payments: StripePayments | null = null;
 
 /**
@@ -52,6 +58,7 @@ export async function redirectToCheckout(priceId: string): Promise<void> {
     automatic_tax: true,
     tax_id_collection: true,
     customer_creation: 'if_required',
+    promotion_code: LAUNCH_PROMO_CODE,
   });
 
   // Listen for the extension to write back either a URL or an error.

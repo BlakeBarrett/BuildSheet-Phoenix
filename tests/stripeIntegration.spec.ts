@@ -1,4 +1,9 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test.describe('Stripe Integration & Tier Gating', () => {
 
@@ -279,5 +284,73 @@ test.describe('Stripe Integration & Tier Gating', () => {
             const modalVisible = await upgradeModal.count();
             expect(modalVisible).toBeGreaterThanOrEqual(1);
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// LAUNCH100 Promo – source-code and UI tests
+// ---------------------------------------------------------------------------
+
+test.describe('LAUNCH100 Promo Code', () => {
+
+    test('stripeCheckout.ts contains the correct Stripe promo object ID', () => {
+        const src = fs.readFileSync(
+            path.join(__dirname, '../services/stripeCheckout.ts'),
+            'utf-8'
+        );
+        expect(src).toContain('promo_1THXv5DWtg9s0tYcn8ElRlE6');
+        expect(src).toContain('LAUNCH_PROMO_CODE');
+    });
+
+    test('stripeCheckout.ts passes promotion_code in every checkout session', () => {
+        const src = fs.readFileSync(
+            path.join(__dirname, '../services/stripeCheckout.ts'),
+            'utf-8'
+        );
+        // The promo must be passed as a field in the Firestore document,
+        // not just defined as a constant.
+        expect(src).toContain('promotion_code: LAUNCH_PROMO_CODE');
+    });
+
+    test('marketing site index.html includes the promo banner with LAUNCH100 code', () => {
+        const html = fs.readFileSync(
+            path.join(__dirname, '../website/index.html'),
+            'utf-8'
+        );
+        expect(html).toContain('promo-banner');
+        expect(html).toContain('LAUNCH100');
+        expect(html).toContain('Free Pro');
+    });
+
+    test('marketing site Pro pricing card shows LAUNCH100 code', () => {
+        const html = fs.readFileSync(
+            path.join(__dirname, '../website/index.html'),
+            'utf-8'
+        );
+        // The Pro card should show LAUNCH100 and communicate the free tier
+        expect(html).toContain('LAUNCH100');
+    });
+
+    test('UpgradeModal source shows promo callout with LAUNCH100', () => {
+        const src = fs.readFileSync(
+            path.join(__dirname, '../components/UpgradeModal.tsx'),
+            'utf-8'
+        );
+        expect(src).toContain('LAUNCH100');
+    });
+
+    test('upgrade modal shows promo callout in the UI', async ({ page }) => {
+        await page.goto('http://localhost:3000');
+        await page.waitForSelector('#main-content', { timeout: 10000 });
+
+        // Open the upgrade modal via the rocket button in the nav rail
+        const upgradeBtn = page.locator('nav button[title="Upgrade to Pro"]').first();
+        await upgradeBtn.click();
+        await page.waitForTimeout(500);
+
+        // The promo callout should be visible in the modal
+        const promoText = page.locator('text=LAUNCH100');
+        const count = await promoText.count();
+        expect(count).toBeGreaterThanOrEqual(1);
     });
 });

@@ -8,7 +8,7 @@ import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS } from './types.ts';
-import { Button, Chip, Card, GoogleSignInButton, IconButton } from './components/Material3UI.tsx';
+import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
 import { ARGuideView } from './components/ARGuideView.tsx';
@@ -2628,16 +2628,11 @@ const AppContent: React.FC = () => {
                     {currentUser ? (
                         <button
                             onClick={() => setIsProfileOpen(true)}
-                            className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                            className="rounded-full border-2 border-transparent hover:border-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                             title={`Profile: ${currentUser.name}`}
                             aria-label="Open profile"
                         >
-                            {currentUser.avatar ? (
-                                <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-                            ) : null}
-                            <div className={`w-full h-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm ${currentUser.avatar ? 'hidden' : ''}`}>
-                                {currentUser.name.charAt(0).toUpperCase()}
-                            </div>
+                            <UserAvatar avatar={currentUser.avatar} name={currentUser.name} sizeClass="w-10 h-10" />
                         </button>
                     ) : isFirebaseConfigured() ? (
                         <IconButton
@@ -2733,13 +2728,7 @@ const AppContent: React.FC = () => {
                                                 aria-expanded={authMenuOpen}
                                                 aria-haspopup="true"
                                             >
-                                                {currentUser.avatar ? (
-                                                    <img src={currentUser.avatar} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                                                ) : (
-                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0" aria-hidden="true">
-                                                        {currentUser.name.charAt(0).toUpperCase()}
-                                                    </div>
-                                                )}
+                                                <UserAvatar avatar={currentUser.avatar} name={currentUser.name} sizeClass="w-8 h-8" />
                                                 <span className="hidden md:block text-sm font-semibold text-slate-700 max-w-[96px] truncate">{currentUser.name.split(' ')[0]}</span>
                                                 <span className="material-symbols-rounded text-[16px] text-slate-400 hidden md:block" aria-hidden="true">expand_more</span>
                                             </button>
@@ -3191,14 +3180,7 @@ const AppContent: React.FC = () => {
                         >
                             <div className="px-5 py-1 rounded-full transition-colors">
                                 {currentUser ? (
-                                    <>
-                                        {currentUser.avatar ? (
-                                            <img src={currentUser.avatar} alt="" className="w-6 h-6 rounded-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-                                        ) : null}
-                                        <div className={`w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs ${currentUser.avatar ? 'hidden' : ''}`}>
-                                            {currentUser.name.charAt(0).toUpperCase()}
-                                        </div>
-                                    </>
+                                    <UserAvatar avatar={currentUser.avatar} name={currentUser.name} sizeClass="w-6 h-6" />
                                 ) : (
                                     <span className="material-symbols-rounded text-[24px] text-indigo-600" aria-hidden="true">login</span>
                                 )}
