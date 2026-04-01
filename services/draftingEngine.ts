@@ -2,7 +2,7 @@ import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, Visu
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 import { getFirebaseDb } from './firebase.ts';
-import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { get, set, del } from 'idb-keyval';
 
 export interface ProjectIndexEntry {
@@ -133,7 +133,9 @@ export class DraftingEngine {
       messages: [],
       createdAt: new Date(),
       lastModified: new Date(),
-      cacheIsDirty: true
+      cacheIsDirty: true,
+      archived: false,
+      tags: [],
     };
   }
 
@@ -235,7 +237,8 @@ export class DraftingEngine {
         lastModified: session.lastModified,
         preview: session.bom.length > 0 ? `${session.bom.length} Parts` : 'Empty Draft',
         thumbnail,
-        tags: existing?.tags || [],
+        archived: session.archived ?? existing?.archived ?? false,
+        tags: session.tags ?? existing?.tags ?? [],
       });
       localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
     } catch (e) {
@@ -245,10 +248,28 @@ export class DraftingEngine {
 
   // getProjectsList moved to below CSV/Import methods (supports includeArchived flag)
 
-  public loadProject(id: string) {
+  public async loadProject(id: string): Promise<void> {
+    let data: any = null;
+
+    // Try localStorage first (fast path)
     const stored = localStorage.getItem(this.SESSION_PREFIX + id);
     if (stored) {
-      this.session = this.hydrateSession(JSON.parse(stored));
+      try { data = JSON.parse(stored); } catch { /* ignore */ }
+    }
+
+    // Firestore fallback for authenticated users whose localStorage is cold (new device, quota exceeded)
+    if (!data && UserService.isAuthenticated()) {
+      const col = this.getFirestoreProjectsCollection();
+      if (col) {
+        try {
+          const d = await getDoc(doc(col, id));
+          if (d.exists()) data = d.data();
+        } catch (e) { console.error('Firestore project load failed', e); }
+      }
+    }
+
+    if (data) {
+      this.session = this.hydrateSession(data);
       this.saveSession(); // Updates modified date and moves to top of index
       this.loadImagesAsync();
     }
@@ -685,19 +706,55 @@ export class DraftingEngine {
 
   // --- Tag Management ---
 
-  public setProjectTags(projectId: string, tags: string[]) {
+  /**
+   * Patches metadata fields (archived, tags) across all persistence layers:
+   * 1. The stored session blob in localStorage (so the session document is up-to-date)
+   * 2. The project index in localStorage (so the navigator reflects changes immediately)
+   * 3. The in-memory session if it is the active project
+   * 4. Firestore (fire-and-forget updateDoc so authenticated users see changes on other devices)
+   */
+  private patchProjectMetadata(id: string, fields: Partial<Pick<DraftingSession, 'archived' | 'tags'>>) {
+    // 1. Patch the stored session blob (without touching lastModified)
+    const sessionKey = this.SESSION_PREFIX + id;
+    try {
+      const stored = localStorage.getItem(sessionKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        localStorage.setItem(sessionKey, JSON.stringify({ ...parsed, ...fields }));
+      }
+    } catch { /* ignore quota/parse errors */ }
+
+    // 2. Patch the project index entry
     try {
       const indexRaw = localStorage.getItem(this.INDEX_KEY);
-      if (!indexRaw) return;
-      const index: any[] = JSON.parse(indexRaw);
-      const entry = index.find(i => i.id === projectId);
-      if (entry) {
-        entry.tags = tags;
-        localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+      if (indexRaw) {
+        const index: any[] = JSON.parse(indexRaw);
+        const entry = index.find(i => i.id === id);
+        if (entry) {
+          Object.assign(entry, fields);
+          localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+        }
       }
-    } catch (e) {
-      console.warn("Failed to set project tags", e);
+    } catch { /* ignore */ }
+
+    // 3. Patch in-memory session if this is the active project
+    if (this.session.id === id) {
+      Object.assign(this.session, fields);
     }
+
+    // 4. Fire-and-forget Firestore patch for authenticated users
+    if (UserService.isAuthenticated()) {
+      const col = this.getFirestoreProjectsCollection();
+      if (col) {
+        updateDoc(doc(col, id), fields).catch(e =>
+          console.error('Firestore metadata patch failed', e)
+        );
+      }
+    }
+  }
+
+  public setProjectTags(projectId: string, tags: string[]) {
+    this.patchProjectMetadata(projectId, { tags });
   }
 
   public getProjectTags(projectId: string): string[] {
@@ -836,7 +893,8 @@ export class DraftingEngine {
       (entry.part.price * entry.quantity).toFixed(2),
       escapeCSV(entry.part.description || '')
     ].join(','));
-    return [headers.join(','), ...rows].join('\n');
+    const disclaimer = '# Generated by BuildSheet AI — verify all specifications before procurement or fabrication.';
+    return [disclaimer, headers.join(','), ...rows].join('\n');
   }
 
   // --- CSV Import ---
@@ -1068,25 +1126,11 @@ export class DraftingEngine {
   // --- Project Archiving ---
 
   public archiveProject(id: string) {
-    const indexRaw = localStorage.getItem(this.INDEX_KEY);
-    if (!indexRaw) return;
-    const index = JSON.parse(indexRaw);
-    const entry = index.find((i: any) => i.id === id);
-    if (entry) {
-      entry.archived = true;
-      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
-    }
+    this.patchProjectMetadata(id, { archived: true });
   }
 
   public unarchiveProject(id: string) {
-    const indexRaw = localStorage.getItem(this.INDEX_KEY);
-    if (!indexRaw) return;
-    const index = JSON.parse(indexRaw);
-    const entry = index.find((i: any) => i.id === id);
-    if (entry) {
-      entry.archived = false;
-      localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
-    }
+    this.patchProjectMetadata(id, { archived: false });
   }
 
   public getProjectsList(includeArchived = false): ProjectIndexEntry[] {

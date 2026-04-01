@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Changelog — BuildSheet</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+
+  <style>
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 4rem 2rem;
+      max-width: 700px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      margin-bottom: 3rem;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--text-primary); }
+    h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--text-secondary);
+      margin-bottom: 3rem;
+    }
+    .entry {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 0 2rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
+    }
+    .entry:last-of-type { border-bottom: none; }
+    .entry-date {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      padding-top: 0.15rem;
+      white-space: nowrap;
+    }
+    .entry-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 0.4rem;
+    }
+    .entry-body {
+      color: var(--text-secondary);
+      font-size: 0.9375rem;
+      margin: 0;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      margin-right: 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+    .tag-feature  { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .tag-fix      { background: rgba(34,197,94,0.12);  color: #4ade80; }
+    .tag-trust    { background: rgba(234,179,8,0.12);  color: #facc15; }
+    .tag-export   { background: rgba(14,165,233,0.12); color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-link">&#8592; Back to BuildSheet</a>
+
+  <h1>Changelog</h1>
+  <p class="subtitle">A running log of what's shipped. Newest first.</p>
+
+  <div class="entry">
+    <span class="entry-date">March 2026</span>
+    <div>
+      <div class="entry-title">Trust &amp; Credibility Update</div>
+      <span class="tag tag-trust">Trust</span>
+      <span class="tag tag-export">Export</span>
+      <p class="entry-body">
+        Added a persistent draft-quality disclaimer below the chat input so users always know AI outputs require verification.
+        PDF and CSV exports now include a disclaimer header.
+        SOC 2 wording updated to accurately reflect Google Cloud infrastructure compliance (not a BuildSheet audit claim).
+        About page added — no more Devpost links in production.
+        Dead "coming soon" footer links removed.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">March 2026</span>
+    <div>
+      <div class="entry-title">Gemini Nano Banana + Visualizer Tests</div>
+      <span class="tag tag-feature">Feature</span>
+      <span class="tag tag-fix">Fix</span>
+      <p class="entry-body">
+        Updated GeminiService to display the 'Nano Banana' model name in the UI. Added unit tests for GeminiService
+        covering API key handling and error management. Added visualizer tests.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">February 2026</span>
+    <div>
+      <div class="entry-title">Storage Optimizations &amp; Drafting Session Improvements</div>
+      <span class="tag tag-feature">Feature</span>
+      <p class="entry-body">
+        Implemented storage optimizations for drafting sessions. Added Docker deployment and testing scripts.
+        Improved environment variable handling and AI service initialization.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">February 2026</span>
+    <div>
+      <div class="entry-title">Safety Auditor + Voice Mode</div>
+      <span class="tag tag-feature">Feature</span>
+      <p class="entry-body">
+        Launched the Safety Auditor panel — validate your BOM against configurable compliance checks with structured
+        add/remove actions. Added "Greasy Hands" Voice Mode (Pro+): push-to-talk hands-free assistant using
+        browser SpeechRecognition and SpeechSynthesis with Gemini context.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">January 2026</span>
+    <div>
+      <div class="entry-title">Visual Assembly Block Diagram</div>
+      <span class="tag tag-feature">Feature</span>
+      <p class="entry-body">
+        The Chilton Visualizer now renders an interactive SVG block diagram of your build's component relationships.
+        Blocks are clickable (jumps to BOM entry), pan/zoom enabled, with port connection lines and color-coded port types.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">January 2026</span>
+    <div>
+      <div class="entry-title">CSV &amp; Paste BOM Import</div>
+      <span class="tag tag-feature">Feature</span>
+      <span class="tag tag-export">Export</span>
+      <p class="entry-body">
+        Import a BOM from CSV (drag-and-drop or file picker) with auto-detected column mapping.
+        Paste a free-text parts list and AI parses it into structured BOM entries.
+        CSV export added to the nav rail.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">January 2026</span>
+    <div>
+      <div class="entry-title">PDF Export</div>
+      <span class="tag tag-export">Export</span>
+      <p class="entry-body">
+        Export your BOM as a print-optimized PDF directly from the app. Includes all components, SKUs, quantities, pricing, and total cost estimate.
+      </p>
+    </div>
+  </div>
+
+  <div class="entry">
+    <span class="entry-date">December 2025</span>
+    <div>
+      <div class="entry-title">Beta Launch</div>
+      <span class="tag tag-feature">Feature</span>
+      <p class="entry-body">
+        Public beta launched. Google Sign-In, Firestore-backed projects, project sharing via base64 URL,
+        sub-assembly nesting, undo/redo, OpenSCAD enclosure generation, and STL preview via Three.js.
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

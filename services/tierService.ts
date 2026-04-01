@@ -26,14 +26,14 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
   free: {
     maxProjects: 3,              // 3 for authenticated, 1 for anonymous (handled in hook)
-    maxArchitectMessages: 7,     // 7 for authenticated, 3 for anonymous
+    maxArchitectMessages: 10,    // 10/day for authenticated, 3 for anonymous (enforced via daily localStorage counter)
     maxValidatorCalls: 3,        // 3 for authenticated, 1 for anonymous
     maxPlannerCalls: 3,          // 3 for authenticated, 1 for anonymous
     canAudit: true,
     canExportCAD: false,
-    canExportCSV: false,
-    canExportPDF: false,
-    canExportJSON: true,         // only for authenticated; anonymous gets none
+    canExportCSV: true,          // browser-based; free to serve
+    canExportPDF: true,          // browser-based; free to serve
+    canExportJSON: true,         // browser-based; free to serve (anonymous gets none, enforced in hook)
     hasUnlimitedProjects: false,
     hasARGuide: false,
     hasVoiceMode: false,

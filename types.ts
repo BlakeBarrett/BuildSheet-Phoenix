@@ -159,6 +159,9 @@ export interface DraftingSession {
   cachedAssemblyPlan?: AssemblyPlan;
   advancedValidations?: AdvancedValidationOption[];
   cacheIsDirty: boolean; // True if BOM changed since last audit/plan
+  // Project metadata — stored here so they survive Firestore round-trips
+  archived?: boolean;
+  tags?: string[];
 }
 
 export interface User {

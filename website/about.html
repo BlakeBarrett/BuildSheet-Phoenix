@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — BuildSheet</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+
+  <style>
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 4rem 2rem;
+      max-width: 760px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      margin-bottom: 3rem;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--text-primary); }
+    h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+    .tagline {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+      margin-bottom: 3rem;
+    }
+    h2 {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 2.5rem 0 0.75rem;
+      color: var(--text-primary);
+    }
+    p { color: var(--text-secondary); margin-bottom: 1rem; }
+    ol, ul { color: var(--text-secondary); padding-left: 1.5rem; margin-bottom: 1rem; }
+    li { margin-bottom: 0.5rem; }
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));
+      margin: 3rem 0;
+    }
+    .footer-nav {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+    .footer-nav a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+    .footer-nav a:hover { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-link">&#8592; Back to BuildSheet</a>
+
+  <h1>About BuildSheet</h1>
+  <p class="tagline">Turning natural language into validated Bills of Materials — from concept to kit.</p>
+
+  <h2>The Problem</h2>
+  <p>
+    We live in a golden age of software, but hardware is still gated. If you have an idea — a solar-powered cat feeder,
+    a custom macro-pad, a CB750 engine rebuild — you hit a wall. You don't know which parts are compatible, where to
+    source them, or what a real BOM looks like. That gap between "I want to build this" and "here's what to order"
+    costs hobbyists, engineers, and small shops enormous amounts of time.
+  </p>
+
+  <h2>What BuildSheet Does</h2>
+  <p>BuildSheet is a generative hardware platform that turns natural language into structured, sourceable Bills of Materials.</p>
+  <ol>
+    <li><strong>Architect Agent</strong> — Describe your build in plain English. BuildSheet reasons about engineering constraints and generates a valid BOM with component specs and wiring notes.</li>
+    <li><strong>Sourcing Agent</strong> — Leveraging Google Shopping grounding, the agent finds real purchase links, checks stock levels, and calculates total cost across vendors.</li>
+    <li><strong>Safety Auditor</strong> — Validates your BOM plan against configurable safety and compliance checks before you commit to procurement.</li>
+    <li><strong>Visual Assembly View</strong> — Auto-generates an interactive block diagram showing component relationships, port types, and connection dependencies.</li>
+  </ol>
+  <p>
+    All outputs are draft-quality and intended to accelerate the documentation process — not replace engineering judgment.
+    Every generated BOM should be reviewed and verified before procurement or fabrication.
+  </p>
+
+  <h2>The Origin</h2>
+  <p>
+    BuildSheet was built by <a href="https://github.com/blakebarrett" target="_blank" rel="noopener noreferrer" style="color:inherit">Blake Barrett</a> during the Google AI Hackathon 2025,
+    starting from a real problem: documenting a Honda CB750 engine rebuild. Finding the right parts across a dozen vendors,
+    cross-checking compatibility, and keeping a clean BOM was a full-time job on top of the actual wrenching.
+  </p>
+  <p>
+    The hackathon produced a working prototype. Since then, BuildSheet has grown into a production-grade web app with
+    Firestore-backed projects, Stripe-powered subscriptions, and a full suite of export and collaboration tools.
+  </p>
+
+  <h2>What's Next</h2>
+  <ul>
+    <li>Text-to-CAD — custom enclosure generation that fits your generated kit</li>
+    <li>Community Registry — a marketplace of verified builds others can clone and order</li>
+    <li>NHTSA recall data integration — flag parts with active safety recalls in your BOM</li>
+    <li>Server-side backend — move from browser-only storage to full multi-device sync</li>
+  </ul>
+
+  <hr class="divider">
+
+  <p style="font-size:0.875rem;">
+    BuildSheet is open source. View the code on
+    <a href="https://github.com/blakebarrett/BuildSheet-Phoenix" target="_blank" rel="noopener noreferrer" style="color:inherit">GitHub</a>.
+    For questions or enterprise inquiries, reach out via GitHub Issues.
+  </p>
+
+  <nav class="footer-nav">
+    <a href="changelog.html">Changelog</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+    <a href="https://github.com/blakebarrett/BuildSheet-Phoenix" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </nav>
+</body>
+</html>
