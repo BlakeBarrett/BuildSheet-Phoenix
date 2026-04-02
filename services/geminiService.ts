@@ -1,9 +1,40 @@
 
-import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type, Modality, GroundingSupport } from "@google/genai";
 import { AIService, ArchitectResponse, AskArchitectResult, ComponentIdentification } from "./aiTypes.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 import { getAiTemperature } from "./localAiService.ts";
+
+// --- Sourcing quality filters ---
+
+/** Domains that produce noisy / hallucinated pricing data. */
+const NOISY_DOMAINS = ['reddit.com', 'ebay.com', 'forums.'];
+
+/** Domains we consider trustworthy retail sources. */
+const KNOWN_RETAILERS = [
+  'amazon.com', 'newegg.com', 'walmart.com', 'microcenter.com',
+  'bestbuy.com', 'bhphotovideo.com', 'adorama.com',
+  'digikey.com', 'mouser.com', 'arrow.com',
+  'sparkfun.com', 'adafruit.com', 'mcmaster.com',
+  'grainger.com', 'automationdirect.com', 'robotshop.com',
+];
+
+/**
+ * Builds a chunkIndex → max-confidence map from the groundingSupports array.
+ * confidenceScores[i] corresponds to groundingChunkIndices[i] within each support.
+ */
+function buildChunkConfidenceMap(supports: GroundingSupport[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const support of supports) {
+    const indices = support.groundingChunkIndices ?? [];
+    const scores  = support.confidenceScores ?? [];
+    indices.forEach((idx, i) => {
+      const score = scores[i] ?? 1.0;
+      map.set(idx, Math.max(map.get(idx) ?? 0, score));
+    });
+  }
+  return map;
+}
 
 const SYSTEM_INSTRUCTION = `
 ROLE: You are Gemini, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
@@ -194,25 +225,52 @@ export class GeminiService implements AIService {
         try {
             const ai = this.getClient();
             const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
+            const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
-                contents: `Find real-world purchase options and actual prices for: ${query}.${contextClause} For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
+                contents: `The current date is ${today}. Prioritize results from the last 30 days.
+When searching, wrap all SKUs and model numbers in double quotes (e.g., "NE555P", "ESP32-WROOM-32D").
+Search specifically for 'current retail price' and 'in-stock status' from authorized retailers.
+Find real-world purchase options and actual prices for: ${query}.${contextClause}
+For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
                 config: {
                     tools: [{ googleSearch: {} }],
                 }
             });
 
-            const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-            return chunks
-                .filter(chunk => chunk.web)
-                .map(chunk => {
-                    const title = chunk.web?.title || "Sourcing Link";
+            const candidate = response.candidates?.[0];
+            const chunks   = candidate?.groundingMetadata?.groundingChunks  ?? [];
+            const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
+            const confidenceMap = buildChunkConfidenceMap(supports as GroundingSupport[]);
+
+            // Filter noisy domains; keep track of original index for confidence lookup
+            const clean = chunks
+                .map((chunk, idx) => ({ chunk, idx }))
+                .filter(({ chunk }) => {
+                    const url = chunk.web?.uri ?? '';
+                    return chunk.web && !NOISY_DOMAINS.some(d => url.includes(d));
+                });
+
+            // If no trustworthy retailer domains remain, signal for local research
+            const hasRetailer = clean.some(({ chunk }) =>
+                KNOWN_RETAILERS.some(d => (chunk.web?.uri ?? '').includes(d))
+            );
+            if (!hasRetailer) {
+                return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+            }
+
+            return clean
+                .map(({ chunk, idx }) => {
+                    const url   = chunk.web!.uri   ?? '';
+                    const title = chunk.web!.title ?? 'Sourcing Link';
                     const priceMatch = title.match(/\$\s?(\d+[\d,.]*)/);
+                    const confidence = confidenceMap.get(idx) ?? 1.0;
                     return {
-                        title: title,
-                        url: chunk.web?.uri || "",
-                        source: chunk.web?.uri ? new URL(chunk.web.uri).hostname : "Web Result",
-                        price: priceMatch ? priceMatch[0] : undefined
+                        title,
+                        url,
+                        source: url ? new URL(url).hostname : 'Web Result',
+                        price: priceMatch ? priceMatch[0] : undefined,
+                        isEstimated: confidence < 0.5,
                     };
                 })
                 .slice(0, 5);
@@ -225,7 +283,10 @@ export class GeminiService implements AIService {
             const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
-                contents: `Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause} Return its manufacturer/brand, a brief technical description, typical retail price in USD, and its physical/electrical connectors (ports). Use current market data.`,
+                contents: `The current date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. Prioritize results from the last 30 days.
+When searching, wrap all SKUs and model numbers in double quotes (e.g., "${name}").
+Search specifically for 'current retail price' and 'in-stock status' from authorized retailers.
+Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause} Return its manufacturer/brand, a brief technical description, current in-stock retail price in USD, and its physical/electrical connectors (ports).`,
                 config: {
                     tools: [{ googleSearch: {} }],
                     responseMimeType: "application/json",

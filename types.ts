@@ -51,6 +51,8 @@ export interface ShoppingOption {
   price?: string;
   currency?: string;
   thumbnail?: string;
+  /** True when the grounding confidence score for this result was below 0.5. */
+  isEstimated?: boolean;
 }
 
 export interface LocalSupplier {

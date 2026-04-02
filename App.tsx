@@ -586,14 +586,22 @@ const PartDetailModal: React.FC<{
                                             <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-widest">Global Marketplace</span>
                                         </div>
                                         <div className="space-y-2">
-                                            {entry.sourcing.online.map((s, i) => (
+                                            {entry.sourcing.online.map((s, i) => s.url ? (
                                                 <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white rounded-[16px] border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all group" aria-label={`View at ${s.source}`}>
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase">{s.source}</span>
                                                         <span className="text-sm font-medium text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{s.title}</span>
                                                     </div>
-                                                    <span className="text-sm font-bold text-indigo-600 ml-4">{s.price || 'Market Rate'}</span>
+                                                    <div className="flex items-center gap-2 ml-4 shrink-0">
+                                                        {s.isEstimated && <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Estimated</span>}
+                                                        <span className="text-sm font-bold text-indigo-600">{s.price || 'Market Rate'}</span>
+                                                    </div>
                                                 </a>
+                                            ) : (
+                                                <div key={i} className="flex items-center gap-3 p-4 bg-amber-50 rounded-[16px] border border-amber-200">
+                                                    <span className="material-symbols-rounded text-amber-600 text-[18px]" aria-hidden="true">store</span>
+                                                    <span className="text-sm font-medium text-amber-800">{s.title}</span>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
