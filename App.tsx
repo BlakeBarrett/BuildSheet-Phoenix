@@ -327,7 +327,7 @@ const KitSummaryModal: React.FC<{
                                     <div className="flex-1">
                                         <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
                                         <div className="flex gap-2 mt-2">
-                                            {b.sourcing?.online?.slice(0, 1).map((s, idx) => (
+                                            {b.sourcing?.online?.slice(0, 1).filter(s => s.url).map((s, idx) => (
                                                 <a key={idx} href={s.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors flex items-center gap-1">
                                                     <span className="material-symbols-rounded text-[14px]" aria-hidden="true">shopping_cart</span>
                                                     Buy on {s.source}

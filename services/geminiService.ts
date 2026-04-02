@@ -10,14 +10,6 @@ import { getAiTemperature } from "./localAiService.ts";
 /** Domains that produce noisy / hallucinated pricing data. */
 const NOISY_DOMAINS = ['reddit.com', 'ebay.com', 'forums.'];
 
-/** Domains we consider trustworthy retail sources. */
-const KNOWN_RETAILERS = [
-  'amazon.com', 'newegg.com', 'walmart.com', 'microcenter.com',
-  'bestbuy.com', 'bhphotovideo.com', 'adorama.com',
-  'digikey.com', 'mouser.com', 'arrow.com',
-  'sparkfun.com', 'adafruit.com', 'mcmaster.com',
-  'grainger.com', 'automationdirect.com', 'robotshop.com',
-];
 
 /**
  * Builds a chunkIndex → max-confidence map from the groundingSupports array.
@@ -248,14 +240,11 @@ For each item, you MUST include the price in the title or snippet. Format: "Prod
                 .map((chunk, idx) => ({ chunk, idx }))
                 .filter(({ chunk }) => {
                     const url = chunk.web?.uri ?? '';
-                    return chunk.web && !NOISY_DOMAINS.some(d => url.includes(d));
+                    return chunk.web && url && !NOISY_DOMAINS.some(d => url.includes(d));
                 });
 
-            // If no trustworthy retailer domains remain, signal for local research
-            const hasRetailer = clean.some(({ chunk }) =>
-                KNOWN_RETAILERS.some(d => (chunk.web?.uri ?? '').includes(d))
-            );
-            if (!hasRetailer) {
+            // If nothing survives the noise filter, signal for local research
+            if (clean.length === 0) {
                 return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
             }
 
