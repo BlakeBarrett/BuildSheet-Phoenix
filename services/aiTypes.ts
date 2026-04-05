@@ -52,7 +52,7 @@ export interface AIService {
    */
   hydratePartDetails?(name: string, category: string, designContext?: string): Promise<Partial<Part> | null>;
 
-  verifyDesign?(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse>;
+  verifyDesign?(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: AuditAction[] }>;
 
   generateFabricationBrief?(partName: string, context: string): Promise<string>;
 

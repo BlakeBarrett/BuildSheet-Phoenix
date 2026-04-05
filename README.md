@@ -23,6 +23,24 @@ BuildSheet demonstrates the power of the **Gemini 3.0** models as the operating 
 ### 4. Manufacturing Data Engine (MDE) Bridge
 *   **Visual Inspection AI:** The system acts as a Quality Engineer, analyzing component geometry to generate **Inspection Protocols** (JSON) compatible with Google Cloud Visual Inspection AI, defining critical defect criteria before a single part is manufactured.
 
+### 5. Self-Hosted AI & Local Model Routing
+*   **Granular Model Selection:** Enterprise customers can route all AI generation tasks to self-hosted models via any OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, SageMaker).
+*   **5 configurable model slots:** Architect, Audit, Plan, CAD/Enclosure (e.g., Nemotron), and General Utility.
+*   **Fallback chain:** Specific slot → Utility → Architect → Gemini Cloud.
+*   **Search/grounding isolation:** Part search, local suppliers, and data hydration can use a separate API key (`SEARCH_API_KEY`), keeping generation and retrieval credentials decoupled.
+*   **Zero-leakage guarantee:** When all local models are configured, no requests reach external APIs for generation tasks.
+
+---
+
+## 🏢 On-Premise Deployment (Coming Soon)
+
+BuildSheet is designed for eventual fully air-gapped, on-premise deployment. See [`docs/ON_PREM_READINESS.md`](docs/ON_PREM_READINESS.md) for the full dependency audit and abstraction roadmap covering:
+
+- Auth provider abstraction (OIDC/LDAP/AD)
+- Storage backend abstraction (Postgres/REST)
+- Billing bypass (`ENTERPRISE_MODE`)
+- Internal parts catalog integration
+
 ---
 
 ## 🎯 Strategic Alignment: Google 2026 & AI Futures Fund
@@ -50,11 +68,26 @@ BuildSheet is the "Top of Funnel" for the Google Industrial Cloud ecosystem:
 
 ## 🛠 Deployment & Architecture
 
-This application is a **Local-First**, Serverless SPA configured for Google App Engine.
+This application is a **Local-First**, containerized SPA deployable on Google Cloud Run or on-premise via Docker.
 
 *   **Runtime:** Node.js 18 (React + Vite)
-*   **Persistence:** Browser LocalStorage (Zero-Database Architecture for privacy and speed).
-*   **API Security:** Client-side environmental injection via safe processing.
+*   **Persistence:** Browser LocalStorage + IndexedDB (images) + Firestore (authenticated users)
+*   **AI Backend:** Gemini Cloud (default), or self-hosted OpenAI-compatible models
+*   **API Security:** Client-side environmental injection via `env.sh` / `env-config.js`
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `API_KEY` / `GEMINI_API_KEY` | Yes* | Gemini API key for generation + search |
+| `SEARCH_API_KEY` | No | Separate API key for search/grounding (defaults to main key) |
+| `LOCAL_ARCHITECT_URL` | No | OpenAI-compatible endpoint for local model |
+| `LOCAL_ARCHITECT_MODEL` | No | Model ID at the local endpoint |
+| `VITE_FIREBASE_*` | No | Firebase config (auth, Firestore, analytics) |
+| `VITE_RECAPTCHA_SITE_KEY` | No | App Check (bot protection) |
+| `VITE_STRIPE_*` | No | Stripe billing integration |
+
+\* Not required if all models are configured locally via the Settings Modal.
 
 ### Routing
 The `app.yaml` supports dynamic sharing:
@@ -62,3 +95,22 @@ The `app.yaml` supports dynamic sharing:
 
 ## Simulation Mode
 If no API Key is provided, the app gracefully degrades into **Simulation Mode**, using a deterministic `MockService` to demonstrate the UI and logic flow without consuming API credits.
+
+## 📁 Project Structure
+
+```
+services/
+├── aiTypes.ts          # AIService interface (13 methods)
+├── aiManager.ts        # Service factory + API key resolution
+├── geminiService.ts    # Gemini Cloud implementation
+├── localAiService.ts   # Local model implementation (OpenAI-compatible)
+├── hybridAiService.ts  # Router: local vs cloud with fallback chain
+├── parseUtils.ts       # Shared LLM response parsing
+├── mockService.ts      # Offline simulation
+└── ...
+docs/
+└── ON_PREM_READINESS.md  # On-prem deployment audit
+tests/
+├── settingsModal.spec.ts       # Settings UI tests (all 5 model selectors)
+└── localModelRouting.spec.ts   # Zero-leakage routing tests
+```

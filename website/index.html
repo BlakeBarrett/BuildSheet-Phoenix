@@ -223,6 +223,22 @@
           <h3 class="card__title">Export &amp; Collaborate</h3>
           <p class="card__description">Export to PDF, share with your team, and integrate with your procurement workflow. Seamless collaboration from prototype to production.</p>
         </div>
+
+        <!-- Feature 5: Self-Hosted AI -->
+        <div class="card animate-on-scroll stagger-5">
+          <div class="card__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="8" rx="2"/>
+              <rect x="2" y="14" width="20" height="8" rx="2"/>
+              <circle cx="6" cy="6" r="1"/>
+              <circle cx="6" cy="18" r="1"/>
+              <path d="M14 6h4"/>
+              <path d="M14 18h4"/>
+            </svg>
+          </div>
+          <h3 class="card__title">Self-Hosted AI</h3>
+          <p class="card__description">Route all AI requests to your own infrastructure. Run models like Gemma, Nemotron, or LLaMA on your own servers — full data sovereignty, zero external API calls. Your IP stays on your network.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -394,10 +410,79 @@
             </li>
             <li class="pricing-card__feature">
               <svg class="pricing-card__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+              <strong>Self-hosted AI</strong> — bring your own models
+            </li>
+            <li class="pricing-card__feature">
+              <svg class="pricing-card__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
               Dedicated support
             </li>
           </ul>
           <button type="button" id="contact-sales-btn" class="btn btn--secondary" style="width: 100%;">Contact Sales</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════
+       ON-PREM
+       ═══════════════════════════════════════════ -->
+  <section class="on-prem section" id="on-prem">
+    <div class="container">
+      <div class="on-prem__inner animate-on-scroll">
+        <div class="on-prem__content">
+          <span class="badge badge--accent">Enterprise</span>
+          <h2>Deploy on your infrastructure. <span class="text-gradient">Your data, your rules.</span></h2>
+          <p class="on-prem__subtitle">
+            Run BuildSheet entirely on-premise — air-gapped, self-hosted, and fully under your control.
+            Route all AI to your own GPU clusters, authenticate with your own identity provider, and keep
+            every byte of intellectual property on your network.
+          </p>
+          <ul class="on-prem__features">
+            <li>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+              Self-hosted AI models (LM Studio, Ollama, vLLM)
+            </li>
+            <li>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+              OIDC / LDAP / Active Directory authentication
+            </li>
+            <li>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+              Bring your own API keys for search &amp; grounding
+            </li>
+            <li>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+              Zero external API calls — full air-gap support
+            </li>
+            <li>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+              Docker-ready with Kubernetes / EKS deployment
+            </li>
+          </ul>
+          <div class="on-prem__actions">
+            <button type="button" class="btn btn--primary btn--lg" onclick="document.getElementById('contact-sales-btn').click()">
+              Talk to Sales
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </button>
+            <span class="on-prem__coming-soon">Coming Soon</span>
+          </div>
+        </div>
+        <div class="on-prem__visual" aria-hidden="true">
+          <div class="on-prem__server">
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="6" rx="2"/>
+              <rect x="2" y="10" width="20" height="6" rx="2"/>
+              <rect x="2" y="18" width="20" height="4" rx="1"/>
+              <circle cx="6" cy="5" r="1"/>
+              <circle cx="6" cy="13" r="1"/>
+              <circle cx="6" cy="20" r="0.75"/>
+              <line x1="10" y1="5" x2="18" y2="5"/>
+              <line x1="10" y1="13" x2="18" y2="13"/>
+              <line x1="10" y1="20" x2="18" y2="20"/>
+            </svg>
+          </div>
+          <div class="on-prem__glow"></div>
         </div>
       </div>
     </div>
@@ -450,7 +535,7 @@
           </button>
           <div class="accordion__body" id="faq-content-3" role="region" aria-labelledby="faq-btn-3">
             <div class="accordion__content">
-              BuildSheet uses Google's Gemini AI models, combined with real-time web search capabilities for part discovery and hydration. Our AI is fine-tuned for engineering and manufacturing contexts, understanding component specifications, physical interfaces, and assembly relationships that general-purpose models miss.
+              BuildSheet uses Google's Gemini AI models by default, combined with real-time web search capabilities for part discovery and hydration. Our AI is fine-tuned for engineering and manufacturing contexts, understanding component specifications, physical interfaces, and assembly relationships that general-purpose models miss. <strong>Team and Enterprise customers can route all AI generation requests to their own self-hosted models</strong> — LM Studio, Ollama, vLLM, or any OpenAI-compatible endpoint. Run Gemma, Nemotron, LLaMA, or any model of your choice on your own infrastructure for full data sovereignty and end-to-end control over your data pipeline.
             </div>
           </div>
         </div>
@@ -476,7 +561,7 @@
           </button>
           <div class="accordion__body" id="faq-content-5" role="region" aria-labelledby="faq-btn-5">
             <div class="accordion__content">
-              Absolutely. Your build sheets and project data are encrypted in transit. We never use your data to train AI models. BuildSheet is built on SOC 2-compliant Google Cloud infrastructure. Team plans include role-based access control and audit logs. For enterprise requirements, contact our sales team for custom security configurations.
+              Absolutely. Your build sheets and project data are encrypted in transit. We never use your data to train AI models. BuildSheet is built on SOC 2-compliant Google Cloud infrastructure. Team plans include role-based access control and audit logs. <strong>Enterprise customers can go even further</strong> — route all AI generation requests to self-hosted infrastructure on your own network, ensuring your intellectual property and proprietary designs never leave your premises. You can also bring your own API keys for search and data grounding, giving you end-to-end control over every external request BuildSheet makes.
             </div>
           </div>
         </div>

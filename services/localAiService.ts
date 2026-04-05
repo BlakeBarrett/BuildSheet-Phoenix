@@ -1,6 +1,6 @@
-import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
-import { GeminiService } from "./geminiService.ts";
-import { AssemblyPlan, AdvancedValidationOption } from "../types.ts";
+import { AIService, ArchitectResponse, AskArchitectResult, AuditAction, ComponentIdentification } from "./aiTypes.ts";
+import { parseArchitectResponse } from "./parseUtils.ts";
+import { AssemblyPlan, AdvancedValidationOption, InspectionProtocol, EnclosureSpec, ShoppingOption, LocalSupplier, Part, PortType, Gender } from "../types.ts";
 
 export interface LocalModelProvider {
     id: string;
@@ -32,11 +32,83 @@ export function getAiTemperature(fallback = 0.7): number {
     return fallback;
 }
 
-// Local service handles askArchitect via LM Studio or Ollama (OpenAI compatible)
+// ---- Internal helper ----
+
+/**
+ * Makes a request to a local OpenAI-compatible endpoint.
+ */
+async function localChatCompletion(
+    provider: LocalModelProvider,
+    systemPrompt: string,
+    userPrompt: string,
+    options: { temperature?: number; max_tokens?: number; image?: string } = {}
+): Promise<string> {
+    const userContent: any[] = [{ type: 'text', text: userPrompt }];
+    if (options.image) {
+        userContent.push({
+            type: 'image_url',
+            image_url: { url: options.image }
+        });
+    }
+
+    const body = {
+        model: provider.id,
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userContent }
+        ],
+        temperature: options.temperature ?? getAiTemperature(0.7),
+        max_tokens: options.max_tokens ?? 4096,
+    };
+
+    const response = await fetch(provider.endpointUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer local-key'
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Local API Error (${response.status}): ${text}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+}
+
+/**
+ * Attempts to parse JSON from LLM output, stripping markdown fences if present.
+ */
+function extractJson<T>(text: string): T | null {
+    if (!text) return null;
+    // Strip markdown code fences
+    let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    // Try direct parse first
+    try { return JSON.parse(cleaned); } catch { /* continue */ }
+    // Try to find a JSON object in the text
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+        try { return JSON.parse(match[0]); } catch { /* give up */ }
+    }
+    return null;
+}
+
+// ---- Service ----
+
+/**
+ * LocalArchitectService handles ALL generation tasks via a local
+ * OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, etc.)
+ *
+ * Search-grounded tasks (findPartSources, findLocalSuppliers, hydratePartDetails)
+ * are intentionally NOT implemented here — those always route through Gemini / future VertexAI.
+ */
 export class LocalArchitectService {
     public isOffline = false;
 
-    constructor(private provider: LocalModelProvider, private geminiParser: GeminiService) { }
+    constructor(private provider: LocalModelProvider) { }
 
     public get name() {
         return `Local: ${this.provider.name}`;
@@ -45,6 +117,8 @@ export class LocalArchitectService {
     public getApiKeyStatus(): string {
         return `Local URL: ${this.provider.endpointUrl}`;
     }
+
+    // ---- Architect Chat ----
 
     async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
@@ -55,7 +129,6 @@ export class LocalArchitectService {
                 content: msg.parts.map((p: any) => p.text).join('\n')
             }));
 
-            // Add the new prompt
             const userContent: any[] = [{ type: 'text', text: prompt }];
             if (image) {
                 userContent.push({
@@ -69,7 +142,6 @@ export class LocalArchitectService {
                 content: userContent
             });
 
-            // We also need the system prompt to guide the output
             messages.unshift({
                 role: 'system',
                 content: `ROLE: You are Gemini, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
@@ -129,15 +201,12 @@ TOOLS:
     }
 
     parseArchitectResponse(text: string): ArchitectResponse {
-        // Reuse GeminiService's excellent regex parsing
-        return this.geminiParser.parseArchitectResponse(text);
+        return parseArchitectResponse(text);
     }
 
-    /**
-     * Run a validation audit against a local model.
-     * Sends the BOM digest + requirements and expects a textual audit response.
-     */
-    async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: import('./aiTypes.ts').AuditAction[] }> {
+    // ---- Validation Audit ----
+
+    async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: AuditAction[] }> {
         try {
             const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category}, Brand: ${b.part.brand || 'TBD'}) - Price: $${b.part.price}`).join('\n');
             const enabledAdvanced = (advancedChecks || []).filter(c => c.enabled);
@@ -157,33 +226,19 @@ TOOLS:
                 prompt += `\n\nPREVIOUS AUDIT:\n${previousAudit}`;
             }
 
-            const body = {
-                model: this.provider.id,
-                messages: [
-                    { role: 'system', content: 'You are a senior hardware engineering auditor. Verify build feasibility and recommend BOM changes as structured JSON.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: getAiTemperature(0.3),
-                max_tokens: 8192,
-            };
+            const text = await localChatCompletion(
+                this.provider,
+                'You are a senior hardware engineering auditor. Verify build feasibility and recommend BOM changes as structured JSON.',
+                prompt,
+                { temperature: getAiTemperature(0.3), max_tokens: 8192 }
+            );
 
-            const response = await fetch(this.provider.endpointUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local-key' },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) throw new Error(`Local API Error (${response.status})`);
-
-            const data = await response.json();
-            const fullText = data.choices?.[0]?.message?.content || '';
-
-            let auditText = fullText;
-            let auditActions: import('./aiTypes.ts').AuditAction[] | undefined;
-            const delimiterIndex = fullText.indexOf('===ACTIONS_JSON===');
+            let auditText = text;
+            let auditActions: AuditAction[] | undefined;
+            const delimiterIndex = text.indexOf('===ACTIONS_JSON===');
             if (delimiterIndex !== -1) {
-                auditText = fullText.substring(0, delimiterIndex).trim();
-                let jsonPart = fullText.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
+                auditText = text.substring(0, delimiterIndex).trim();
+                let jsonPart = text.substring(delimiterIndex + '===ACTIONS_JSON==='.length).trim();
                 jsonPart = jsonPart.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
                 try {
                     const parsed = JSON.parse(jsonPart);
@@ -197,9 +252,8 @@ TOOLS:
         }
     }
 
-    /**
-     * Generate an assembly plan via local model.
-     */
+    // ---- Assembly Plan ----
+
     async generateAssemblyPlan(bom: any[], previousPlan?: AssemblyPlan): Promise<AssemblyPlan | null> {
         try {
             const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
@@ -209,27 +263,13 @@ TOOLS:
                 prompt += `\n\nUpdate this based on the new BOM.`;
             }
 
-            const body = {
-                model: this.provider.id,
-                messages: [
-                    { role: 'system', content: 'You are a robotics assembly planner. Output valid JSON only.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: getAiTemperature(0.3),
-                max_tokens: 8192,
-            };
+            const text = await localChatCompletion(
+                this.provider,
+                'You are a robotics assembly planner. Output valid JSON only.',
+                prompt,
+                { temperature: getAiTemperature(0.3), max_tokens: 8192 }
+            );
 
-            const response = await fetch(this.provider.endpointUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer local-key' },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) throw new Error(`Local API Error (${response.status})`);
-
-            const data = await response.json();
-            const text = data.choices?.[0]?.message?.content || '';
-            // Extract JSON from the response
             const jsonMatch = text.match(/\{[\s\S]*"steps"[\s\S]*\}/);
             if (jsonMatch) {
                 const plan = JSON.parse(jsonMatch[0]);
@@ -241,5 +281,178 @@ TOOLS:
             console.error("[LocalArchitectService] generateAssemblyPlan Failed:", error);
             return null;
         }
+    }
+
+    // ---- Enclosure / CAD (OpenSCAD) ----
+
+    async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {
+        try {
+            const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
+            const prompt = `Generate a 3D printable enclosure or custom adapter specification for this project. You MUST output raw OpenSCAD code for transparency and manufacturing.
+
+Context: ${context}
+Components: ${bomDigest}
+
+Return valid JSON with these exact fields:
+- "material": recommended 3D printing material (string)
+- "dimensions": overall dimensions (string)
+- "openSCAD": complete OpenSCAD source code (string)
+- "description": brief description of the enclosure design (string)`;
+
+            const text = await localChatCompletion(
+                this.provider,
+                'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. Output valid JSON only.',
+                prompt,
+                { temperature: getAiTemperature(0.3), max_tokens: 8192 }
+            );
+
+            const spec = extractJson<EnclosureSpec>(text);
+            if (spec) {
+                // No image generation capability locally — renderUrl stays undefined
+                return spec;
+            }
+            return null;
+        } catch (error: any) {
+            console.error("[LocalArchitectService] generateEnclosure Failed:", error);
+            return null;
+        }
+    }
+
+    // ---- Fabrication Brief ----
+
+    async generateFabricationBrief(partName: string, context: string): Promise<string> {
+        try {
+            const text = await localChatCompletion(
+                this.provider,
+                'You are a senior manufacturing engineer. Provide detailed fabrication specifications including materials, tolerances, surface finishes, and manufacturing processes.',
+                `Manufacturing specs for: ${partName}. Context: ${context}.`,
+                { temperature: getAiTemperature(0.3), max_tokens: 4096 }
+            );
+            return text || 'No fabrication brief generated.';
+        } catch (error: any) {
+            return `Fabrication brief generation failed: ${error.message}`;
+        }
+    }
+
+    // ---- QA / Inspection Protocol ----
+
+    async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
+        try {
+            const text = await localChatCompletion(
+                this.provider,
+                'You are a quality assurance engineer. Generate inspection protocols as valid JSON only.',
+                `Generate a QA inspection protocol for: ${partName} (category: ${category}).
+
+Return valid JSON with these exact fields:
+- "recommendedSensors": array of sensor type strings
+- "inspectionStrategy": string describing the approach
+- "defects": array of objects with { "name": string, "severity": "Critical"|"Major"|"Minor", "description": string }`,
+                { temperature: getAiTemperature(0.3), max_tokens: 4096 }
+            );
+
+            return extractJson<InspectionProtocol>(text);
+        } catch (error: any) {
+            console.error("[LocalArchitectService] generateQAProtocol Failed:", error);
+            return null;
+        }
+    }
+
+    // ---- AR Guidance ----
+
+    async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
+        try {
+            const step = plan.steps.find(s => s.stepNumber === currentStep);
+            const text = await localChatCompletion(
+                this.provider,
+                'You are an AR assembly guidance system. Analyze the camera frame and provide concise, actionable assembly instructions for the current step.',
+                `AR ASSEMBLY GUIDE: Current Step ${currentStep}: ${step?.description}. Analyze the provided image and guide the user through this assembly step.`,
+                { temperature: getAiTemperature(0.5), max_tokens: 2048, image }
+            );
+            return text || 'Continue with the assembly step.';
+        } catch (error: any) {
+            return 'Guidance temporarily unavailable.';
+        }
+    }
+
+    // ---- Apply Audit Recommendations ----
+
+    async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: AuditAction[], summary: string }> {
+        try {
+            const digest = bom.map(b =>
+                `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category}) - $${b.part.price}`
+            ).join('\n');
+
+            const text = await localChatCompletion(
+                this.provider,
+                'You are a hardware engineering audit assistant. Extract concrete BOM changes from audit results as valid JSON only.',
+                `Based on the audit results below, determine the EXACT changes needed to the Bill of Materials.
+
+DESIGN REQUIREMENTS: ${requirements}
+
+CURRENT BOM:
+${digest}
+
+AUDIT RESULT:
+${auditResult}
+
+Return valid JSON with:
+- "actions": array of { "type": "addPart"|"removePart", "partId"?: string, "name"?: string, "category"?: string, "quantity"?: number, "instanceId"?: string, "reason": string }
+- "summary": brief summary string
+
+For removePart actions, use the exact instanceId from the BOM. For addPart, use descriptive kebab-case IDs.`,
+                { temperature: getAiTemperature(0.3), max_tokens: 4096 }
+            );
+
+            const result = extractJson<{ actions: AuditAction[], summary: string }>(text);
+            return result || { actions: [], summary: 'No changes recommended.' };
+        } catch (error: any) {
+            console.error('[LocalArchitectService] applyAuditRecommendations failed:', error);
+            throw new Error(`Failed to extract audit recommendations: ${error.message}`);
+        }
+    }
+
+    // ---- Component Identification (Vision) ----
+
+    async identifyComponent(image: string): Promise<ComponentIdentification | null> {
+        try {
+            const text = await localChatCompletion(
+                this.provider,
+                'You are a hardware component identification specialist. Identify components from photos and return structured data as valid JSON only.',
+                `Identify this hardware component from the photo. Determine:
+1. What the component is (name, category, brand if visible)
+2. Physical condition assessment (Excellent/Good/Fair/Poor)
+3. Any visible defects or wear
+4. Estimated retail price in USD
+5. A suggested kebab-case part ID
+6. Technical description and specifications
+7. Physical/electrical ports and connectors visible
+
+Return valid JSON with fields: name, category, brand, condition, conditionNotes, defects (array), estimatedPrice, suggestedPartId, description, ports (array of {name, type, gender, spec})`,
+                { temperature: getAiTemperature(0.3), max_tokens: 4096, image }
+            );
+
+            const data = extractJson<any>(text);
+            if (!data) return null;
+
+            // Normalize port enums
+            if (data.ports) {
+                data.ports = data.ports.map((p: any) => ({
+                    ...p,
+                    type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL'),
+                    gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL')
+                }));
+            }
+            return data as ComponentIdentification;
+        } catch (error: any) {
+            console.error('[LocalArchitectService] identifyComponent failed:', error);
+            return null;
+        }
+    }
+
+    // ---- Product Image ----
+    // Local text models cannot generate images. Always returns null.
+
+    async generateProductImage(_description: string, _referenceImage?: string): Promise<string | null> {
+        return null;
     }
 }

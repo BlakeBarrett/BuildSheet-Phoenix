@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Settings Modal Local AI Config', () => {
+test.describe('Settings Modal — All Model Selectors', () => {
 
     test.beforeEach(async ({ page }) => {
         // Mock LM Studio response
@@ -10,8 +10,9 @@ test.describe('Settings Modal Local AI Config', () => {
                 contentType: 'application/json',
                 body: JSON.stringify({
                     data: [
-                        { id: 'llama-3-8b', object: 'model' },
-                        { id: 'gemma-4-26b', object: 'model' }
+                        { id: 'gemma-4-26b', object: 'model' },
+                        { id: 'nemotron-3-super', object: 'model' },
+                        { id: 'llama-3-8b', object: 'model' }
                     ]
                 })
             });
@@ -24,57 +25,87 @@ test.describe('Settings Modal Local AI Config', () => {
                 contentType: 'application/json',
                 body: JSON.stringify({
                     models: [
-                        { name: 'phi-3' }
+                        { name: 'phi-3' },
+                        { name: 'codellama' }
                     ]
                 })
             });
         });
 
-        // Load the page
         await page.goto('/');
-
-        // Wait to make sure the app loads fully
-        await page.waitForTimeout(2000); 
+        await page.waitForTimeout(2000);
     });
 
-    test('should save architect, audit, and plan models respectively to localStorage in correct order', async ({ page }) => {
+    test('should save all 5 model selectors to localStorage correctly', async ({ page }) => {
         // Open Settings Modal
         await page.getByRole('button', { name: 'Settings' }).click();
-
-        // Check if the modal is visible
         await expect(page.getByRole('heading', { name: 'AI Settings' })).toBeVisible();
 
-        // The mock should have populated the models
-        // Select an Architect Model
+        // Select models for all 5 slots
         await page.locator('select#local-model').selectOption('gemma-4-26b');
-
-        // Select an Audit Model
         await page.locator('select#audit-model').selectOption('llama-3-8b');
-
-        // Select a Plan Model
         await page.locator('select#plan-model').selectOption('phi-3');
+        await page.locator('select#cad-model').selectOption('nemotron-3-super');
+        await page.locator('select#utility-model').selectOption('codellama');
 
-        // Click Save Changes
+        // Save
         await page.getByRole('button', { name: 'Save Changes' }).click();
-
-        // Settings modal should close
         await expect(page.getByRole('heading', { name: 'AI Settings' })).not.toBeVisible();
 
-        // Now, we retrieve values from localStorage to ensure they were saved successfully
-        const localArchitectProvider = await page.evaluate(() => localStorage.getItem('localArchitectProvider'));
-        const localAuditProvider = await page.evaluate(() => localStorage.getItem('localAuditProvider'));
-        const localPlanProvider = await page.evaluate(() => localStorage.getItem('localPlanProvider'));
+        // Verify all localStorage keys
+        const architectProvider = await page.evaluate(() => localStorage.getItem('localArchitectProvider'));
+        const auditProvider = await page.evaluate(() => localStorage.getItem('localAuditProvider'));
+        const planProvider = await page.evaluate(() => localStorage.getItem('localPlanProvider'));
+        const cadProvider = await page.evaluate(() => localStorage.getItem('localCadProvider'));
+        const utilityProvider = await page.evaluate(() => localStorage.getItem('localUtilityProvider'));
 
-        expect(localArchitectProvider).not.toBeNull();
-        expect(localAuditProvider).not.toBeNull();
-        expect(localPlanProvider).not.toBeNull();
+        expect(architectProvider).not.toBeNull();
+        expect(auditProvider).not.toBeNull();
+        expect(planProvider).not.toBeNull();
+        expect(cadProvider).not.toBeNull();
+        expect(utilityProvider).not.toBeNull();
 
-        const architectParsed = JSON.parse(localArchitectProvider!);
-        const auditParsed = JSON.parse(localAuditProvider!);
-        const planParsed = JSON.parse(localPlanProvider!);
+        expect(JSON.parse(architectProvider!).id).toBe('gemma-4-26b');
+        expect(JSON.parse(auditProvider!).id).toBe('llama-3-8b');
+        expect(JSON.parse(planProvider!).id).toBe('phi-3');
+        expect(JSON.parse(cadProvider!).id).toBe('nemotron-3-super');
+        expect(JSON.parse(utilityProvider!).id).toBe('codellama');
+    });
 
-        expect(architectParsed.id).toBe('gemma-4-26b');
-        expect(auditParsed.id).toBe('llama-3-8b');
-        expect(planParsed.id).toBe('phi-3');
+    test('should clear model selections when set back to default', async ({ page }) => {
+        // Pre-populate localStorage
+        await page.evaluate(() => {
+            localStorage.setItem('localCadProvider', JSON.stringify({ id: 'nemotron-3-super', name: 'test', endpointUrl: 'http://test', type: 'openai' }));
+            localStorage.setItem('localUtilityProvider', JSON.stringify({ id: 'codellama', name: 'test', endpointUrl: 'http://test', type: 'ollama' }));
+        });
+
+        await page.getByRole('button', { name: 'Settings' }).click();
+        await expect(page.getByRole('heading', { name: 'AI Settings' })).toBeVisible();
+
+        // Set back to defaults
+        await page.locator('select#cad-model').selectOption('');
+        await page.locator('select#utility-model').selectOption('');
+
+        await page.getByRole('button', { name: 'Save Changes' }).click();
+
+        const cadProvider = await page.evaluate(() => localStorage.getItem('localCadProvider'));
+        const utilityProvider = await page.evaluate(() => localStorage.getItem('localUtilityProvider'));
+
+        expect(cadProvider).toBeNull();
+        expect(utilityProvider).toBeNull();
+    });
+
+    test('should persist selections across modal open/close', async ({ page }) => {
+        // Set up models in localStorage  
+        await page.evaluate(() => {
+            localStorage.setItem('localCadProvider', JSON.stringify({ id: 'nemotron-3-super', name: '[LM Studio] nemotron-3-super', endpointUrl: 'http://192.168.1.41:1234/v1/chat/completions', type: 'openai' }));
+            localStorage.setItem('localUtilityProvider', JSON.stringify({ id: 'codellama', name: '[Ollama] codellama', endpointUrl: 'http://192.168.1.41:11434/v1/chat/completions', type: 'ollama' }));
+        });
+
+        // Open settings and verify values are pre-selected
+        await page.getByRole('button', { name: 'Settings' }).click();
+
+        await expect(page.locator('select#cad-model')).toHaveValue('nemotron-3-super');
+        await expect(page.locator('select#utility-model')).toHaveValue('codellama');
     });
 });

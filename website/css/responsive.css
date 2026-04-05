@@ -124,6 +124,25 @@
     transform: translateY(-4px);
   }
 
+  /* On-Prem */
+  .on-prem__inner {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .on-prem__visual {
+    display: none;
+  }
+
+  .on-prem__features {
+    align-items: center;
+  }
+
+  .on-prem__actions {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
   /* Carousel */
   .carousel__slide {
     padding: 0 var(--space-2);
@@ -198,6 +217,24 @@
 
   .pricing-card--popular:hover {
     transform: translateY(-4px);
+  }
+
+  /* On-Prem */
+  .on-prem__inner {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .on-prem__visual {
+    display: none;
+  }
+
+  .on-prem__features {
+    align-items: center;
+  }
+
+  .on-prem__actions {
+    justify-content: center;
   }
 
   /* Footer */

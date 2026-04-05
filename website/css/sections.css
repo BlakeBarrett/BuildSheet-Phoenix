@@ -352,6 +352,119 @@
   opacity: 0.7;
 }
 
+/* ── On-Prem ────────────────────────────────── */
+.on-prem {
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.on-prem__inner {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: var(--space-12);
+  align-items: center;
+  max-width: 1000px;
+  margin-inline: auto;
+}
+
+.on-prem__content h2 {
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-extrabold);
+  letter-spacing: var(--tracking-tighter);
+  line-height: var(--leading-tight);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.on-prem__subtitle {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-8);
+}
+
+.on-prem__features {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+.on-prem__features li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.on-prem__features svg {
+  color: var(--color-accent-teal);
+  flex-shrink: 0;
+}
+
+.on-prem__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.on-prem__coming-soon {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-accent-teal);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--color-accent-teal);
+  border-radius: var(--radius-full);
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: var(--color-accent-teal); opacity: 1; }
+  50% { border-color: var(--color-accent-cyan); opacity: 0.7; }
+}
+
+.on-prem__visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.on-prem__server {
+  color: var(--text-muted);
+  opacity: 0.35;
+  position: relative;
+  z-index: 1;
+  animation: float-server 4s ease-in-out infinite;
+}
+
+@keyframes float-server {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.on-prem__glow {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-accent-glow) 0%, transparent 70%);
+  opacity: 0.5;
+  z-index: 0;
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 0.3; }
+}
+
 /* ── FAQ ─────────────────────────────────────── */
 .faq {
   background: var(--bg-secondary);

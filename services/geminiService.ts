@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
 import { AIService, ArchitectResponse, AskArchitectResult, ComponentIdentification } from "./aiTypes.ts";
+import { parseArchitectResponse } from "./parseUtils.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 import { getAiTemperature } from "./localAiService.ts";
@@ -75,6 +76,29 @@ export class GeminiService implements AIService {
         });
     }
 
+    /**
+     * Returns the API key for search/grounding operations.
+     * Falls back to the main API key if no separate search key is configured.
+     */
+    private getSearchApiKey(): string {
+        return AIManager.getSearchApiKey() || this.getApiKey();
+    }
+
+    /**
+     * Creates a fresh SDK instance for search/grounding operations.
+     * Uses a potentially separate API key so Enterprise customers can
+     * bring their own credentials for data retrieval.
+     */
+    private getSearchClient(): GoogleGenAI {
+        const key = this.getSearchApiKey();
+        if (!key) {
+            throw new Error("Invalid Search API Key configuration.");
+        }
+        return new GoogleGenAI({
+            apiKey: key,
+        });
+    }
+
     public getApiKeyStatus(): string {
         const key = this.getApiKey();
         if (!key) return "MISSING";
@@ -133,44 +157,7 @@ export class GeminiService implements AIService {
     }
 
     parseArchitectResponse(text: string): ArchitectResponse {
-        const toolCalls: any[] = [];
-        if (!text) return { reasoning: "Gemini provided no output.", toolCalls };
-
-        let reasoning = text;
-
-        const initMatch = text.match(/initializeDraft\s*\(\s*["'](.*?)["']\s*,\s*["'](.*?)["']\s*\)\s*;?/);
-        if (initMatch) {
-            toolCalls.push({ type: 'initializeDraft', name: initMatch[1], reqs: initMatch[2] });
-            reasoning = reasoning.replace(initMatch[0], '');
-        }
-
-        const addMatches = [...text.matchAll(/addPart\s*\(\s*["']([^"']+)["']\s*,\s*["'](.*?)(?<!\\)["']\s*,\s*["']([^"']+)["']\s*,\s*(\d+)\s*\)\s*;?/gs)];
-        addMatches.forEach(m => {
-            const partId = m[1];
-            // Unescape quotes if any are escaped inside the name argument
-            const name = m[2].replace(/\\"/g, '"').replace(/\\'/g, "'");
-            const category = m[3];
-            const qty = parseInt(m[4]);
-            toolCalls.push({ type: 'addPart', partId, name, category, qty });
-            reasoning = reasoning.replace(m[0], '');
-        });
-
-        const removeMatches = [...text.matchAll(/removePart\s*\(\s*["']?([^"',\s]+)["']?\s*\)\s*;?/g)];
-        removeMatches.forEach(m => {
-            toolCalls.push({ type: 'removePart', instanceId: m[1] });
-            reasoning = reasoning.replace(m[0], '');
-        });
-
-        reasoning = reasoning.replace(/(###?\s*(Tool Calls|Corrections|Actions|Functions|Tool\s*Commands|Correction|Correction\s*\(Tool\s*Calls\)).*)/gi, '');
-        reasoning = reasoning.replace(/(Task\s*\d+:\s*(Correction|Tool Calls|Actions).*)/gi, '');
-        reasoning = reasoning.replace(/```[a-z]*\s*[\s\S]*?(addPart|removePart|initializeDraft|tool|arguments)[\s\S]*?```/gi, '');
-        reasoning = reasoning.replace(/\[\s*\{\s*["']tool["']\s*:[\s\S]*?\}\s*\]/gi, '');
-        reasoning = reasoning.replace(/^\s*\/\/.*$/gm, '');
-        reasoning = reasoning.replace(/^\s*;\s*$/gm, '');
-        reasoning = reasoning.replace(/[ \t]+$/gm, '');
-        reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
-
-        return { reasoning: reasoning.trim(), toolCalls };
+        return parseArchitectResponse(text);
     }
 
     async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
@@ -192,7 +179,7 @@ export class GeminiService implements AIService {
 
     async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[] | null> {
         try {
-            const ai = this.getClient();
+            const ai = this.getSearchClient();
             const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -221,7 +208,7 @@ export class GeminiService implements AIService {
 
     async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
         try {
-            const ai = this.getClient();
+            const ai = this.getSearchClient();
             const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
@@ -274,7 +261,7 @@ export class GeminiService implements AIService {
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         try {
-            const ai = this.getClient();
+            const ai = this.getSearchClient();
             const response = await ai.models.generateContent({
                 model: "gemini-2.5-flash",
                 contents: `Find local hardware stores or specialized retailers for: ${query}.`,
