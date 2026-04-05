@@ -27,3 +27,8 @@ dist-ssr
 # Local environment
 .env
 .env.local
+
+# Playwright artifacts
+.last-run.json
+error-context.md
+test-results/
