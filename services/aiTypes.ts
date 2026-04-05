@@ -1,5 +1,6 @@
 
 import { Part, VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, AdvancedValidationOption } from '../types.ts';
+import { ProcurementResult } from './procurementTypes.ts';
 
 export interface ArchitectResponse {
   reasoning: string;
@@ -46,6 +47,12 @@ export interface AIService {
   findPartSources?(query: string, designContext?: string): Promise<ShoppingOption[] | null>;
 
   findLocalSuppliers?(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null>;
+
+  /**
+   * Verified Procurement Engine: multi-stage pipeline with price anomaly detection
+   * and geopolitical logistics risk assessment.
+   */
+  procureVerifiedSources?(query: string, category: string, designContext?: string): Promise<ProcurementResult>;
 
   /**
    * Uses Google Search grounding to hydrate a virtual part with real-world data.

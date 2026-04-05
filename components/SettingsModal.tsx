@@ -22,6 +22,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [selectedCadModelId, setSelectedCadModelId] = useState<string>('');
     const [selectedUtilityModelId, setSelectedUtilityModelId] = useState<string>('');
     const [searchApiKey, setSearchApiKey] = useState<string>('');
+    const [selectedSearchReasoningId, setSelectedSearchReasoningId] = useState<string>('');
     const [serverAddress, setServerAddress] = useState<string>('192.168.1.41');
     const [temperature, setTemperature] = useState<number>(0.7);
 
@@ -86,6 +87,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }
             const savedSearchKey = localStorage.getItem('searchApiKey');
             if (savedSearchKey) setSearchApiKey(savedSearchKey);
+            const savedSearchBackend = localStorage.getItem('procurementVerificationBackend');
+            const savedSearchProvider = localStorage.getItem('localProcurementProvider');
+            if (savedSearchBackend === 'local' && savedSearchProvider) {
+                try {
+                    setSelectedSearchReasoningId(JSON.parse(savedSearchProvider).id);
+                } catch (e) { }
+            } else {
+                setSelectedSearchReasoningId('');
+            }
         }
     }, [isOpen]);
 
@@ -182,6 +192,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 localStorage.setItem('searchApiKey', searchApiKey.trim());
             } else {
                 localStorage.removeItem('searchApiKey');
+            }
+            // Save search reasoning backend
+            if (selectedSearchReasoningId) {
+                const searchProvider = models.find(m => m.id === selectedSearchReasoningId);
+                if (searchProvider) {
+                    localStorage.setItem('localProcurementProvider', JSON.stringify(searchProvider));
+                    localStorage.setItem('procurementVerificationBackend', 'local');
+                }
+            } else {
+                localStorage.removeItem('localProcurementProvider');
+                localStorage.setItem('procurementVerificationBackend', 'gemini');
             }
 
             if (!selectedModelId) {
@@ -351,6 +372,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         id="utility-model"
                                         value={selectedUtilityModelId}
                                         onChange={(e) => setSelectedUtilityModelId(e.target.value)}
+                                        className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    >
+                                        <option value="">Default (Gemini Cloud API)</option>
+                                        {models.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="mt-5 pt-4 border-t border-gray-100">
+                                    <label htmlFor="search-reasoning-model" className="block text-sm font-bold text-slate-700 mb-2">Search Reasoning Model</label>
+                                    <p className="text-xs text-slate-600 mb-3">
+                                        Controls which LLM verifies and extracts pricing data from scraped product pages during procurement search. Defaults to Gemini Cloud API.
+                                    </p>
+                                    <select
+                                        id="search-reasoning-model"
+                                        value={selectedSearchReasoningId}
+                                        onChange={(e) => setSelectedSearchReasoningId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
                                         <option value="">Default (Gemini Cloud API)</option>
