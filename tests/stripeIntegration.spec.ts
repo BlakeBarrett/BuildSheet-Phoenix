@@ -168,6 +168,8 @@ test.describe('Stripe Integration & Tier Gating', () => {
         // (isShortScreen is true when height < 900, which collapses exports into an overflow menu)
         await page.setViewportSize({ width: 1280, height: 960 });
         await page.goto('http://localhost:3000');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
         // Wait for the app to fully render
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
@@ -183,6 +185,8 @@ test.describe('Stripe Integration & Tier Gating', () => {
 
     test('upgrade modal should appear when message limit reached', async ({ page }) => {
         await page.goto('http://localhost:3000');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
         // The message limit indicator should be visible for free tier users
@@ -196,6 +200,8 @@ test.describe('Stripe Integration & Tier Gating', () => {
 
     test('upgrade rocket icon should be visible for free tier users', async ({ page }) => {
         await page.goto('http://localhost:3000');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
         // The "Upgrade to Pro" icon button should be in the nav rail
@@ -253,6 +259,8 @@ test.describe('Stripe Integration & Tier Gating', () => {
 
     test('Guest badge should appear for unauthenticated users', async ({ page }) => {
         await page.goto('http://localhost:3000');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
         // In guest mode, a "Guest" badge should appear near the chat input
@@ -263,6 +271,8 @@ test.describe('Stripe Integration & Tier Gating', () => {
 
     test('new project button should work within tier limits', async ({ page }) => {
         await page.goto('http://localhost:3000');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
         // For a guest user, the limit is 1 project.
@@ -341,6 +351,8 @@ test.describe('LAUNCH100 Promo Code', () => {
 
     test('upgrade modal shows promo callout in the UI', async ({ page }) => {
         await page.goto('http://localhost:3000');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
         // Open the upgrade modal via the rocket button in the nav rail

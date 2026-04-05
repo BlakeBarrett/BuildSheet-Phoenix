@@ -166,13 +166,9 @@ const ProjectNavigator: React.FC<{
                             {/* Visual Thumbnail */}
                             <div className={`w-14 h-14 rounded-[16px] overflow-hidden flex-shrink-0 border relative ${p.id === currentId ? 'border-indigo-400' : 'border-gray-100'}`}>
                                 {p.thumbnail && (
-                                    <img 
-                                        src={p.thumbnail} 
-                                        alt="" 
-                                        className="w-full h-full object-cover absolute inset-0 z-10 bg-white" 
-                                        onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                        }}
+                                    <ProjectThumbnail
+                                        src={p.thumbnail}
+                                        className="w-full h-full object-cover absolute inset-0 z-10 bg-white"
                                     />
                                 )}
                                 <div className={`w-full h-full flex items-center justify-center absolute inset-0 z-0 ${p.id === currentId ? 'bg-indigo-700' : 'bg-slate-100'}`}>
@@ -1484,6 +1480,12 @@ function saveDailyMessageCount(count: number): void {
     const today = new Date().toISOString().split('T')[0];
     localStorage.setItem(DAILY_MSG_KEY, JSON.stringify({ date: today, count }));
 }
+
+const ProjectThumbnail: React.FC<{ src: string; className: string }> = ({ src, className }) => {
+    const [imgError, setImgError] = React.useState(false);
+    if (imgError) return null;
+    return <img src={src} alt="" className={className} onError={() => setImgError(true)} />;
+};
 
 const AppContent: React.FC = () => {
     const { service: aiService } = useService();

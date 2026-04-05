@@ -152,8 +152,7 @@ test.describe('GeminiService findPartSources URL filtering', () => {
 
     function buildMockService(groundingChunks: any[], groundingSupports: any[] = []) {
         const service = new GeminiService('fake-key');
-        // @ts-ignore
-        service['getClient'] = () => ({
+        const mockClient = {
             models: {
                 generateContent: async () => ({
                     candidates: [{
@@ -165,7 +164,11 @@ test.describe('GeminiService findPartSources URL filtering', () => {
                     }],
                 }),
             },
-        } as any);
+        } as any;
+        // @ts-ignore
+        service['getClient'] = () => mockClient;
+        // @ts-ignore — on-prem routes findPartSources through getSearchClient
+        service['getSearchClient'] = () => mockClient;
         return service;
     }
 

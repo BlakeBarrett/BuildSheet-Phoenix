@@ -220,14 +220,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-            <div className="bg-white rounded-[32px] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[300] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
                 <div className="p-6 pb-2 flex justify-between items-center border-b border-gray-100">
                     <h3 id="settings-title" className="text-xl font-bold text-slate-800 tracking-tight">AI Settings</h3>
                     <IconButton icon="close" onClick={onClose} title="Close" />
                 </div>
                 
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     {/* Temperature slider — available to all tiers */}
                     <div>
                         <label htmlFor="ai-temperature" className="block text-sm font-bold text-slate-700 mb-1">Temperature</label>

@@ -1,0 +1,210 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - link "Skip to Main Content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - dialog "AI Settings" [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "AI Settings" [level=3] [ref=e8]
+        - button "Close" [ref=e9] [cursor=pointer]:
+          - generic [ref=e10]: close
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - generic [ref=e13]: Temperature
+          - paragraph [ref=e14]: Controls AI creativity. Lower values produce more focused, deterministic responses. Higher values are more creative and varied.
+          - generic [ref=e15]:
+            - generic [ref=e16]: Precise
+            - slider "Temperature" [ref=e17] [cursor=pointer]: "0.7"
+            - generic [ref=e18]: Creative
+            - generic [ref=e19]: "0.7"
+        - generic [ref=e20]:
+          - generic [ref=e21]: Server Address
+          - paragraph [ref=e22]: The IP address or hostname of your AI server.
+          - generic [ref=e23]:
+            - textbox "Server Address" [ref=e24]:
+              - /placeholder: 192.168.1.41
+              - text: 192.168.1.41
+            - button "Scan" [ref=e25] [cursor=pointer]
+          - generic [ref=e26]: Local Architect Model
+          - paragraph [ref=e27]: Override the default Architect role by pointing to a local model on your network.
+          - combobox "Local Architect Model" [ref=e28]:
+            - option "Default (Gemini Cloud API)" [selected]
+            - option "[LM Studio] gemma-4-26b"
+            - option "[LM Studio] nemotron-3-super"
+            - option "[LM Studio] llama-3-8b"
+            - option "[Ollama] phi-3"
+            - option "[Ollama] codellama"
+          - generic [ref=e29]:
+            - generic [ref=e30]: Local Validation Audit Model
+            - paragraph [ref=e31]: Override the default Gemini model for the Validation Audit (design feasibility check).
+            - combobox "Local Validation Audit Model" [ref=e32]:
+              - option "Default (Gemini Cloud API)" [selected]
+              - option "[LM Studio] gemma-4-26b"
+              - option "[LM Studio] nemotron-3-super"
+              - option "[LM Studio] llama-3-8b"
+              - option "[Ollama] phi-3"
+              - option "[Ollama] codellama"
+          - generic [ref=e33]:
+            - generic [ref=e34]: Local Assembly Plan Model
+            - paragraph [ref=e35]: Override the default Gemini model for the Assembly Plan generation.
+            - combobox "Local Assembly Plan Model" [ref=e36]:
+              - option "Default (Gemini Cloud API)" [selected]
+              - option "[LM Studio] gemma-4-26b"
+              - option "[LM Studio] nemotron-3-super"
+              - option "[LM Studio] llama-3-8b"
+              - option "[Ollama] phi-3"
+              - option "[Ollama] codellama"
+          - generic [ref=e37]:
+            - generic [ref=e38]: Local CAD / Enclosure Model
+            - paragraph [ref=e39]: Model used for generating OpenSCAD source code and enclosure specifications. Use a code-focused model like Nemotron for best results.
+            - combobox "Local CAD / Enclosure Model" [ref=e40]:
+              - option "Default (Gemini Cloud API)" [selected]
+              - option "[LM Studio] gemma-4-26b"
+              - option "[LM Studio] nemotron-3-super"
+              - option "[LM Studio] llama-3-8b"
+              - option "[Ollama] phi-3"
+              - option "[Ollama] codellama"
+          - generic [ref=e41]:
+            - generic [ref=e42]: General Utility Model
+            - paragraph [ref=e43]: Covers fabrication briefs, QA protocols, AR guidance, component identification, and audit recommendations.
+            - combobox "General Utility Model" [ref=e44]:
+              - option "Default (Gemini Cloud API)" [selected]
+              - option "[LM Studio] gemma-4-26b"
+              - option "[LM Studio] nemotron-3-super"
+              - option "[LM Studio] llama-3-8b"
+              - option "[Ollama] phi-3"
+              - option "[Ollama] codellama"
+          - generic [ref=e45]:
+            - generic [ref=e46]: Search Reasoning Model
+            - paragraph [ref=e47]: Controls which LLM verifies and extracts pricing data from scraped product pages during procurement search. Defaults to Gemini Cloud API.
+            - combobox "Search Reasoning Model" [ref=e48]:
+              - option "Default (Gemini Cloud API)" [selected]
+              - option "[LM Studio] gemma-4-26b"
+              - option "[LM Studio] nemotron-3-super"
+              - option "[LM Studio] llama-3-8b"
+              - option "[Ollama] phi-3"
+              - option "[Ollama] codellama"
+          - generic [ref=e49]:
+            - generic [ref=e50]: Search / Grounding API Key
+            - paragraph [ref=e51]: Optional. Use your own API key for part search, local suppliers, and data hydration. If blank, the default key is used.
+            - textbox "Search / Grounding API Key" [ref=e52]:
+              - /placeholder: Leave blank to use default
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - button "Refresh Models" [ref=e55] [cursor=pointer]
+          - button "Save Changes" [ref=e56] [cursor=pointer]
+        - generic [ref=e57]:
+          - paragraph [ref=e58]: Privacy & Data (GDPR)
+          - generic [ref=e59]:
+            - button "Delete All My Data" [ref=e60] [cursor=pointer]:
+              - generic [ref=e61]: delete_forever
+              - text: Delete All My Data
+            - button "Download My Data" [ref=e62] [cursor=pointer]:
+              - generic [ref=e63]: download
+              - text: Download My Data
+  - alertdialog "Privacy & Data Control":
+    - generic [ref=e64]:
+      - generic [ref=e65]:
+        - heading "Privacy & Data Control" [level=3] [ref=e66]:
+          - generic [ref=e67]: cookie
+          - text: Privacy & Data Control
+        - paragraph [ref=e68]:
+          - text: We use
+          - strong [ref=e69]: Local Storage
+          - text: to save your projects on-device. Project descriptions, images, and BOM data are sent to
+          - strong [ref=e70]: Google Gemini
+          - text: for AI processing (subject to
+          - link "Google's API Terms" [ref=e71] [cursor=pointer]:
+            - /url: https://ai.google.dev/gemini-api/terms
+          - text: ). No personal data is sold to third parties.
+      - generic [ref=e72]:
+        - button "Essential Only" [ref=e73] [cursor=pointer]
+        - button "Accept All" [ref=e74] [cursor=pointer]
+  - navigation "Main navigation" [ref=e75]:
+    - generic [ref=e77]: construction
+    - generic [ref=e78]:
+      - button "New Project" [ref=e79] [cursor=pointer]:
+        - generic [ref=e80]: add_box
+      - button "Projects" [ref=e81] [cursor=pointer]:
+        - generic [ref=e82]: folder_open
+      - button "More tools menus" [ref=e85] [cursor=pointer]:
+        - generic [ref=e86]: more_horiz
+    - generic [ref=e87]:
+      - button "Settings" [active] [ref=e88] [cursor=pointer]:
+        - generic [ref=e89]: tune
+      - button "Sign In" [ref=e90] [cursor=pointer]:
+        - generic [ref=e91]: login
+  - main [ref=e92]:
+    - generic [ref=e93]:
+      - generic [ref=e94]:
+        - generic [ref=e95]:
+          - heading "Untitled Assembly" [level=1] [ref=e96] [cursor=pointer]:
+            - text: Untitled Assembly
+            - generic [ref=e97]: edit
+          - generic [ref=e98]: BuildSheet Drafting Engine
+        - generic [ref=e99]:
+          - button "Copy share link" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: share
+          - button "Sign in" [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: login
+            - generic [ref=e106]: Sign In
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - generic:
+            - button "Nano Banana":
+              - generic: temp_preferences_custom
+              - text: Nano Banana
+          - generic [ref=e111]:
+            - generic [ref=e113]: broken_image
+            - heading "Blank Canvas" [level=3] [ref=e114]
+            - paragraph [ref=e115]: Draft your BOM to generate a concept using Gemini.
+        - button "New" [disabled] [ref=e117]:
+          - generic [ref=e119]: add_photo_alternate
+          - generic [ref=e120]: New
+      - log "Conversation Feed" [ref=e121]:
+        - generic [ref=e122]:
+          - generic [ref=e124]: chat_bubble_outline
+          - paragraph [ref=e125]: Describe your hardware project to begin.
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - generic "Attach file" [ref=e128] [cursor=pointer]:
+            - generic [ref=e129]: attach_file
+          - textbox "Instruct Gemini to build" [ref=e130]:
+            - /placeholder: Instruct Gemini to build...
+          - button "Voice Mode" [ref=e131] [cursor=pointer]:
+            - generic [ref=e132]: mic
+          - button "Send Message" [disabled] [ref=e133]:
+            - generic [ref=e134]: arrow_upward
+        - paragraph [ref=e135]: All outputs are draft-quality — verify all specifications before procurement or fabrication.
+    - generic [ref=e136]:
+      - generic [ref=e137]:
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - heading "Total Estimate" [level=2] [ref=e140]
+            - 'generic "Total cost: 0" [ref=e141]': $0.00
+          - generic [ref=e142]:
+            - button "Custom Part" [ref=e143] [cursor=pointer]:
+              - generic [ref=e144]: add
+              - text: Custom Part
+            - generic [ref=e145]: 0 Components
+        - button "One-Click Kit" [ref=e146] [cursor=pointer]:
+          - generic [ref=e147]: magic_button
+          - text: One-Click Kit
+      - generic [ref=e148]:
+        - button "Undo (Ctrl+Z)" [ref=e149]:
+          - generic [ref=e150]: undo
+        - button "Redo (Ctrl+Shift+Z)" [ref=e151]:
+          - generic [ref=e152]: redo
+      - generic [ref=e154]:
+        - generic [ref=e155]: list_alt
+        - paragraph [ref=e156]: Bill of Materials is empty.
+      - generic [ref=e157]:
+        - button "Verify" [ref=e158] [cursor=pointer]:
+          - generic [ref=e159]: policy
+          - text: Verify
+        - button "Plan" [ref=e160] [cursor=pointer]:
+          - generic [ref=e161]: build
+          - text: Plan
+```

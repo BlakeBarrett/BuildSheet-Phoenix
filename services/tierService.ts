@@ -77,6 +77,24 @@ export interface TierState {
 }
 
 /**
+ * Test escape hatch: localStorage '__test_tier_override__' overrides auto-enterprise on localhost.
+ * Only used by Playwright tests so they can exercise free-tier gating on localhost.
+ */
+function getTestOverride(): PlanTier | null {
+  try {
+    const v = typeof localStorage !== 'undefined' && localStorage.getItem('__test_tier_override__');
+    if (v && ['free', 'pro', 'enterprise'].includes(v)) return v as PlanTier;
+  } catch { }
+  return null;
+}
+
+function isLocalEnterprise(): boolean {
+  const override = getTestOverride();
+  if (override !== null) return override === 'enterprise';
+  return typeof window !== 'undefined' && window.location.hostname === 'localhost';
+}
+
+/**
  * TierService reads the user's `planTier` from their Firestore user doc
  * and listens for active Stripe subscriptions via the
  * @invertase/firestore-stripe-payments SDK (path: `customers/{uid}/subscriptions`).
@@ -90,7 +108,7 @@ export class TierService {
   static subscribe(uid: string): void {
     this.cleanup();
     
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    if (isLocalEnterprise()) {
       this.currentState = { tier: 'enterprise', isAuthenticated: true, loading: false };
       this.notify();
       return;
@@ -164,7 +182,7 @@ export class TierService {
   static setAnonymous(): void {
     this.cleanup();
     
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    if (isLocalEnterprise()) {
       this.currentState = { tier: 'enterprise', isAuthenticated: true, loading: false };
       this.notify();
       return;
@@ -175,7 +193,7 @@ export class TierService {
   }
 
   static getState(): TierState {
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    if (isLocalEnterprise()) {
       return { tier: 'enterprise', isAuthenticated: true, loading: false };
     }
     return { ...this.currentState };
@@ -195,7 +213,7 @@ export class TierService {
   }
 
   private static notify(): void {
-    const stateToEmit = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+    const stateToEmit = isLocalEnterprise()
       ? { tier: 'enterprise' as PlanTier, isAuthenticated: true, loading: false }
       : this.currentState;
     this.listeners.forEach(l => l(stateToEmit));

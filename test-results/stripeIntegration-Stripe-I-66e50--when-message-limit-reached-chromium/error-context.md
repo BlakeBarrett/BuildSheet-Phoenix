@@ -1,0 +1,110 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - link "Skip to Main Content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - alertdialog "Privacy & Data Control":
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - heading "Privacy & Data Control" [level=3] [ref=e7]:
+          - generic [ref=e8]: cookie
+          - text: Privacy & Data Control
+        - paragraph [ref=e9]:
+          - text: We use
+          - strong [ref=e10]: Local Storage
+          - text: to save your projects on-device. Project descriptions, images, and BOM data are sent to
+          - strong [ref=e11]: Google Gemini
+          - text: for AI processing (subject to
+          - link "Google's API Terms" [ref=e12] [cursor=pointer]:
+            - /url: https://ai.google.dev/gemini-api/terms
+          - text: ). No personal data is sold to third parties.
+      - generic [ref=e13]:
+        - button "Essential Only" [ref=e14] [cursor=pointer]
+        - button "Accept All" [ref=e15] [cursor=pointer]
+  - navigation "Main navigation" [ref=e16]:
+    - generic [ref=e18]: construction
+    - generic [ref=e19]:
+      - button "New Project" [ref=e20] [cursor=pointer]:
+        - generic [ref=e21]: add_box
+      - button "Projects" [ref=e22] [cursor=pointer]:
+        - generic [ref=e23]: folder_open
+      - button "More tools menus" [ref=e26] [cursor=pointer]:
+        - generic [ref=e27]: more_horiz
+    - generic [ref=e28]:
+      - button "Settings" [ref=e29] [cursor=pointer]:
+        - generic [ref=e30]: tune
+      - button "Sign In" [ref=e31] [cursor=pointer]:
+        - generic [ref=e32]: login
+  - main [ref=e33]:
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - heading "Untitled Assembly" [level=1] [ref=e37] [cursor=pointer]:
+            - text: Untitled Assembly
+            - generic [ref=e38]: edit
+          - generic [ref=e39]: BuildSheet Drafting Engine
+        - generic [ref=e40]:
+          - button "Copy share link" [ref=e42] [cursor=pointer]:
+            - generic [ref=e43]: share
+          - button "Sign in" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: login
+            - generic [ref=e47]: Sign In
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - generic:
+            - button "Nano Banana":
+              - generic: temp_preferences_custom
+              - text: Nano Banana
+          - generic [ref=e52]:
+            - generic [ref=e54]: broken_image
+            - heading "Blank Canvas" [level=3] [ref=e55]
+            - paragraph [ref=e56]: Draft your BOM to generate a concept using Gemini.
+        - button "New" [disabled] [ref=e58]:
+          - generic [ref=e60]: add_photo_alternate
+          - generic [ref=e61]: New
+      - log "Conversation Feed" [ref=e62]:
+        - generic [ref=e63]:
+          - generic [ref=e65]: chat_bubble_outline
+          - paragraph [ref=e66]: Describe your hardware project to begin.
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic "Attach file" [ref=e69] [cursor=pointer]:
+            - generic [ref=e70]: attach_file
+          - textbox "Instruct Gemini to build" [ref=e71]:
+            - /placeholder: Instruct Gemini to build...
+          - button "Voice Mode" [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]: mic
+          - button "Send Message" [disabled] [ref=e74]:
+            - generic [ref=e75]: arrow_upward
+        - paragraph [ref=e76]: All outputs are draft-quality — verify all specifications before procurement or fabrication.
+    - generic [ref=e77]:
+      - generic [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - heading "Total Estimate" [level=2] [ref=e81]
+            - 'generic "Total cost: 0" [ref=e82]': $0.00
+          - generic [ref=e83]:
+            - button "Custom Part" [ref=e84] [cursor=pointer]:
+              - generic [ref=e85]: add
+              - text: Custom Part
+            - generic [ref=e86]: 0 Components
+        - button "One-Click Kit" [ref=e87] [cursor=pointer]:
+          - generic [ref=e88]: magic_button
+          - text: One-Click Kit
+      - generic [ref=e89]:
+        - button "Undo (Ctrl+Z)" [ref=e90]:
+          - generic [ref=e91]: undo
+        - button "Redo (Ctrl+Shift+Z)" [ref=e92]:
+          - generic [ref=e93]: redo
+      - generic [ref=e95]:
+        - generic [ref=e96]: list_alt
+        - paragraph [ref=e97]: Bill of Materials is empty.
+      - generic [ref=e98]:
+        - button "Verify" [ref=e99] [cursor=pointer]:
+          - generic [ref=e100]: policy
+          - text: Verify
+        - button "Plan" [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]: build
+          - text: Plan
+```
