@@ -113,6 +113,16 @@ export interface BOMEntry {
     local?: LocalSupplier[];
     manualUrl?: string;
     lastUpdated?: Date;
+    /** Verified procurement metadata (when procurement engine is active) */
+    procurement?: {
+      status: string;
+      confidence_score: number;
+      verified_sources_count: number;
+      risk_flags: string[];
+      logistics_delay_days: number;
+      price_anomaly_detected: boolean;
+      pipeline_duration_ms: number;
+    };
   };
   qaProtocol?: InspectionProtocol;
   fabricationBrief?: string;

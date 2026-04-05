@@ -147,3 +147,119 @@ addPart("seville-classics-24x36-shelf", "Seville Classics UltraDurable 5-Tier St
     });
 
 });
+
+test.describe('GeminiService findPartSources URL filtering', () => {
+
+    function buildMockService(groundingChunks: any[], groundingSupports: any[] = []) {
+        const service = new GeminiService('fake-key');
+        // @ts-ignore
+        service['getClient'] = () => ({
+            models: {
+                generateContent: async () => ({
+                    candidates: [{
+                        content: { parts: [{ text: 'results' }] },
+                        groundingMetadata: {
+                            groundingChunks: groundingChunks,
+                            groundingSupports: groundingSupports,
+                        },
+                    }],
+                }),
+            },
+        } as any);
+        return service;
+    }
+
+    test('filters out PDF URLs', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://newspapers.com/archive/1952-catalog.pdf', title: 'Old Newspaper' } },
+            { web: { uri: 'https://retailer.com/product/ragtop-kit', title: 'Ragtop Kit - $299.99' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].url).toContain('retailer.com');
+    });
+
+    test('filters out newspaper archive sites', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://old-newspaper-archive.com/page/42', title: 'Daily Herald 1965' } },
+            { web: { uri: 'https://amazon.com/dp/B09XYZ', title: 'Sliding Ragtop Kit - $349.00' } },
+        ]);
+        const results = await service.findPartSources('Sliding Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].url).toContain('amazon.com');
+    });
+
+    test('filters out Wikipedia and government sites', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://en.wikipedia.org/wiki/Ragtop', title: 'Ragtop - Wikipedia' } },
+            { web: { uri: 'https://nhtsa.gov/recalls/ragtop', title: 'NHTSA Recall' } },
+            { web: { uri: 'https://partsource.com/ragtop-kit', title: 'Ragtop Kit - $199.00' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].url).toContain('partsource.com');
+    });
+
+    test('filters out social media and video sites', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://youtube.com/watch?v=abc123', title: 'Ragtop Install Video' } },
+            { web: { uri: 'https://facebook.com/marketplace/item/123', title: 'Ragtop for sale' } },
+            { web: { uri: 'https://pinterest.com/pin/ragtop', title: 'Ragtop Ideas' } },
+            { web: { uri: 'https://autoparts.com/sliding-ragtop', title: 'Sliding Ragtop - $399.00' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].url).toContain('autoparts.com');
+    });
+
+    test('filters out existing NOISY_DOMAINS (reddit, ebay, forums)', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://reddit.com/r/cars/ragtop', title: 'Reddit discussion' } },
+            { web: { uri: 'https://ebay.com/itm/123', title: 'eBay listing' } },
+            { web: { uri: 'https://forums.hotrod.com/thread/123', title: 'Forum thread' } },
+            { web: { uri: 'https://jcwhitney.com/ragtop-kit', title: 'JC Whitney Ragtop - $249.00' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].url).toContain('jcwhitney.com');
+    });
+
+    test('keeps legitimate retail and catalog sites', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://mcmaster.com/catalog/ragtop', title: 'McMaster-Carr Ragtop - $189.00' } },
+            { web: { uri: 'https://grainger.com/product/ragtop', title: 'Grainger Ragtop Kit - $210.00' } },
+            { web: { uri: 'https://summitracing.com/parts/ragtop', title: 'Summit Racing Ragtop - $299.00' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(3);
+    });
+
+    test('returns "Local Market Research Required" when all results are filtered out', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://reddit.com/r/cars/ragtop', title: 'Reddit' } },
+            { web: { uri: 'https://en.wikipedia.org/wiki/Ragtop', title: 'Wikipedia' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].title).toBe('Local Market Research Required');
+        expect(results![0].url).toBe('');
+    });
+
+    test('filters PDFs with query parameters', async () => {
+        const service = buildMockService([
+            { web: { uri: 'https://example.com/docs/catalog.pdf?page=5', title: 'Product Catalog PDF' } },
+            { web: { uri: 'https://shop.com/ragtop', title: 'Shop Ragtop - $150.00' } },
+        ]);
+        const results = await service.findPartSources('Ragtop Kit');
+        expect(results).not.toBeNull();
+        expect(results!.length).toBe(1);
+        expect(results![0].url).toContain('shop.com');
+    });
+});

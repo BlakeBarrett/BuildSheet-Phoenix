@@ -2,6 +2,8 @@ import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { GeminiService } from "./geminiService.ts";
 import { LocalArchitectService, LocalModelProvider, getLocalProvider } from "./localAiService.ts";
 import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
+import { VerifiedProcurementEngine } from "./procurementEngine.ts";
+import { ProcurementResult } from "./procurementTypes.ts";
 
 export class HybridAIService implements AIService {
     public isOffline = false;
@@ -9,9 +11,11 @@ export class HybridAIService implements AIService {
     private localService: LocalArchitectService | null = null;
     private localAuditService: LocalArchitectService | null = null;
     private localPlanService: LocalArchitectService | null = null;
+    private procurementEngine: VerifiedProcurementEngine;
 
     constructor(apiKey: string) {
         this.geminiService = new GeminiService(apiKey);
+        this.procurementEngine = new VerifiedProcurementEngine(undefined, this.geminiService);
         // Auto-load audit/plan providers from localStorage
         const auditProvider = getLocalProvider('localAuditProvider');
         if (auditProvider) {
@@ -72,6 +76,10 @@ export class HybridAIService implements AIService {
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         return this.geminiService.findLocalSuppliers(query);
+    }
+
+    async procureVerifiedSources(query: string, category: string, designContext?: string): Promise<ProcurementResult> {
+        return this.procurementEngine.procure(query, category, designContext);
     }
 
     async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {

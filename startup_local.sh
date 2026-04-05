@@ -53,6 +53,25 @@ fi
 echo "▶ building docker image ${IMAGE_NAME}..."
 DOCKER_BUILDKIT=0 docker build --no-cache -t "$IMAGE_NAME" .
 
+# ensure a container runtime is available
+if ! docker info >/dev/null 2>&1; then
+  echo "▶ docker cannot connect to the local daemon."
+  if command -v systemctl >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
+    echo "▶ attempting to start Podman user socket..."
+    systemctl --user start podman.socket || true
+    sleep 1
+  fi
+  if ! docker info >/dev/null 2>&1; then
+    cat <<'ERROR' >&2
+ERROR: Docker daemon is not available.
+Start Docker or Podman first, then rerun this script.
+On systems using Podman, run:
+  systemctl --user start podman.socket
+ERROR
+    exit 1
+  fi
+fi
+
 # remove any old container with the same name
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 

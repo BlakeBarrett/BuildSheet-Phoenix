@@ -10,6 +10,22 @@ import { getAiTemperature } from "./localAiService.ts";
 /** Domains that produce noisy / hallucinated pricing data. */
 const NOISY_DOMAINS = ['reddit.com', 'ebay.com', 'forums.'];
 
+/** URL patterns for non-retail content that clutters sourcing results. */
+const NOISY_URL_PATTERNS = [
+    /\.pdf(\?|$)/i,                  // PDF documents (newspapers, manuals, archives)
+    /newspaper/i,                     // Newspaper archive sites
+    /archive\.org/i,                  // Internet Archive
+    /patents\.google/i,               // Patent listings
+    /scholar\.google/i,               // Academic papers
+    /\.gov\//i,                       // Government sites
+    /wiki(pedia|media)\.org/i,        // Wikipedia / Wikimedia
+    /youtube\.com|youtu\.be/i,        // Video sites
+    /facebook\.com|instagram\.com/i,  // Social media
+    /pinterest\./i,                   // Pinterest
+    /blogspot\.|wordpress\.com/i,     // Blog platforms
+    /news\.|nytimes|washingtonpost|cnn\.com/i, // News sites
+];
+
 
 /**
  * Builds a chunkIndex → max-confidence map from the groundingSupports array.
@@ -102,6 +118,23 @@ export class GeminiService implements AIService {
         const key = this.getApiKey();
         if (!key) return "MISSING";
         return `${key.substring(0, 4)}... (Len: ${key.length})`;
+    }
+
+    /**
+     * General-purpose structured JSON generation via Gemini.
+     * Used by the procurement engine's verification stage.
+     */
+    async generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any> {
+        const ai = this.getClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: schema as any,
+            },
+        });
+        return JSON.parse(response.text || 'null');
     }
 
     private cleanBase64(dataUrl: string): { mimeType: string, data: string } | null {
@@ -235,12 +268,15 @@ For each item, you MUST include the price in the title or snippet. Format: "Prod
             const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
             const confidenceMap = buildChunkConfidenceMap(supports as GroundingSupport[]);
 
-            // Filter noisy domains; keep track of original index for confidence lookup
+            // Filter noisy domains and non-retail URLs; keep track of original index for confidence lookup
             const clean = chunks
                 .map((chunk, idx) => ({ chunk, idx }))
                 .filter(({ chunk }) => {
                     const url = chunk.web?.uri ?? '';
-                    return chunk.web && url && !NOISY_DOMAINS.some(d => url.includes(d));
+                    if (!chunk.web || !url) return false;
+                    if (NOISY_DOMAINS.some(d => url.includes(d))) return false;
+                    if (NOISY_URL_PATTERNS.some(p => p.test(url))) return false;
+                    return true;
                 });
 
             // If nothing survives the noise filter, signal for local research

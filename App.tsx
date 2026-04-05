@@ -584,7 +584,31 @@ const PartDetailModal: React.FC<{
                                         <div className="flex items-center gap-2 mb-3">
                                             <span className="material-symbols-rounded text-indigo-600 text-[18px]" aria-hidden="true">public</span>
                                             <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-widest">Global Marketplace</span>
+                                            {entry.sourcing?.procurement && (
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
+                                                    entry.sourcing.procurement.status === 'VERIFIED' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
+                                                    entry.sourcing.procurement.status === 'SUSPECT' ? 'text-red-700 bg-red-50 border-red-200' :
+                                                    entry.sourcing.procurement.status === 'OUT_OF_STOCK' ? 'text-slate-700 bg-slate-100 border-slate-300' :
+                                                    'text-amber-700 bg-amber-50 border-amber-200'
+                                                }`}>
+                                                    {entry.sourcing.procurement.status} ({entry.sourcing.procurement.verified_sources_count} sources)
+                                                </span>
+                                            )}
                                         </div>
+                                        {entry.sourcing?.procurement?.risk_flags && entry.sourcing.procurement.risk_flags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mb-3">
+                                                {entry.sourcing.procurement.risk_flags.map((flag, i) => (
+                                                    <span key={i} className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-orange-700 bg-orange-50 border border-orange-200">
+                                                        {flag.replace(/_/g, ' ')}
+                                                    </span>
+                                                ))}
+                                                {entry.sourcing.procurement.logistics_delay_days > 0 && (
+                                                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-rose-700 bg-rose-50 border border-rose-200">
+                                                        +{entry.sourcing.procurement.logistics_delay_days}d shipping delay
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                         <div className="space-y-2">
                                             {entry.sourcing.online.map((s, i) => s.url ? (
                                                 <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white rounded-[16px] border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all group" aria-label={`View at ${s.source}`}>
@@ -716,7 +740,7 @@ const PartDetailModal: React.FC<{
                     {onRemove && (
                         <Button variant="ghost" onClick={() => onRemove(entry.instanceId)} className="mr-auto text-red-600 hover:bg-red-50" icon="delete">Remove</Button>
                     )}
-                    <Button variant="tonal" onClick={() => onSource(entry)} disabled={entry.sourcing?.loading} icon="refresh">Update Sourcing</Button>
+                    <Button variant="tonal" onClick={() => onSource(entry)} disabled={entry.sourcing?.loading} icon={entry.sourcing?.loading ? "progress_activity" : "refresh"} className={entry.sourcing?.loading ? '[&_.material-symbols-rounded]:animate-spin' : ''}>{entry.sourcing?.loading ? 'Updating...' : 'Update Sourcing'}</Button>
                     <Button variant="primary" onClick={onClose}>Close</Button>
                 </div>
             </div>
@@ -1481,6 +1505,10 @@ const AppContent: React.FC = () => {
     );
 
     const [selectedPart, setSelectedPart] = useState<BOMEntry | null>(null);
+    // Keep the modal entry in sync with live session state (e.g. sourcing.loading)
+    const liveSelectedPart = selectedPart
+        ? session.bom.find(b => b.instanceId === selectedPart.instanceId) ?? selectedPart
+        : null;
     const [assemblyOpen, setAssemblyOpen] = useState(false);
     const [isPlanningAssembly, setIsPlanningAssembly] = useState(false);
     const [arOpen, setArOpen] = useState(false);
@@ -1815,6 +1843,38 @@ const AppContent: React.FC = () => {
         }));
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
+
+            // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
+            if (aiService.procureVerifiedSources) {
+                const procResult = await aiService.procureVerifiedSources(entry.part.name, entry.part.category, designReqs);
+
+                // If the pipeline succeeded (not ERROR), use verified results
+                if (procResult.status !== 'ERROR') {
+                    const local = await aiService.findLocalSuppliers?.(entry.part.name);
+
+                    // Store procurement metadata alongside legacy shopping options
+                    const bomEntry = draftingEngine.getSession().bom.find(b => b.instanceId === entry.instanceId);
+                    if (bomEntry) {
+                        if (!bomEntry.sourcing) bomEntry.sourcing = {};
+                        bomEntry.sourcing.procurement = {
+                            status: procResult.status,
+                            confidence_score: procResult.confidence_score,
+                            verified_sources_count: procResult.verified_sources_count,
+                            risk_flags: procResult.risk_flags,
+                            logistics_delay_days: procResult.logistics_delay_estimate_days,
+                            price_anomaly_detected: procResult.price_anomaly?.detected ?? false,
+                            pipeline_duration_ms: procResult.pipeline_duration_ms,
+                        };
+                    }
+
+                    draftingEngine.updatePartSourcing(entry.instanceId, procResult.shopping_options, local || []);
+                    refreshState();
+                    return;
+                }
+                // Pipeline failed — fall through to legacy Gemini search
+            }
+
+            // Fallback to legacy Google Search grounding
             const result = await aiService.findPartSources?.(entry.part.name, designReqs);
             const local = await aiService.findLocalSuppliers?.(entry.part.name);
             draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
@@ -2438,7 +2498,7 @@ const AppContent: React.FC = () => {
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
             <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} proposedActions={session.cachedAuditActions} advancedValidations={advancedValidations} onAdvancedChange={handleAdvancedValidationsChange} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
             <PartDetailModal 
-                entry={selectedPart} 
+                entry={liveSelectedPart} 
                 onClose={() => setSelectedPart(null)} 
                 onSource={handleSourcePart} 
                 onHydrate={handleHydratePart} 
