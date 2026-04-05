@@ -100,15 +100,34 @@ export class AIManager {
     try {
       const service = new HybridAIService(apiKey);
       
-      // Attempt to load previously selected local model from localStorage
+      // 1. Env vars take precedence as default if local storage doesn't override it
+      // @ts-ignore
+      let envUrl = (typeof window !== 'undefined' && window._env_ && window._env_.LOCAL_ARCHITECT_URL) || (typeof process !== 'undefined' && process.env && process.env.LOCAL_ARCHITECT_URL);
+      // @ts-ignore
+      let envModel = (typeof window !== 'undefined' && window._env_ && window._env_.LOCAL_ARCHITECT_MODEL) || (typeof process !== 'undefined' && process.env && process.env.LOCAL_ARCHITECT_MODEL);
+      
+      let localProvider: LocalModelProvider | undefined = undefined;
+
       try {
         const savedProviderHtml = localStorage.getItem('localArchitectProvider');
         if (savedProviderHtml) {
-          const provider: LocalModelProvider = JSON.parse(savedProviderHtml);
-          service.setLocalArchitect(provider);
+          localProvider = JSON.parse(savedProviderHtml);
         }
       } catch (e) {
         console.warn("Could not load local provider from localStorage", e);
+      }
+      
+      if (!localProvider && envUrl && envModel) {
+          localProvider = {
+              id: envModel as string,
+              name: `[Env Config] ${envModel}`,
+              endpointUrl: envUrl as string,
+              type: 'openai'
+          } as LocalModelProvider;
+      }
+
+      if (localProvider) {
+          service.setLocalArchitect(localProvider);
       }
 
       return { service };

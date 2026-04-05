@@ -164,14 +164,20 @@ const ProjectNavigator: React.FC<{
                     {filtered.map((p) => (
                         <div key={p.id} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && !p.archived && onSelect(p.id)} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${p.archived ? 'opacity-60' : ''} ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { if (!p.archived) { onSelect(p.id); onClose(); } }}>
                             {/* Visual Thumbnail */}
-                            <div className={`w-14 h-14 rounded-[16px] overflow-hidden flex-shrink-0 border ${p.id === currentId ? 'border-indigo-400' : 'border-gray-100'}`}>
-                                {p.thumbnail ? (
-                                    <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className={`w-full h-full flex items-center justify-center ${p.id === currentId ? 'bg-indigo-700' : 'bg-slate-100'}`}>
-                                        <span className={`material-symbols-rounded ${p.id === currentId ? 'text-indigo-300' : 'text-slate-300'}`} aria-hidden="true">{p.archived ? 'archive' : 'draft'}</span>
-                                    </div>
+                            <div className={`w-14 h-14 rounded-[16px] overflow-hidden flex-shrink-0 border relative ${p.id === currentId ? 'border-indigo-400' : 'border-gray-100'}`}>
+                                {p.thumbnail && (
+                                    <img 
+                                        src={p.thumbnail} 
+                                        alt="" 
+                                        className="w-full h-full object-cover absolute inset-0 z-10 bg-white" 
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                        }}
+                                    />
                                 )}
+                                <div className={`w-full h-full flex items-center justify-center absolute inset-0 z-0 ${p.id === currentId ? 'bg-indigo-700' : 'bg-slate-100'}`}>
+                                    <span className={`material-symbols-rounded ${p.id === currentId ? 'text-indigo-300' : 'text-slate-300'}`} aria-hidden="true">{p.archived ? 'archive' : 'draft'}</span>
+                                </div>
                             </div>
 
                             <div className="flex flex-col flex-1 min-w-0">

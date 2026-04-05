@@ -26,12 +26,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         if (isOpen) {
             const savedTemp = localStorage.getItem('aiTemperature');
             if (savedTemp) setTemperature(parseFloat(savedTemp));
+            // @ts-ignore
+            const envUrl = (typeof window !== 'undefined' && window._env_ && window._env_.LOCAL_ARCHITECT_URL) || (typeof process !== 'undefined' && process.env && process.env.LOCAL_ARCHITECT_URL);
+            // @ts-ignore
+            const envModel = (typeof window !== 'undefined' && window._env_ && window._env_.LOCAL_ARCHITECT_MODEL) || (typeof process !== 'undefined' && process.env && process.env.LOCAL_ARCHITECT_MODEL);
+
             let currentAddress = '192.168.1.41';
+            if (envUrl) {
+                try {
+                    const parsedUrl = new URL(envUrl);
+                    currentAddress = parsedUrl.hostname;
+                } catch(e) {}
+            }
+
             const savedAddress = localStorage.getItem('localArchitectAddress');
             if (savedAddress) {
                 setServerAddress(savedAddress);
                 currentAddress = savedAddress;
+            } else {
+                setServerAddress(currentAddress);
             }
+
             if (isEnterprise) fetchModels(currentAddress);
             const saved = localStorage.getItem('localArchitectProvider');
             if (saved) {
@@ -39,6 +54,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     const parsed = JSON.parse(saved);
                     setSelectedModelId(parsed.id);
                 } catch (e) { }
+            } else if (envModel) {
+                setSelectedModelId(envModel);
             }
             const savedAudit = localStorage.getItem('localAuditProvider');
             if (savedAudit) {
@@ -107,14 +124,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         localStorage.setItem('aiTemperature', String(temperature));
         if (isEnterprise) {
             localStorage.setItem('localArchitectAddress', serverAddress);
-            if (!selectedModelId) {
-                updateLocalProvider(null);
-            } else {
-                const provider = models.find(m => m.id === selectedModelId);
-                if (provider) {
-                    updateLocalProvider(provider);
-                }
-            }
             // Save audit model
             if (selectedAuditModelId) {
                 const auditProvider = models.find(m => m.id === selectedAuditModelId);
@@ -132,6 +141,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 }
             } else {
                 localStorage.removeItem('localPlanProvider');
+            }
+
+            if (!selectedModelId) {
+                updateLocalProvider(null);
+            } else {
+                const provider = models.find(m => m.id === selectedModelId);
+                if (provider) {
+                    updateLocalProvider(provider);
+                }
             }
         }
         onClose();

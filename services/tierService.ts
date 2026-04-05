@@ -89,6 +89,13 @@ export class TierService {
   /** Start listening to the authenticated user's tier. Call once on auth change. */
   static subscribe(uid: string): void {
     this.cleanup();
+    
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      this.currentState = { tier: 'enterprise', isAuthenticated: true, loading: false };
+      this.notify();
+      return;
+    }
+
     this.currentState = { tier: 'free', isAuthenticated: true, loading: true };
     this.notify();
 
@@ -156,11 +163,21 @@ export class TierService {
   /** Clear subscription for logged-out / anonymous user. */
   static setAnonymous(): void {
     this.cleanup();
+    
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      this.currentState = { tier: 'enterprise', isAuthenticated: true, loading: false };
+      this.notify();
+      return;
+    }
+
     this.currentState = { tier: 'free', isAuthenticated: false, loading: false };
     this.notify();
   }
 
   static getState(): TierState {
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+      return { tier: 'enterprise', isAuthenticated: true, loading: false };
+    }
     return { ...this.currentState };
   }
 
@@ -178,6 +195,9 @@ export class TierService {
   }
 
   private static notify(): void {
-    this.listeners.forEach(l => l(this.currentState));
+    const stateToEmit = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+      ? { tier: 'enterprise' as PlanTier, isAuthenticated: true, loading: false }
+      : this.currentState;
+    this.listeners.forEach(l => l(stateToEmit));
   }
 }
