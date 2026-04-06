@@ -63,20 +63,28 @@
       </a>
 
       <div class="navbar__links">
-        <a href="#features" class="navbar__link">Features</a>
-        <a href="#how-it-works" class="navbar__link">How It Works</a>
-        <a href="#pricing" class="navbar__link">Pricing</a>
-        <a href="#faq" class="navbar__link">FAQ</a>
+        <a href="#features" class="navbar__link" data-i18n="nav.features">Features</a>
+        <a href="#how-it-works" class="navbar__link" data-i18n="nav.howItWorks">How It Works</a>
+        <a href="#pricing" class="navbar__link" data-i18n="nav.pricing">Pricing</a>
+        <a href="#faq" class="navbar__link" data-i18n="nav.faq">FAQ</a>
       </div>
 
-      <div class="navbar__actions">
+      <div class="navbar__actions" style="display: flex; align-items: center; gap: 1rem;">
+        <select id="lang-switcher" onchange="changeLanguage(this.value)" style="background: transparent; border: 1px solid var(--color-border); color: var(--color-text-primary); padding: 0.25rem; border-radius: 4px; font-size: 0.875rem;">
+          <option value="en" data-i18n="language.english">English</option>
+          <option value="es" data-i18n="language.spanish">Español</option>
+          <option value="pt-BR" data-i18n="language.portuguese">Português (BR)</option>
+          <option value="fr" data-i18n="language.french">Français</option>
+          <option value="sw" data-i18n="language.swahili">Kiswahili</option>
+          <option value="ar" data-i18n="language.arabic">العربية</option>
+        </select>
         <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark/light mode">
           <span class="theme-toggle__thumb" aria-hidden="true">
             <!-- Moon icon for dark, sun appears via CSS -->
           </span>
         </button>
-        <a href="/app/" class="btn btn--secondary btn--sm">Live Demo</a>
-        <a href="/app/?login=true" class="btn btn--primary btn--sm">Login</a>
+        <a href="/app/" class="btn btn--secondary btn--sm" data-i18n="nav.liveDemo">Live Demo</a>
+        <a href="/app/?login=true" class="btn btn--primary btn--sm" data-i18n="nav.login">Login</a>
       </div>
 
       <button class="navbar__hamburger" id="nav-hamburger" aria-label="Toggle navigation menu" aria-expanded="false">
@@ -116,22 +124,22 @@
         <span class="badge badge--accent hero__badge animate-on-scroll">
           <!-- Sparkle icon -->
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/></svg>
-          AI-Powered Engineering
+          <span data-i18n="hero.badge">AI-Powered Engineering</span>
         </span>
 
-        <h1 class="animate-on-scroll stagger-1">
+        <h1 class="animate-on-scroll stagger-1" data-i18n="hero.title" data-i18n-html="true">
           From concept to build sheet — <span class="text-gradient">in minutes, not days.</span>
         </h1>
 
-        <p class="hero__subtitle animate-on-scroll stagger-2">
+        <p class="hero__subtitle animate-on-scroll stagger-2" data-i18n="hero.subtitle">
           AI-powered drafting, automatic BOM generation, and real-time part search. 
           BuildSheet helps engineers, makers, and hardware teams go from idea to production-ready documentation faster than ever.
         </p>
 
         <div class="hero__actions animate-on-scroll stagger-3">
           <a href="#pricing" class="btn btn--primary btn--lg animate-pulse">
-            Start Building Free
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            <span data-i18n="hero.cta">Start Building Free</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 0.5rem;"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </a>
           <a href="/app/" class="hero__demo-link">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -690,5 +698,10 @@
   <script src="js/carousel.js" defer></script>
   <script src="js/pricing.js" defer></script>
   <script src="js/cookie-consent.js" defer></script>
+  
+  <!-- i18n -->
+  <script src="https://unpkg.com/i18next@23.10.0/i18next.min.js"></script>
+  <script src="https://unpkg.com/i18next-browser-languagedetector@7.2.0/i18nextBrowserLanguageDetector.min.js"></script>
+  <script src="js/i18n.js" defer></script>
 </body>
 </html>

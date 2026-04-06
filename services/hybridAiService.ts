@@ -159,19 +159,19 @@ export class HybridAIService implements AIService {
     // These intentionally NEVER route to local models.
     // =====================
 
-    async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[] | null> {
-        return this.geminiService.findPartSources(query, designContext);
+    async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null> {
+        return this.geminiService.findPartSources(query, designContext, localeContext);
     }
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         return this.geminiService.findLocalSuppliers(query);
     }
 
-    async procureVerifiedSources(query: string, category: string, designContext?: string): Promise<ProcurementResult> {
-        return this.procurementEngine.procure(query, category, designContext);
+    async procureVerifiedSources(query: string, category: string, designContext?: string, localeContext?: string): Promise<ProcurementResult> {
+        return this.procurementEngine.procure(query, category, designContext, localeContext);
     }
 
-    async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
-        return this.geminiService.hydratePartDetails(name, category, designContext);
+    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
+        return this.geminiService.hydratePartDetails(name, category, designContext, localeContext);
     }
 }

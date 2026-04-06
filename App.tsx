@@ -7,6 +7,7 @@ import { UserService } from './services/userService.ts';
 import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
+import { formatPrice, getUserLocale } from './services/locale.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
@@ -313,7 +314,7 @@ const KitSummaryModal: React.FC<{
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="p-6 bg-slate-900 rounded-[24px] text-white shadow-lg">
                             <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Build Cost</span>
-                            <div className="text-4xl font-mono font-medium mt-1 tracking-tight">${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            <div className="text-4xl font-mono font-medium mt-1 tracking-tight">{formatPrice(totalCost)}</div>
                         </div>
                         <div className="p-6 bg-indigo-100 rounded-[24px] text-indigo-900">
                             <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Kit Progress</span>
@@ -337,7 +338,7 @@ const KitSummaryModal: React.FC<{
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="text-base font-mono font-bold text-slate-900">${(b.part.price * b.quantity).toFixed(2)}</div>
+                                    <div className="text-base font-mono font-bold text-slate-900">{formatPrice(b.part.price * b.quantity)}</div>
                                 </div>
                             ))}
                         </div>
@@ -547,7 +548,7 @@ const PartDetailModal: React.FC<{
                             </div>
                             <div className="p-4 border border-gray-100 rounded-[20px]">
                                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest" aria-hidden="true">Price</span>
-                                <p className="text-sm text-slate-900 mt-1 font-bold">${entry.part.price.toFixed(2)}</p>
+                                <p className="text-sm text-slate-900 mt-1 font-bold">{formatPrice(entry.part.price)}</p>
                             </div>
                         </div>
 
@@ -1196,7 +1197,7 @@ const ScanPartModal: React.FC<{
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="p-4 border border-gray-100 rounded-[16px]">
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Est. Price</span>
-                                    <p className="text-lg font-bold text-slate-900 mt-1">${result.estimatedPrice.toFixed(2)}</p>
+                                    <p className="text-lg font-bold text-slate-900 mt-1">{formatPrice(result.estimatedPrice)}</p>
                                 </div>
                                 <div className="p-4 border border-gray-100 rounded-[16px]">
                                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Part ID</span>
@@ -1854,7 +1855,7 @@ const AppContent: React.FC = () => {
 
             // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
             if (aiService.procureVerifiedSources) {
-                const procResult = await aiService.procureVerifiedSources(entry.part.name, entry.part.category, designReqs);
+                const procResult = await aiService.procureVerifiedSources(entry.part.name, entry.part.category, designReqs, getUserLocale());
 
                 // If the pipeline succeeded (not ERROR), use verified results
                 if (procResult.status !== 'ERROR') {
@@ -1883,7 +1884,7 @@ const AppContent: React.FC = () => {
             }
 
             // Fallback to legacy Google Search grounding
-            const result = await aiService.findPartSources?.(entry.part.name, designReqs);
+            const result = await aiService.findPartSources?.(entry.part.name, designReqs, getUserLocale());
             const local = await aiService.findLocalSuppliers?.(entry.part.name);
             draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
             refreshState();
@@ -1899,7 +1900,7 @@ const AppContent: React.FC = () => {
         setIsHydrating(true);
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
-            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category, designReqs);
+            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category, designReqs, getUserLocale());
             if (details) {
                 draftingEngine.updatePartDetails(entry.instanceId, details);
                 refreshState();
@@ -1927,7 +1928,7 @@ const AppContent: React.FC = () => {
             const batch = virtualParts.slice(i, i + 3);
             await Promise.all(batch.map(async (entry) => {
                 try {
-                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category, designReqs);
+                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category, designReqs, getUserLocale());
                     if (details) {
                         draftingEngine.updatePartDetails(entry.instanceId, details);
                     }
@@ -2203,8 +2204,8 @@ const AppContent: React.FC = () => {
                 <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${entry.part.category}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${entry.part.brand}</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${entry.quantity}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${entry.part.price.toFixed(2)}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">$${(entry.part.price * entry.quantity).toFixed(2)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatPrice(entry.part.price)}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">${formatPrice(entry.part.price * entry.quantity)}</td>
             </tr>
         `).join('');
         printWindow.document.write(`<!DOCTYPE html><html><head><title>${session.name} — BuildSheet BOM</title>
@@ -2228,7 +2229,7 @@ const AppContent: React.FC = () => {
                 <tbody>${bomRows}
                 <tr class="total-row">
                     <td colspan="6" style="text-align: right; padding: 12px 8px;">Total Estimate</td>
-                    <td style="text-align: right; padding: 12px 8px; font-size: 18px;">$${totalCost.toFixed(2)}</td>
+                    <td style="text-align: right; padding: 12px 8px; font-size: 18px;">${formatPrice(totalCost)}</td>
                 </tr></tbody>
             </table>
         </body></html>`);
@@ -2312,7 +2313,7 @@ const AppContent: React.FC = () => {
         setScanResult(null);
         draftingEngine.addMessage({
             role: 'assistant',
-            content: `📷 **Visual Parts Audit:** Identified **${result.name}** (${result.brand}). Condition: **${result.condition}**. Added to BOM at $${result.estimatedPrice.toFixed(2)}.${result.defects.length > 0 ? `\n⚠️ Defects: ${result.defects.join(', ')}` : ''}`,
+            content: `📷 **Visual Parts Audit:** Identified **${result.name}** (${result.brand}). Condition: **${result.condition}**. Added to BOM at ${formatPrice(result.estimatedPrice)}.${result.defects.length > 0 ? `\n⚠️ Defects: ${result.defects.join(', ')}` : ''}`,
             timestamp: new Date()
         });
         refreshState();
@@ -3066,8 +3067,8 @@ const AppContent: React.FC = () => {
                         <div className="flex justify-between items-end">
                             <div>
                                 <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Total Estimate</h2>
-                                <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${draftingEngine.getTotalCost()}`}>
-                                    ${draftingEngine.getTotalCost().toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${formatPrice(draftingEngine.getTotalCost())}`}>
+                                    {formatPrice(draftingEngine.getTotalCost())}
                                 </div>
                             </div>
                             <div className="flex flex-col items-end gap-2">
@@ -3177,7 +3178,7 @@ const AppContent: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="text-sm font-bold text-slate-900 ml-4 shrink-0">${(entry.part.price * entry.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                <div className="text-sm font-bold text-slate-900 ml-4 shrink-0">{formatPrice(entry.part.price * entry.quantity)}</div>
                                             </div>
                                         </Card>
                                         {hasChildren && !isCollapsed && (

@@ -233,18 +233,19 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[] | null> {
+    async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null> {
         try {
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
+            const localeClause = localeContext ? ` Target Locale: ${localeContext}. Prioritize authorized retailers that are local to or confidently ship to this region. Format prices using the local currency.` : '';
             const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: `The current date is ${today}. Prioritize results from the last 30 days.
 When searching, wrap all SKUs and model numbers in double quotes (e.g., "NE555P", "ESP32-WROOM-32D").
 Search specifically for 'current retail price' and 'in-stock status' from authorized retailers.
-Find real-world purchase options and actual prices for: ${query}.${contextClause}
-For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - $XX.XX"`,
+Find real-world purchase options and actual prices for: ${query}.${contextClause}${localeClause}
+For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - [Price]"`,
                 config: {
                     tools: [{ googleSearch: {} }],
                 }
@@ -289,16 +290,17 @@ For each item, you MUST include the price in the title or snippet. Format: "Prod
         } catch (e) { return null; }
     }
 
-    async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
+    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
         try {
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
+            const localeClause = localeContext ? ` Provide pricing and shipping context suitable for a user in locale: ${localeContext}.` : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: `The current date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. Prioritize results from the last 30 days.
 When searching, wrap all SKUs and model numbers in double quotes (e.g., "${name}").
 Search specifically for 'current retail price' and 'in-stock status' from authorized retailers.
-Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause} Return its manufacturer/brand, a brief technical description, current in-stock retail price in USD, and its physical/electrical connectors (ports).`,
+Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause}${localeClause} Return its manufacturer/brand, a brief technical description, current in-stock retail price (in USD or local equivalent as a number), and its physical/electrical connectors (ports).`,
                 config: {
                     tools: [{ googleSearch: {} }],
                     responseMimeType: "application/json",

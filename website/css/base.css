@@ -208,3 +208,30 @@ p {
   background: var(--divider);
   border: none;
 }
+
+/* ── RTL Layout Support (Arabic) ────────────── */
+.rtl-layout {
+  direction: rtl;
+  text-align: right;
+}
+
+.rtl-layout .navbar__logo {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+.rtl-layout .btn svg {
+  margin-left: 0;
+  margin-right: 0.5rem;
+  transform: scaleX(-1);
+}
+
+.rtl-layout .faq__list .accordion__chevron {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.rtl-layout .step__icon-wrapper {
+  margin-right: 0;
+  margin-left: 1rem;
+}

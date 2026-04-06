@@ -74,7 +74,7 @@ export class MockService implements AIService {
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
   }
 
-  async findPartSources(query: string, designContext?: string): Promise<ShoppingOption[]> {
+  async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[]> {
     await new Promise(r => setTimeout(r, 1000));
     return [
       { title: "Mouser Electronics - Fast Ship", url: "https://www.mouser.com", source: "Mouser", price: "$12.99" },
@@ -198,11 +198,11 @@ export class MockService implements AIService {
     };
   }
 
-  async hydratePartDetails(name: string, category: string, designContext?: string): Promise<Partial<Part> | null> {
+  async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
     await new Promise(r => setTimeout(r, 1500));
     return {
       brand: 'Simulated Brand',
-      description: `High-quality ${category.toLowerCase()} component. ${name} — verified specification from simulation engine.`,
+      description: `High-quality ${category.toLowerCase()} component. ${name} — verified specification from simulation engine. Locale: ${localeContext || 'default'}`,
       price: 24.99,
       sku: `SIM-${name.replace(/\s+/g, '-').toUpperCase().slice(0, 12)}`,
       ports: [

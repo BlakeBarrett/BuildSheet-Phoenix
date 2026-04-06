@@ -101,14 +101,14 @@ export class VerifiedProcurementEngine {
    * Full Verify-Before-Display pipeline.
    * Returns a typed ProcurementResult instead of raw strings.
    */
-  async procure(query: string, category: string, designContext?: string): Promise<ProcurementResult> {
+  async procure(query: string, category: string, designContext?: string, localeContext?: string): Promise<ProcurementResult> {
     const t0 = performance.now();
     const riskFlags: RiskFlag[] = [];
     let status: ProcurementStatus = ProcurementStatus.UNVERIFIED;
 
     try {
       // --- Stage 1: Discovery via SearXNG ---
-      const discovered = await this.stageDiscovery(query, designContext);
+      const discovered = await this.stageDiscovery(query, designContext, localeContext);
 
       if (discovered.length === 0) {
         return this.buildEmptyResult(query, t0, 'No results from discovery stage');
@@ -195,16 +195,25 @@ export class VerifiedProcurementEngine {
   // STAGE 1: DISCOVERY — SearXNG
   // =========================================================================
 
-  private async stageDiscovery(query: string, designContext?: string): Promise<DiscoveryResult[]> {
-    const searchQuery = designContext
+  private async stageDiscovery(query: string, designContext?: string, localeContext?: string): Promise<DiscoveryResult[]> {
+    let searchQuery = designContext
       ? `${query} buy price in stock ${designContext}`
       : `${query} buy price in stock`;
+
+    if (localeContext) {
+      searchQuery += ` ${localeContext}`;
+    }
 
     const url = new URL('/search', this.config.searxng_base_url);
     url.searchParams.set('q', searchQuery);
     url.searchParams.set('format', 'json');
     url.searchParams.set('categories', 'general');
     url.searchParams.set('engines', 'google,bing,duckduckgo');
+    if (localeContext) {
+      // Pass the language hint (e.g. 'sw-KE' or 'fr') if it roughly matches a locale param format.
+      // E.g. Searxng language format is often short string
+      url.searchParams.set('language', localeContext.toLowerCase());
+    }
     url.searchParams.set('pageno', '1');
 
     const controller = new AbortController();
