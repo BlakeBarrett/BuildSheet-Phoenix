@@ -229,7 +229,7 @@ export class DraftingEngine {
   public async testFirestoreConnection(): Promise<{ ok: boolean; error?: string }> {
     const col = this.getFirestoreProjectsCollection();
     if (!col) return { ok: false, error: 'No Firestore collection – user may not be authenticated or Firebase is not configured' };
-    const testId = '__connection_test__';
+    const testId = 'connection-test';
     try {
       await setDoc(doc(col, testId), { test: true, ts: new Date().toISOString() });
       const snap = await getDoc(doc(col, testId));

@@ -6,11 +6,12 @@ import { getAnalytics, Analytics } from 'firebase/analytics';
 /**
  * Read a config value from Vite build-time env first,
  * then fall back to runtime injection via window._env_ (Cloud Run).
+ * Uses || (not ??) so that empty strings from Vite also fall through.
  */
 function env(key: string): string {
   return (import.meta.env[key] as string)
-    ?? (window as any)._env_?.[key]
-    ?? '';
+    || (window as any)._env_?.[key]
+    || '';
 }
 
 const firebaseConfig = {

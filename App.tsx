@@ -1755,6 +1755,7 @@ const AppContent: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(UserService.getCurrentUser());
     const [isMigrating, setIsMigrating] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [syncError, setSyncError] = useState<string | null>(null);
 
     // New feature state
     const [voiceOpen, setVoiceOpen] = useState(false);
@@ -1814,7 +1815,9 @@ const AppContent: React.FC = () => {
             const connTest = await draftingEngine.testFirestoreConnection();
             if (!connTest.ok) {
                 console.error('[Auth] ✗ Firestore connection test FAILED:', connTest.error);
-                alert(`Firestore sync is broken: ${connTest.error}\n\nYour projects will NOT sync between devices until this is fixed.`);
+                setSyncError(connTest.error || 'Firestore connection failed');
+            } else {
+                setSyncError(null);
             }
             setIsMigrating(true);
             try {
@@ -1974,17 +1977,31 @@ const AppContent: React.FC = () => {
         });
     }, [draftingEngine]);
 
-    // Load projects from Firestore and start real-time sync when auth state resolves.
+    // Sync projects with Firestore when auth state resolves.
     // Handles returning visits where onAuthStateChanged fires after mount.
     // Skips when an explicit login flow is already handling migration + load.
     useEffect(() => {
         if (currentUser && UserService.isAuthenticated() && !UserService.isLoginInProgress()) {
-            draftingEngine.loadProjectsFromFirestore().then(() => {
-                draftingEngine.loadFoldersFromFirestore();
+            (async () => {
+                // Test Firestore connectivity — surface errors visibly
+                const conn = await draftingEngine.testFirestoreConnection();
+                if (!conn.ok) {
+                    console.error('[Auth] Firestore broken on auth resolve:', conn.error);
+                    setSyncError(conn.error || 'Firestore connection failed');
+                } else {
+                    setSyncError(null);
+                }
+                // Push local projects to Firestore FIRST (ensures this device's edits are saved)
+                await draftingEngine.saveAllToFirestore();
+                // Then pull all Firestore projects into localStorage (merges, keeps newer)
+                await draftingEngine.loadProjectsFromFirestore();
+                await draftingEngine.loadFoldersFromFirestore();
                 setProjectsList(draftingEngine.getProjectsList());
                 setProjectFolders(draftingEngine.getFolders());
-            });
-            draftingEngine.startRealtimeSync();
+                setSession(draftingEngine.getSession());
+                // Start real-time sync for cross-device changes
+                draftingEngine.startRealtimeSync();
+            })();
         }
         return () => {
             draftingEngine.stopRealtimeSync();
@@ -2695,6 +2712,14 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col lg:flex-row p-0 pb-[90px] lg:p-3 lg:pb-3 gap-3">
+
+            {syncError && (
+                <div className="absolute top-0 left-0 right-0 z-[999] bg-red-600 text-white text-xs px-4 py-2 flex items-center gap-2" role="alert">
+                    <span className="material-symbols-rounded text-[16px]">cloud_off</span>
+                    <span><strong>Sync Error:</strong> {syncError}</span>
+                    <button onClick={() => setSyncError(null)} className="ml-auto text-white/80 hover:text-white">✕</button>
+                </div>
+            )}
 
             <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:px-6 focus:py-3 focus:bg-indigo-600 focus:text-white focus:rounded-full focus:shadow-xl focus:font-bold">Skip to Main Content</a>
 
