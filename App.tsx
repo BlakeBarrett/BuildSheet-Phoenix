@@ -1755,6 +1755,7 @@ const AppContent: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(UserService.getCurrentUser());
     const [isMigrating, setIsMigrating] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const loginInProgressRef = useRef(false);
 
     // New feature state
     const [voiceOpen, setVoiceOpen] = useState(false);
@@ -1802,10 +1803,12 @@ const AppContent: React.FC = () => {
     const handleLogin = useCallback(async () => {
         // Capture whether guest data exists BEFORE login
         const hadLocalProjects = draftingEngine.getProjectsList(true).length > 0;
+        loginInProgressRef.current = true;
         try {
             await UserService.login();
         } catch (e: any) {
             console.error('Login failed', e);
+            loginInProgressRef.current = false;
             return;
         }
         // Post-login migration & sync
@@ -1826,6 +1829,7 @@ const AppContent: React.FC = () => {
             // 4. Start real-time sync for cross-device changes
             draftingEngine.startRealtimeSync();
         }
+        loginInProgressRef.current = false;
         refreshState();
     }, [draftingEngine]);
 
@@ -1888,6 +1892,7 @@ const AppContent: React.FC = () => {
     // Complete passwordless email-link sign-in if the URL contains the link params.
     useEffect(() => {
         (async () => {
+            loginInProgressRef.current = true;
             try {
                 const completed = await UserService.completeEmailLinkSignIn();
                 if (completed && UserService.isAuthenticated()) {
@@ -1906,6 +1911,8 @@ const AppContent: React.FC = () => {
                 }
             } catch (e) {
                 console.error('Email link sign-in failed', e);
+            } finally {
+                loginInProgressRef.current = false;
             }
         })();
     }, [draftingEngine]);
@@ -1963,10 +1970,10 @@ const AppContent: React.FC = () => {
     }, [draftingEngine]);
 
     // Load projects from Firestore and start real-time sync when auth state resolves.
-    // This handles both: (a) returning visits where onAuthStateChanged fires after mount,
-    // and (b) fresh logins where currentUser transitions from null → user.
+    // Handles returning visits where onAuthStateChanged fires after mount.
+    // Skips when handleLogin or email-link sign-in is already handling migration + load.
     useEffect(() => {
-        if (currentUser && UserService.isAuthenticated()) {
+        if (currentUser && UserService.isAuthenticated() && !loginInProgressRef.current) {
             draftingEngine.loadProjectsFromFirestore().then(() => {
                 draftingEngine.loadFoldersFromFirestore();
                 setProjectsList(draftingEngine.getProjectsList());
