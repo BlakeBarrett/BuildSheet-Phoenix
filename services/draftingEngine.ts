@@ -1,8 +1,8 @@
-import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan } from '../types.ts';
+import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan, ProjectFolder } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 import { getFirebaseDb } from './firebase.ts';
-import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, orderBy, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { get, set, del } from 'idb-keyval';
 
 export interface ProjectIndexEntry {
@@ -10,10 +10,40 @@ export interface ProjectIndexEntry {
   name: string;
   lastModified: Date;
   preview: string;
-  thumbnail?: string; // Latest generated image for the navigator
+  thumbnail?: string;
   archived?: boolean;
   tags?: string[];
+  folderId?: string;
 }
+
+/**
+ * Resize a base64 data URL image to a small thumbnail suitable for
+ * localStorage and Firestore storage (~2-5KB).
+ */
+function generateThumbnail(dataUrl: string, maxSize = 80): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const scale = maxSize / Math.max(img.width, img.height);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(''); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      } catch {
+        resolve('');
+      }
+    };
+    img.onerror = () => resolve('');
+    img.src = dataUrl;
+  });
+}
+
+// Storage key for project folders
+const FOLDERS_KEY = 'buildsheet_project_folders';
 
 export class DraftingEngine {
   private session: DraftingSession;
@@ -27,6 +57,10 @@ export class DraftingEngine {
   private INDEX_KEY = 'buildsheet_projects_index';
   private ACTIVE_ID_KEY = 'buildsheet_active_project_id';
   private SESSION_PREFIX = 'buildsheet_project_';
+
+  // Real-time Firestore sync
+  private firestoreUnsubscribe: Unsubscribe | null = null;
+  private onRemoteChange?: () => void;
 
   private onImagesLoaded?: () => void;
 
@@ -81,6 +115,8 @@ export class DraftingEngine {
       cacheIsDirty: data.cacheIsDirty ?? true,
       cachedAuditResult: data.cachedAuditResult,
       advancedValidations: data.advancedValidations,
+      thumbnail: data.thumbnail || undefined,
+      folderId: data.folderId || undefined,
       cachedAssemblyPlan: data.cachedAssemblyPlan ? {
         ...data.cachedAssemblyPlan,
         generatedAt: new Date(data.cachedAssemblyPlan.generatedAt)
@@ -136,6 +172,8 @@ export class DraftingEngine {
       cacheIsDirty: true,
       archived: false,
       tags: [],
+      folderId: undefined,
+      thumbnail: undefined,
     };
   }
 
@@ -162,6 +200,7 @@ export class DraftingEngine {
         createdAt: session.createdAt.toISOString(),
         lastModified: session.lastModified.toISOString(),
         generatedImages: [], // large blobs stay in IDB
+        thumbnail: session.thumbnail || '', // small thumbnail travels to Firestore
         cachedAssemblyPlan: session.cachedAssemblyPlan
           ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
           : undefined,
@@ -225,12 +264,8 @@ export class DraftingEngine {
       const existing = index.find(i => i.id === session.id);
       // Clean duplicates
       index = index.filter(i => i.id !== session.id);
-      // Thumbnail: use the latest generated image if available
-      const latestImage = session.generatedImages.length > 0
-        ? session.generatedImages[session.generatedImages.length - 1].url
-        : undefined;
-      // Keep thumbnail small — take first 200 chars of data URL (enough for a tiny preview)
-      const thumbnail = latestImage?.substring(0, 300) || existing?.thumbnail;
+      // Use the session's persisted thumbnail (generated when images are added)
+      const thumbnail = session.thumbnail || existing?.thumbnail;
       index.unshift({
         id: session.id,
         name: session.name,
@@ -239,6 +274,7 @@ export class DraftingEngine {
         thumbnail,
         archived: session.archived ?? existing?.archived ?? false,
         tags: session.tags ?? existing?.tags ?? [],
+        folderId: session.folderId ?? existing?.folderId,
       });
       localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
     } catch (e) {
@@ -320,6 +356,7 @@ export class DraftingEngine {
   /**
    * Loads all projects from Firestore into localStorage, merging
    * with any existing local entries. Called once after login.
+   * Preserves local IDB images (which are not stored in Firestore).
    */
   public async loadProjectsFromFirestore(): Promise<void> {
     const col = this.getFirestoreProjectsCollection();
@@ -331,8 +368,27 @@ export class DraftingEngine {
         const session = this.hydrateSession(data);
         // Write into localStorage so the rest of the engine works identically
         const key = this.SESSION_PREFIX + session.id;
-        const sessionNoImages = { ...session, generatedImages: [] };
-        try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+
+        // Merge: if we already have a local copy, preserve thumbnail from Firestore
+        // but don't overwrite if local is newer
+        const existingRaw = localStorage.getItem(key);
+        let shouldWrite = true;
+        if (existingRaw) {
+          try {
+            const existing = JSON.parse(existingRaw);
+            const existingModified = new Date(existing.lastModified).getTime();
+            const remoteModified = session.lastModified.getTime();
+            // Keep the newer version
+            if (existingModified > remoteModified) {
+              shouldWrite = false;
+            }
+          } catch { /* overwrite corrupted data */ }
+        }
+
+        if (shouldWrite) {
+          const sessionNoImages = { ...session, generatedImages: [] };
+          try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+        }
         this.updateProjectIndex(session);
       }
     } catch (e) {
@@ -343,6 +399,7 @@ export class DraftingEngine {
   /**
    * Migrate all localStorage projects to Firestore.
    * Called after a successful login when the user had local guest data.
+   * Generates thumbnails from IDB images and includes them in the Firestore doc.
    * Returns the number of projects migrated.
    */
   public async migrateLocalProjectsToFirestore(): Promise<number> {
@@ -366,7 +423,25 @@ export class DraftingEngine {
         const session = this.hydrateSession(JSON.parse(stored));
         // Re-assign ownership to the authenticated user
         session.ownerId = user.id;
+
+        // Generate a thumbnail from IDB images if we don't have one yet
+        if (!session.thumbnail) {
+          try {
+            const images: any = await get(this.SESSION_PREFIX + entry.id + '_images');
+            if (images && Array.isArray(images) && images.length > 0) {
+              const lastImage = images[images.length - 1];
+              if (lastImage?.url) {
+                session.thumbnail = await generateThumbnail(lastImage.url);
+              }
+            }
+          } catch { /* IDB access can fail */ }
+        }
+
         await this.saveSessionToFirestore(session);
+        // Also update local copy with thumbnail and new ownership
+        const sessionNoImages = { ...session, generatedImages: [] };
+        try { localStorage.setItem(this.SESSION_PREFIX + entry.id, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+        this.updateProjectIndex(session);
         migrated++;
       } catch (e) {
         console.error('Migration failed for project', entry.id, e);
@@ -376,7 +451,9 @@ export class DraftingEngine {
   }
 
   /**
-   * Clear all guest projects from localStorage after migration.
+   * Clear guest projects from localStorage after migration.
+   * Preserves IDB images since they aren't stored in Firestore
+   * and loadProjectsFromFirestore will re-populate localStorage.
    */
   public clearLocalProjects() {
     const indexRaw = localStorage.getItem(this.INDEX_KEY);
@@ -385,7 +462,8 @@ export class DraftingEngine {
       const index = JSON.parse(indexRaw);
       for (const entry of index) {
         localStorage.removeItem(this.SESSION_PREFIX + entry.id);
-        del(this.SESSION_PREFIX + entry.id + '_images').catch(() => {});
+        // NOTE: Intentionally NOT deleting IDB images here.
+        // Images are device-local and cannot be recovered from Firestore.
       }
     } catch { /* ignore */ }
     localStorage.removeItem(this.INDEX_KEY);
@@ -667,6 +745,14 @@ export class DraftingEngine {
     };
     this.session.generatedImages.push(img);
 
+    // Generate a small thumbnail for the project index and Firestore
+    generateThumbnail(url).then((thumb) => {
+      if (thumb) {
+        this.session.thumbnail = thumb;
+        this.saveSession();
+      }
+    });
+
     this.saveSession();
   }
 
@@ -747,7 +833,7 @@ export class DraftingEngine {
    * 3. The in-memory session if it is the active project
    * 4. Firestore (fire-and-forget updateDoc so authenticated users see changes on other devices)
    */
-  private patchProjectMetadata(id: string, fields: Partial<Pick<DraftingSession, 'archived' | 'tags'>>) {
+  private patchProjectMetadata(id: string, fields: Partial<Pick<DraftingSession, 'archived' | 'tags' | 'folderId'>>) {
     // 1. Patch the stored session blob (without touching lastModified)
     const sessionKey = this.SESSION_PREFIX + id;
     try {
@@ -1232,6 +1318,195 @@ export class DraftingEngine {
     }
 
     return warnings;
+  }
+
+  // --- Real-time Firestore Sync ---
+
+  /**
+   * Register a callback that fires when remote changes arrive from Firestore.
+   * The callback tells the UI to refresh its project list.
+   */
+  public setOnRemoteChange(cb: () => void) {
+    this.onRemoteChange = cb;
+  }
+
+  /**
+   * Start listening for real-time project changes from Firestore.
+   * Any add/update/delete from another device will be mirrored to localStorage.
+   */
+  public startRealtimeSync() {
+    this.stopRealtimeSync();
+    const col = this.getFirestoreProjectsCollection();
+    if (!col) return;
+
+    this.firestoreUnsubscribe = onSnapshot(col, (snapshot) => {
+      let changed = false;
+      for (const change of snapshot.docChanges()) {
+        const data = change.doc.data();
+        const id = change.doc.id;
+
+        if (change.type === 'added' || change.type === 'modified') {
+          const session = this.hydrateSession(data);
+          const key = this.SESSION_PREFIX + id;
+          // Don't overwrite if local is newer (user is actively editing)
+          const existingRaw = localStorage.getItem(key);
+          let shouldWrite = true;
+          if (existingRaw) {
+            try {
+              const existing = JSON.parse(existingRaw);
+              const existingMod = new Date(existing.lastModified).getTime();
+              const remoteMod = session.lastModified.getTime();
+              if (existingMod >= remoteMod) shouldWrite = false;
+            } catch { /* overwrite corrupted */ }
+          }
+          if (shouldWrite) {
+            const sessionNoImages = { ...session, generatedImages: [] };
+            try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+            this.updateProjectIndex(session);
+            changed = true;
+          }
+        } else if (change.type === 'removed') {
+          localStorage.removeItem(this.SESSION_PREFIX + id);
+          del(this.SESSION_PREFIX + id + '_images').catch(console.error);
+          // Remove from index
+          try {
+            const indexRaw = localStorage.getItem(this.INDEX_KEY);
+            if (indexRaw) {
+              let index = JSON.parse(indexRaw);
+              index = index.filter((i: any) => i.id !== id);
+              localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+            }
+          } catch { /* ignore */ }
+          // If the deleted project is the active one, create a new project
+          if (this.session.id === id) {
+            this.createNewProject();
+          }
+          changed = true;
+        }
+      }
+      if (changed && this.onRemoteChange) {
+        this.onRemoteChange();
+      }
+    }, (err) => {
+      console.error('Firestore realtime sync error', err);
+    });
+  }
+
+  /**
+   * Stop the real-time Firestore listener.
+   */
+  public stopRealtimeSync() {
+    if (this.firestoreUnsubscribe) {
+      this.firestoreUnsubscribe();
+      this.firestoreUnsubscribe = null;
+    }
+  }
+
+  // --- Folder Management (Pro Feature) ---
+
+  public getFolders(): ProjectFolder[] {
+    try {
+      const raw = localStorage.getItem(FOLDERS_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw).map((f: any) => ({
+        ...f,
+        createdAt: new Date(f.createdAt),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  public createFolder(name: string, parentId?: string, color?: string): ProjectFolder {
+    const folder: ProjectFolder = {
+      id: Math.random().toString(36).substr(2, 9),
+      name,
+      parentId,
+      createdAt: new Date(),
+      color,
+    };
+    const folders = this.getFolders();
+    folders.push(folder);
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+    // Sync folders to Firestore for cross-device access
+    this.saveFoldersToFirestore(folders);
+    return folder;
+  }
+
+  public renameFolder(id: string, name: string) {
+    const folders = this.getFolders();
+    const folder = folders.find(f => f.id === id);
+    if (folder) {
+      folder.name = name;
+      localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+      this.saveFoldersToFirestore(folders);
+    }
+  }
+
+  public deleteFolder(id: string) {
+    let folders = this.getFolders();
+    // Collect this folder and all descendant folder IDs
+    const toDelete = new Set<string>();
+    const collectChildren = (parentId: string) => {
+      toDelete.add(parentId);
+      folders.filter(f => f.parentId === parentId).forEach(f => collectChildren(f.id));
+    };
+    collectChildren(id);
+
+    // Move projects in deleted folders back to root
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (indexRaw) {
+      try {
+        const index: any[] = JSON.parse(indexRaw);
+        let changed = false;
+        for (const entry of index) {
+          if (entry.folderId && toDelete.has(entry.folderId)) {
+            entry.folderId = undefined;
+            // Also patch the session doc
+            this.patchProjectMetadata(entry.id, { folderId: undefined });
+            changed = true;
+          }
+        }
+        if (changed) localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
+      } catch { /* ignore */ }
+    }
+
+    folders = folders.filter(f => !toDelete.has(f.id));
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+    this.saveFoldersToFirestore(folders);
+  }
+
+  public moveProjectToFolder(projectId: string, folderId: string | undefined) {
+    this.patchProjectMetadata(projectId, { folderId });
+  }
+
+  private async saveFoldersToFirestore(folders: ProjectFolder[]) {
+    const db = getFirebaseDb();
+    const user = UserService.getCurrentUser();
+    if (!db || !user || !UserService.isAuthenticated()) return;
+    try {
+      const plain = folders.map(f => ({ ...f, createdAt: f.createdAt.toISOString() }));
+      await setDoc(doc(db, 'users', user.id, 'settings', 'folders'), { folders: plain });
+    } catch (e) {
+      console.error('Failed to save folders to Firestore', e);
+    }
+  }
+
+  public async loadFoldersFromFirestore(): Promise<void> {
+    const db = getFirebaseDb();
+    const user = UserService.getCurrentUser();
+    if (!db || !user || !UserService.isAuthenticated()) return;
+    try {
+      const d = await getDoc(doc(db, 'users', user.id, 'settings', 'folders'));
+      if (d.exists()) {
+        const data = d.data();
+        if (data.folders && Array.isArray(data.folders)) {
+          localStorage.setItem(FOLDERS_KEY, JSON.stringify(data.folders));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load folders from Firestore', e);
+    }
   }
 }
 

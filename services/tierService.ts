@@ -21,6 +21,7 @@ export interface PlanLimits {
   hasUnlimitedProjects: boolean;
   hasARGuide: boolean;
   hasVoiceMode: boolean;
+  hasFolders: boolean;
 }
 
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
@@ -37,6 +38,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     hasUnlimitedProjects: false,
     hasARGuide: false,
     hasVoiceMode: false,
+    hasFolders: false,
   },
   pro: {
     maxProjects: Infinity,
@@ -51,6 +53,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     hasUnlimitedProjects: true,
     hasARGuide: true,
     hasVoiceMode: true,
+    hasFolders: true,
   },
   enterprise: {
     maxProjects: Infinity,
@@ -65,6 +68,7 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     hasUnlimitedProjects: true,
     hasARGuide: true,
     hasVoiceMode: true,
+    hasFolders: true,
   },
 };
 

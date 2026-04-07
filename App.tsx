@@ -8,7 +8,7 @@ import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
-import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -75,7 +75,15 @@ const ProjectNavigator: React.FC<{
     onLogin?: () => void;
     onSendEmailLink?: (email: string) => Promise<void>;
     isMigrating?: boolean;
-}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate, onDuplicate, onArchive, onUnarchive, isGuest, guestLimitReached, onLogin, onSendEmailLink, isMigrating }) => {
+    // Folder support (Pro)
+    folders?: ProjectFolder[];
+    hasFolders?: boolean;
+    onCreateFolder?: (name: string, parentId?: string) => void;
+    onRenameFolder?: (id: string, name: string) => void;
+    onDeleteFolder?: (id: string) => void;
+    onMoveToFolder?: (projectId: string, folderId: string | undefined) => void;
+    onUpgrade?: () => void;
+}> = ({ isOpen, onClose, projects, currentId, onSelect, onDelete, onNewProject, onExport, onValidate, onDuplicate, onArchive, onUnarchive, isGuest, guestLimitReached, onLogin, onSendEmailLink, isMigrating, folders = [], hasFolders, onCreateFolder, onRenameFolder, onDeleteFolder, onMoveToFolder, onUpgrade }) => {
     const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
     const [showArchived, setShowArchived] = useState(false);
@@ -83,6 +91,12 @@ const ProjectNavigator: React.FC<{
     const [emailLinkSent, setEmailLinkSent] = useState(false);
     const [emailLinkSending, setEmailLinkSending] = useState(false);
     const [emailLinkError, setEmailLinkError] = useState('');
+    const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(undefined);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+    const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+    const [renameFolderName, setRenameFolderName] = useState('');
+    const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
     if (!isOpen) return null;
 
     const handleSendLink = async () => {
@@ -102,10 +116,45 @@ const ProjectNavigator: React.FC<{
     const filtered = projects.filter(p => {
       if (!showArchived && p.archived) return false;
       if (showArchived && !p.archived) return false;
-      if (!searchQuery.trim()) return true;
+      // When browsing a folder, show only projects in that folder
+      if (!searchQuery.trim() && currentFolderId !== undefined) {
+        return p.folderId === currentFolderId;
+      }
+      // At root level (no folder selected), show projects without a folder
+      if (!searchQuery.trim() && currentFolderId === undefined) {
+        return !p.folderId;
+      }
+      // Search mode: search across all folders
       const q = searchQuery.toLowerCase();
       return (p.name || '').toLowerCase().includes(q) || (p.preview || '').toLowerCase().includes(q);
     });
+
+    const currentSubfolders = hasFolders ? folders.filter(f => f.parentId === (currentFolderId || undefined)) : [];
+    const currentFolder = currentFolderId ? folders.find(f => f.id === currentFolderId) : undefined;
+    const breadcrumbs: ProjectFolder[] = [];
+    if (currentFolder) {
+      let f: ProjectFolder | undefined = currentFolder;
+      while (f) {
+        breadcrumbs.unshift(f);
+        f = f.parentId ? folders.find(x => x.id === f!.parentId) : undefined;
+      }
+    }
+
+    const handleCreateFolder = () => {
+      if (!newFolderName.trim() || !onCreateFolder) return;
+      onCreateFolder(newFolderName.trim(), currentFolderId);
+      setNewFolderName('');
+      setIsCreatingFolder(false);
+    };
+
+    const handleProjectDrop = (e: React.DragEvent, targetFolderId: string | undefined) => {
+      e.preventDefault();
+      setDragOverFolderId(null);
+      const projectId = e.dataTransfer.getData('text/project-id');
+      if (projectId && onMoveToFolder) {
+        onMoveToFolder(projectId, targetFolderId);
+      }
+    };
 
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="nav-title" onClick={onClose}>
@@ -161,9 +210,131 @@ const ProjectNavigator: React.FC<{
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-4 space-y-2">
+                <div className="flex-1 overflow-y-auto px-4 space-y-2"
+                    onDragOver={(e) => { e.preventDefault(); setDragOverFolderId('__root__'); }}
+                    onDragLeave={() => setDragOverFolderId(null)}
+                    onDrop={(e) => handleProjectDrop(e, undefined)}
+                >
+                    {/* Folder breadcrumbs */}
+                    {hasFolders && currentFolderId && !searchQuery.trim() && (
+                        <div className="flex items-center gap-1 px-1 py-1 text-xs">
+                            <button onClick={() => setCurrentFolderId(undefined)} className="text-indigo-600 hover:text-indigo-800 font-bold">All</button>
+                            {breadcrumbs.map((bc, i) => (
+                                <span key={bc.id} className="flex items-center gap-1">
+                                    <span className="text-slate-400">/</span>
+                                    {i === breadcrumbs.length - 1 ? (
+                                        <span className="text-slate-700 font-bold">{bc.name}</span>
+                                    ) : (
+                                        <button onClick={() => setCurrentFolderId(bc.id)} className="text-indigo-600 hover:text-indigo-800 font-bold">{bc.name}</button>
+                                    )}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Subfolders in current directory */}
+                    {hasFolders && !searchQuery.trim() && currentSubfolders.map(folder => (
+                        <div
+                            key={`folder-${folder.id}`}
+                            className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-3 items-center bg-white hover:bg-indigo-50 text-slate-800 ${dragOverFolderId === folder.id ? 'ring-2 ring-indigo-400 bg-indigo-50' : ''}`}
+                            onClick={() => setCurrentFolderId(folder.id)}
+                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverFolderId(folder.id); }}
+                            onDragLeave={(e) => { e.stopPropagation(); setDragOverFolderId(null); }}
+                            onDrop={(e) => { e.stopPropagation(); handleProjectDrop(e, folder.id); }}
+                        >
+                            <div className={`w-10 h-10 rounded-[12px] flex items-center justify-center ${folder.color ? '' : 'bg-amber-100'}`} style={folder.color ? { backgroundColor: folder.color + '22' } : undefined}>
+                                <span className={`material-symbols-rounded text-[20px] ${folder.color ? '' : 'text-amber-600'}`} style={folder.color ? { color: folder.color } : undefined} aria-hidden="true">folder</span>
+                            </div>
+                            <div className="flex flex-col flex-1 min-w-0">
+                                {renamingFolderId === folder.id ? (
+                                    <input
+                                        type="text"
+                                        value={renameFolderName}
+                                        onChange={e => setRenameFolderName(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && renameFolderName.trim()) {
+                                                onRenameFolder?.(folder.id, renameFolderName.trim());
+                                                setRenamingFolderId(null);
+                                            }
+                                            if (e.key === 'Escape') setRenamingFolderId(null);
+                                        }}
+                                        onBlur={() => setRenamingFolderId(null)}
+                                        autoFocus
+                                        className="text-sm font-bold bg-transparent border-b border-indigo-300 outline-none"
+                                        onClick={e => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <span className="font-bold text-sm truncate">{folder.name}</span>
+                                )}
+                                <span className="text-[11px] text-slate-400">
+                                    {projects.filter(p => p.folderId === folder.id && !p.archived).length} projects
+                                </span>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderName(folder.name); }}
+                                    className="p-1.5 rounded-full text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                                    aria-label={`Rename ${folder.name}`}
+                                >
+                                    <span className="material-symbols-rounded text-[16px]" aria-hidden="true">edit</span>
+                                </button>
+                                <button
+                                    onClick={e => { e.stopPropagation(); onDeleteFolder?.(folder.id); }}
+                                    className="p-1.5 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                    aria-label={`Delete ${folder.name}`}
+                                >
+                                    <span className="material-symbols-rounded text-[16px]" aria-hidden="true">delete</span>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Create folder inline (Pro) */}
+                    {hasFolders && !searchQuery.trim() && !showArchived && (
+                        isCreatingFolder ? (
+                            <div className="flex items-center gap-2 px-3 py-2">
+                                <span className="material-symbols-rounded text-[18px] text-amber-500" aria-hidden="true">create_new_folder</span>
+                                <input
+                                    type="text"
+                                    value={newFolderName}
+                                    onChange={e => setNewFolderName(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') handleCreateFolder();
+                                        if (e.key === 'Escape') { setIsCreatingFolder(false); setNewFolderName(''); }
+                                    }}
+                                    placeholder="Folder name..."
+                                    autoFocus
+                                    className="flex-1 text-sm bg-transparent border-b border-slate-300 outline-none focus:border-indigo-400 placeholder:text-slate-400"
+                                />
+                                <button onClick={handleCreateFolder} className="text-indigo-600 text-xs font-bold">Create</button>
+                                <button onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }} className="text-slate-400 text-xs font-bold">Cancel</button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsCreatingFolder(true)}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-indigo-600 transition-colors rounded-[12px] hover:bg-indigo-50/50"
+                            >
+                                <span className="material-symbols-rounded text-[16px]" aria-hidden="true">create_new_folder</span>
+                                New Folder
+                            </button>
+                        )
+                    )}
+
+                    {/* Folder upsell for non-Pro users */}
+                    {!hasFolders && !isGuest && !searchQuery.trim() && (
+                        <button
+                            onClick={onUpgrade}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-indigo-600 transition-colors rounded-[12px] hover:bg-indigo-50/50"
+                        >
+                            <span className="material-symbols-rounded text-[16px]" aria-hidden="true">create_new_folder</span>
+                            <span>Organize with Folders</span>
+                            <span className="ml-auto text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">PRO</span>
+                        </button>
+                    )}
+
+                    {/* Project list */}
                     {filtered.map((p) => (
-                        <div key={p.id} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && !p.archived && onSelect(p.id)} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${p.archived ? 'opacity-60' : ''} ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { if (!p.archived) { onSelect(p.id); onClose(); } }}>
+                        <div key={p.id} role="button" tabIndex={0} draggable={hasFolders} onDragStart={(e) => { e.dataTransfer.setData('text/project-id', p.id); }} onKeyDown={(e) => e.key === 'Enter' && !p.archived && onSelect(p.id)} className={`group relative p-3 rounded-[20px] transition-all cursor-pointer flex gap-4 items-center focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none ${p.archived ? 'opacity-60' : ''} ${p.id === currentId ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-800 hover:bg-indigo-50'}`} onClick={() => { if (!p.archived) { onSelect(p.id); onClose(); } }}>
                             {/* Visual Thumbnail */}
                             <div className={`w-14 h-14 rounded-[16px] overflow-hidden flex-shrink-0 border relative ${p.id === currentId ? 'border-indigo-400' : 'border-gray-100'}`}>
                                 {p.thumbnail && (
@@ -1529,6 +1700,7 @@ const AppContent: React.FC = () => {
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [projectsList, setProjectsList] = useState<ProjectIndexEntry[]>([]);
+    const [projectFolders, setProjectFolders] = useState<ProjectFolder[]>(() => draftingEngine.getFolders());
 
     // Editable Title State
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -1655,28 +1827,33 @@ const AppContent: React.FC = () => {
             console.error('Login failed', e);
             return;
         }
-        // Post-login migration
-        if (hadLocalProjects && UserService.isAuthenticated()) {
+        // Post-login migration & sync
+        if (UserService.isAuthenticated()) {
             setIsMigrating(true);
             try {
-                await draftingEngine.migrateLocalProjectsToFirestore();
-                draftingEngine.clearLocalProjects();
+                // 1. Push local projects to Firestore (re-assigns ownership)
+                if (hadLocalProjects) {
+                    await draftingEngine.migrateLocalProjectsToFirestore();
+                }
+                // 2. Pull all Firestore projects into localStorage (merges, keeps newer)
+                await draftingEngine.loadProjectsFromFirestore();
+                // 3. Load folder organization from Firestore
+                await draftingEngine.loadFoldersFromFirestore();
             } finally {
                 setIsMigrating(false);
             }
-        }
-        // Load all Firestore projects into local index
-        if (UserService.isAuthenticated()) {
-            await draftingEngine.loadProjectsFromFirestore();
+            // 4. Start real-time sync for cross-device changes
+            draftingEngine.startRealtimeSync();
         }
         refreshState();
     }, [draftingEngine]);
 
     const handleLogout = useCallback(async () => {
+        draftingEngine.stopRealtimeSync();
         await UserService.logout();
         // De-authenticate and redirect to marketing site
         window.location.href = '/';
-    }, []);
+    }, [draftingEngine]);
 
     const handleDeleteAccount = useCallback(async () => {
         await UserService.deleteAccount();
@@ -1735,14 +1912,15 @@ const AppContent: React.FC = () => {
                 if (completed && UserService.isAuthenticated()) {
                     // Run the same post-login migration as handleLogin
                     const hadLocal = draftingEngine.getProjectsList(true).length > 0;
-                    if (hadLocal) {
-                        setIsMigrating(true);
-                        try {
+                    setIsMigrating(true);
+                    try {
+                        if (hadLocal) {
                             await draftingEngine.migrateLocalProjectsToFirestore();
-                            draftingEngine.clearLocalProjects();
-                        } finally { setIsMigrating(false); }
-                    }
-                    await draftingEngine.loadProjectsFromFirestore();
+                        }
+                        await draftingEngine.loadProjectsFromFirestore();
+                        await draftingEngine.loadFoldersFromFirestore();
+                    } finally { setIsMigrating(false); }
+                    draftingEngine.startRealtimeSync();
                     refreshState();
                 }
             } catch (e) {
@@ -1780,6 +1958,7 @@ const AppContent: React.FC = () => {
     const refreshState = () => {
         setSession(draftingEngine.getSession());
         setProjectsList(draftingEngine.getProjectsList());
+        setProjectFolders(draftingEngine.getFolders());
     };
 
     useEffect(() => {
@@ -1794,6 +1973,25 @@ const AppContent: React.FC = () => {
         draftingEngine.setOnImagesLoaded(() => {
             setSession(draftingEngine.getSession());
         });
+
+        // Listen for real-time remote changes and refresh UI
+        draftingEngine.setOnRemoteChange(() => {
+            setSession(draftingEngine.getSession());
+            setProjectsList(draftingEngine.getProjectsList());
+        });
+
+        // Start real-time Firestore sync for already-authenticated users
+        if (UserService.isAuthenticated()) {
+            draftingEngine.loadProjectsFromFirestore().then(() => {
+                draftingEngine.loadFoldersFromFirestore();
+                setProjectsList(draftingEngine.getProjectsList());
+            });
+            draftingEngine.startRealtimeSync();
+        }
+
+        return () => {
+            draftingEngine.stopRealtimeSync();
+        };
     }, [draftingEngine]);
 
     const triggerArchitectRevalidation = async () => {
@@ -2268,6 +2466,28 @@ const AppContent: React.FC = () => {
         setProjectsList(draftingEngine.getProjectsList(true));
     };
 
+    // --- Folder Management Handlers (Pro) ---
+    const handleCreateFolder = (name: string, parentId?: string) => {
+        draftingEngine.createFolder(name, parentId);
+        setProjectFolders(draftingEngine.getFolders());
+    };
+
+    const handleRenameFolder = (id: string, name: string) => {
+        draftingEngine.renameFolder(id, name);
+        setProjectFolders(draftingEngine.getFolders());
+    };
+
+    const handleDeleteFolder = (id: string) => {
+        draftingEngine.deleteFolder(id);
+        setProjectFolders(draftingEngine.getFolders());
+        setProjectsList(draftingEngine.getProjectsList());
+    };
+
+    const handleMoveToFolder = (projectId: string, folderId: string | undefined) => {
+        draftingEngine.moveProjectToFolder(projectId, folderId);
+        setProjectsList(draftingEngine.getProjectsList());
+    };
+
     // Visual Audit Handlers
     const handleScanPart = async (image: string) => {
         if (!aiService.identifyComponent) return;
@@ -2493,6 +2713,13 @@ const AppContent: React.FC = () => {
                 onLogin={handleLogin}
                 onSendEmailLink={handleSendEmailLink}
                 isMigrating={isMigrating}
+                folders={projectFolders}
+                hasFolders={tierInfo.hasFolders}
+                onCreateFolder={handleCreateFolder}
+                onRenameFolder={handleRenameFolder}
+                onDeleteFolder={handleDeleteFolder}
+                onMoveToFolder={handleMoveToFolder}
+                onUpgrade={() => setUpgradeOpen(true)}
             />
             <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
             <BOMImportModal isOpen={importModalOpen} onClose={() => { setImportModalOpen(false); refreshState(); }} onImportCSV={handleImportCSV} onImportPaste={handleImportPaste} />

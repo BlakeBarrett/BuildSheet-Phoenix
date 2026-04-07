@@ -182,6 +182,16 @@ export interface DraftingSession {
   // Project metadata — stored here so they survive Firestore round-trips
   archived?: boolean;
   tags?: string[];
+  folderId?: string; // Pro feature: organize projects into folders
+  thumbnail?: string; // Small base64 thumbnail for quick previews
+}
+
+export interface ProjectFolder {
+  id: string;
+  name: string;
+  parentId?: string; // For nested subfolders
+  createdAt: Date;
+  color?: string; // Optional accent color
 }
 
 export interface User {

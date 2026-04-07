@@ -22,6 +22,7 @@ export interface UseTierResult {
   hasUnlimitedProjects: boolean;
   hasARGuide: boolean;
   hasVoiceMode: boolean;
+  hasFolders: boolean;
   /** Effective project cap for the current user. */
   maxProjects: number;
   /** Effective message caps for the current user. */
@@ -82,6 +83,7 @@ export function useTier(): UseTierResult {
       hasUnlimitedProjects: limits.hasUnlimitedProjects,
       hasARGuide: limits.hasARGuide,
       hasVoiceMode: limits.hasVoiceMode,
+      hasFolders: limits.hasFolders,
       maxProjects: limits.maxProjects,
       maxArchitectMessages: limits.maxArchitectMessages,
       maxValidatorCalls: limits.maxValidatorCalls,
