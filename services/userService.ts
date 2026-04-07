@@ -20,6 +20,16 @@ export class UserService {
   private static authUnsub: Unsubscribe | null = null;
   private static loginInProgress = false;
 
+  private static setUserFromFirebase(firebaseUser: any) {
+    this.currentUser = {
+      id: firebaseUser.uid,
+      username: firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '.') || firebaseUser.uid.substring(0, 12),
+      name: firebaseUser.displayName || 'Authenticated User',
+      email: firebaseUser.email || '',
+      avatar: firebaseUser.photoURL || '',
+    };
+  }
+
   static initialize() {
     if (this.initialized) return;
     this.initialized = true;
@@ -29,13 +39,7 @@ export class UserService {
       // Real Firebase listener – fires on page load with the cached credential.
       this.authUnsub = onAuthStateChanged(auth, (firebaseUser) => {
         if (firebaseUser) {
-          this.currentUser = {
-            id: firebaseUser.uid,
-            username: firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '.') || firebaseUser.uid.substring(0, 12),
-            name: firebaseUser.displayName || 'Authenticated User',
-            email: firebaseUser.email || '',
-            avatar: firebaseUser.photoURL || '',
-          };
+          this.setUserFromFirebase(firebaseUser);
         } else {
           this.currentUser = null;
         }
@@ -71,8 +75,13 @@ export class UserService {
     }
     this.loginInProgress = true;
     try {
-      // signInWithPopup triggers onAuthStateChanged which updates currentUser.
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      // Set currentUser immediately from the result rather than waiting
+      // for onAuthStateChanged, which may fire in a later microtask.
+      if (result.user) {
+        this.setUserFromFirebase(result.user);
+        this.notifyListeners();
+      }
     } catch (e) {
       this.loginInProgress = false;
       throw e;
@@ -125,7 +134,12 @@ export class UserService {
 
     this.loginInProgress = true;
     try {
-      await signInWithEmailLink(auth, email, window.location.href);
+      const result = await signInWithEmailLink(auth, email, window.location.href);
+      // Set currentUser immediately from the result.
+      if (result.user) {
+        this.setUserFromFirebase(result.user);
+        this.notifyListeners();
+      }
     } catch (e) {
       this.loginInProgress = false;
       throw e;
