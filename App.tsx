@@ -1960,20 +1960,24 @@ const AppContent: React.FC = () => {
             setSession(draftingEngine.getSession());
             setProjectsList(draftingEngine.getProjectsList());
         });
+    }, [draftingEngine]);
 
-        // Start real-time Firestore sync for already-authenticated users
-        if (UserService.isAuthenticated()) {
+    // Load projects from Firestore and start real-time sync when auth state resolves.
+    // This handles both: (a) returning visits where onAuthStateChanged fires after mount,
+    // and (b) fresh logins where currentUser transitions from null → user.
+    useEffect(() => {
+        if (currentUser && UserService.isAuthenticated()) {
             draftingEngine.loadProjectsFromFirestore().then(() => {
                 draftingEngine.loadFoldersFromFirestore();
                 setProjectsList(draftingEngine.getProjectsList());
+                setProjectFolders(draftingEngine.getFolders());
             });
             draftingEngine.startRealtimeSync();
         }
-
         return () => {
             draftingEngine.stopRealtimeSync();
         };
-    }, [draftingEngine]);
+    }, [currentUser, draftingEngine]);
 
     const triggerArchitectRevalidation = async () => {
         draftingEngine.addMessage({ role: 'assistant', content: "**System:** Manual BOM edit detected. Triggering Architect re-validation for constraints (836cc engine).", timestamp: new Date() });
