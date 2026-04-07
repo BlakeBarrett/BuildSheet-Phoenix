@@ -152,21 +152,19 @@ test.describe('GeminiService findPartSources URL filtering', () => {
 
     function buildMockService(groundingChunks: any[], groundingSupports: any[] = []) {
         const service = new GeminiService('fake-key');
-        
-        // Generate a JSON array derived from the mocked chunks
-        const syntheticJson = groundingChunks.map(c => ({
-            title: c.web?.title || 'Mock Item',
-            url: c.web?.uri || '',
-            source: c.web?.uri ? new URL(c.web.uri).hostname : 'mock.com',
-            price: null
-        }));
+
+        // Build prose text from chunks (the model now returns prose, not JSON)
+        const proseText = groundingChunks.map(c => {
+            const title = c.web?.title || 'Mock Item';
+            return `${title} is available.`;
+        }).join(' ');
 
         const mockClient = {
             models: {
                 generateContent: async () => ({                    
-                    text: JSON.stringify(syntheticJson),
+                    text: proseText,
                     candidates: [{
-                        content: { parts: [{ text: 'results' }] },
+                        content: { parts: [{ text: proseText }] },
                         groundingMetadata: {
                             groundingChunks: groundingChunks,
                             groundingSupports: groundingSupports,

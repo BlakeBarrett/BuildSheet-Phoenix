@@ -18,12 +18,14 @@ export interface DiscoveryResult {
   url: string;
   title: string;
   source: string;
+  thumbnail?: string;
 }
 
 export interface ExtractedPageData {
   url: string;
   markdown: string;
   extractedAt: Date;
+  thumbnail?: string;
 }
 
 export interface VerifiedPartData {
@@ -34,6 +36,7 @@ export interface VerifiedPartData {
   source_url: string;
   source_name: string;
   confidence: number;
+  thumbnail?: string;
 }
 
 // --- Risk & Anomaly Types ---

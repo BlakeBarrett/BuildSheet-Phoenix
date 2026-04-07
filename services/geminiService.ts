@@ -278,69 +278,58 @@ Find real-world purchase options and actual prices for: ${query}.${contextClause
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
-                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail websites.
-Return a JSON array of objects. Each object MUST have:
-- "title": Product name
-- "url": The direct URL (will be verified against search metadata)
-- "source": The hostname of the retailer
-- "price": The numeric price in USD (or local currency). Omit currency symbols, just the number. If unknown, use null.
-Do NOT wrap the JSON in markdown code blocks. Just output the array.`,
-                    tools: [{ googleSearch: {} }],
-                    responseMimeType: 'application/json'
+                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail websites. For each result, clearly state the product name, retailer, and price. Focus on in-stock items from authorized retailers.`,
+                    tools: [{ googleSearch: {} }]
                 }
             });
 
             const candidate = response.candidates?.[0];
             const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
-            const text = response.text || '[]';
+            const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
 
-            let items: any[] = [];
-            try {
-                items = JSON.parse(text);
-            } catch (e) {
-                console.warn("[findPartSources] JSON parsing failed", e);
-                return null;
-            }
-
-            if (!Array.isArray(items) || items.length === 0) {
+            if (chunks.length === 0) {
                 return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
             }
 
-            // Cross-reference hallucinated JSON URLs with the safe Google Search proxy links from chunks
-            const verifiedOptions: ShoppingOption[] = items.map(item => {
-                // Try to find the exact proxy domain or title match in the grounding chunks
-                const sourceHost = (item.source || '').toLowerCase().replace(/^www\./, '');
-                
-                const matchingChunk = chunks.find(c => {
-                    const chunkTitle = c.web?.title?.toLowerCase() || '';
-                    const chunkUrl = c.web?.uri?.toLowerCase() || '';
-                    return (sourceHost && (chunkTitle.includes(sourceHost) || chunkUrl.includes(sourceHost)));
-                });
+            // Build confidence map from groundingSupports
+            const confidenceMap = buildChunkConfidenceMap(supports);
 
-                // Prefer the Google proxy URI if available, fallback to generated URL
-                const safeUrl = matchingChunk?.web?.uri || item.url || '';
-                
-                let finalPriceStr: string | undefined = undefined;
-                if (item.price !== null && item.price !== undefined) {
-                    const parsed = parseFloat(item.price);
-                    if (!isNaN(parsed) && parsed > 0) {
-                        finalPriceStr = `${parsed.toFixed(2)}`;
-                    } else if (typeof item.price === 'string') {
-                        finalPriceStr = item.price;
+            // Extract price hints from the prose text keyed by chunk index.
+            // groundingSupports map text segments → chunk indices, so we can
+            // scan each segment for a dollar amount and attribute it.
+            const chunkPriceMap = new Map<number, string>();
+            const responseText = response.text || '';
+            for (const support of supports) {
+                const seg = support.segment;
+                if (!seg || seg.startIndex === undefined || seg.endIndex === undefined) continue;
+                const slice = responseText.substring(seg.startIndex, seg.endIndex);
+                const priceMatch = slice.match(/\$\s?([\d,]+\.?\d{0,2})/);
+                if (priceMatch) {
+                    const priceVal = priceMatch[1].replace(/,/g, '');
+                    for (const idx of (support.groundingChunkIndices ?? [])) {
+                        if (!chunkPriceMap.has(idx)) chunkPriceMap.set(idx, priceVal);
                     }
                 }
+            }
+
+            // Build ShoppingOptions directly from grounding chunks
+            const options: ShoppingOption[] = chunks.map((chunk, idx) => {
+                const uri = chunk.web?.uri || '';
+                const title = chunk.web?.title || 'Unknown Retailer';
+                const confidence = confidenceMap.get(idx) ?? 1.0;
+                const price = chunkPriceMap.get(idx);
 
                 return {
-                    title: item.title || 'Unknown Part',
-                    url: safeUrl,
-                    source: item.source || 'Unknown Retailer',
-                    price: finalPriceStr,
-                    isEstimated: false
+                    title,
+                    url: uri,
+                    source: title,
+                    price: price,
+                    isEstimated: confidence < 0.5
                 } as ShoppingOption;
             });
 
-            // Filter noisy domains and non-retail URLs AFTER verification
-            const clean = verifiedOptions.filter(opt => {
+            // Filter noisy domains and non-retail URLs
+            const clean = options.filter(opt => {
                 const url = opt.url || '';
                 if (!url) return false;
                 if (NOISY_DOMAINS.some(d => url.includes(d))) return false;

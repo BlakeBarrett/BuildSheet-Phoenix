@@ -673,25 +673,6 @@ const PartDetailModal: React.FC<{
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     <div className="space-y-6">
-                        {isVirtual && (
-                            <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-[20px] border border-amber-200">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                        <h4 className="font-bold text-sm text-amber-900 mb-1">Virtual Component</h4>
-                                        <p className="text-xs text-amber-700 leading-relaxed">This part was added by the architect but hasn't been verified yet. Search to fill in real specs, pricing, and connectors.</p>
-                                    </div>
-                                    <Button
-                                        onClick={() => onHydrate(entry)}
-                                        disabled={isHydrating}
-                                        variant="tonal"
-                                        className="shrink-0 bg-amber-500 text-white hover:bg-amber-600 border-none shadow-md"
-                                        icon={isHydrating ? "progress_activity" : "travel_explore"}
-                                    >
-                                        {isHydrating ? 'Searching...' : 'Search'}
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
 
                         <div className="bg-[#F0F4F9] p-4 rounded-[20px]">
                             <p className="text-sm text-slate-700 leading-relaxed">{displayDescription}</p>
@@ -914,7 +895,7 @@ const PartDetailModal: React.FC<{
                     {onRemove && (
                         <Button variant="ghost" onClick={() => onRemove(entry.instanceId)} className="mr-auto text-red-600 hover:bg-red-50" icon="delete">Remove</Button>
                     )}
-                    <Button variant="tonal" onClick={() => onSource(entry)} disabled={entry.sourcing?.loading} icon={entry.sourcing?.loading ? "progress_activity" : "refresh"} className={entry.sourcing?.loading ? '[&_.material-symbols-rounded]:animate-spin' : ''}>{entry.sourcing?.loading ? 'Updating...' : 'Update Sourcing'}</Button>
+                    <Button variant="tonal" onClick={() => isVirtual ? onHydrate(entry) : onSource(entry)} disabled={entry.sourcing?.loading || isHydrating} icon={entry.sourcing?.loading || isHydrating ? "progress_activity" : isVirtual ? "travel_explore" : "refresh"} className={entry.sourcing?.loading || isHydrating ? '[&_.material-symbols-rounded]:animate-spin' : ''}>{entry.sourcing?.loading ? 'Sourcing...' : isHydrating ? 'Searching...' : isVirtual ? 'Search & Source' : 'Update Sourcing'}</Button>
                     <Button variant="primary" onClick={onClose}>Close</Button>
                 </div>
             </div>
@@ -2105,7 +2086,11 @@ const AppContent: React.FC = () => {
                 // Re-select the part to show updated data in the modal
                 const updatedSession = draftingEngine.getSession();
                 const updatedEntry = updatedSession.bom.find(b => b.instanceId === entry.instanceId);
-                if (updatedEntry) setSelectedPart(updatedEntry);
+                if (updatedEntry) {
+                    setSelectedPart(updatedEntry);
+                    // Auto-source after hydration so the user gets vendor links in one click
+                    handleSourcePart(updatedEntry);
+                }
             }
         } catch (e) {
             console.error('Hydration failed:', e);

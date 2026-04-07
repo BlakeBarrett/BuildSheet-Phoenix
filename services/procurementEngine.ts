@@ -230,6 +230,7 @@ export class VerifiedProcurementEngine {
           url: r.url,
           title: r.title || '',
           source: r.engine || 'searxng',
+          thumbnail: r.img_src || r.thumbnail || undefined,
         }));
 
       return results;
@@ -271,7 +272,11 @@ export class VerifiedProcurementEngine {
         const markdown: string = body.data?.markdown || body.markdown || '';
         if (!markdown || markdown.length < 50) return null;
 
-        return { url: d.url, markdown, extractedAt: new Date() };
+        // Extract thumbnail: prefer Firecrawl og:image metadata, fall back to SearXNG discovery thumbnail
+        const ogImage: string | undefined = body.data?.metadata?.ogImage || body.data?.metadata?.['og:image'] || undefined;
+        const thumbnail = ogImage || d.thumbnail || undefined;
+
+        return { url: d.url, markdown, extractedAt: new Date(), thumbnail };
       } catch {
         return null;
       }
@@ -417,6 +422,7 @@ Return ONLY valid JSON, no explanation.`;
       source_url: page.url,
       source_name: hostname,
       confidence: 0.85,
+      thumbnail: page.thumbnail,
     };
   }
 
@@ -545,6 +551,7 @@ Return ONLY valid JSON, no explanation.`;
       source_url: page.url,
       source_name: hostname,
       confidence: 0.35, // Low confidence for regex-only extraction
+      thumbnail: page.thumbnail,
     };
   }
 
@@ -618,6 +625,7 @@ Return ONLY valid JSON, no explanation.`;
       source: v.source_name,
       price: priceStr,
       isEstimated: v.confidence < 0.5,
+      thumbnail: v.thumbnail,
     };
   }
 }
