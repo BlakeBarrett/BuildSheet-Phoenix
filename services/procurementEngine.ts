@@ -207,7 +207,7 @@ export class VerifiedProcurementEngine {
     const url = new URL('/search', this.config.searxng_base_url);
     url.searchParams.set('q', searchQuery);
     url.searchParams.set('format', 'json');
-    url.searchParams.set('categories', 'general');
+    url.searchParams.set('categories', 'general,shopping');
     url.searchParams.set('engines', 'google,bing,duckduckgo');
     if (localeContext) {
       // Pass the language hint (e.g. 'sw-KE' or 'fr') if it roughly matches a locale param format.

@@ -19,12 +19,18 @@ const NOISY_URL_PATTERNS = [
     /patents\.google/i,               // Patent listings
     /scholar\.google/i,               // Academic papers
     /\.gov\//i,                       // Government sites
+    /\.edu\//i,                       // Academic / university sites
+    /\.mil\//i,                       // Military sites
     /wiki(pedia|media)\.org/i,        // Wikipedia / Wikimedia
     /youtube\.com|youtu\.be/i,        // Video sites
     /facebook\.com|instagram\.com/i,  // Social media
     /pinterest\./i,                   // Pinterest
     /blogspot\.|wordpress\.com/i,     // Blog platforms
     /news\.|nytimes|washingtonpost|cnn\.com/i, // News sites
+    /stackoverflow\.com|stackexchange\.com/i, // Q&A forums
+    /github\.com|gitlab\.com/i,       // Code repositories
+    /quora\.com/i,                    // Q&A sites
+    /medium\.com/i,                   // Blog platform
 ];
 
 
@@ -278,7 +284,7 @@ Find real-world purchase options and actual prices for: ${query}.${contextClause
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
-                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail websites. For each result, clearly state the product name, retailer, and price. Focus on in-stock items from authorized retailers.`,
+                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail and e-commerce websites such as Amazon, Home Depot, McMaster-Carr, Mouser, Digi-Key, Grainger, Rockler, Woodcraft, Etsy, and Wayfair. For each result, clearly state the product name, retailer, and current price. Focus on in-stock items from authorized retailers. Never cite academic (.edu), government (.gov), Wikipedia, forum, or blog sources.`,
                     tools: [{ googleSearch: {} }]
                 }
             });
