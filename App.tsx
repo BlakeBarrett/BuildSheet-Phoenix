@@ -2654,11 +2654,11 @@ const AppContent: React.FC = () => {
             const parsed = aiService.parseArchitectResponse(architectResponse.text);
 
             let stateModified = false;
-            parsed.toolCalls.forEach(call => {
+            for (const call of parsed.toolCalls) {
                 if (call.type === 'initializeDraft') { draftingEngine.initialize(call.name, call.reqs); stateModified = true; }
-                else if (call.type === 'addPart') { draftingEngine.addPart(call.partId, call.name, call.category, call.qty); stateModified = true; }
+                else if (call.type === 'addPart') { await draftingEngine.addPart(call.partId, call.name, call.category, call.qty); stateModified = true; }
                 else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
-            });
+            }
 
             // Populate VisualManifest if the architect returned one
             if (parsed.visualization && parsed.visualization.components && parsed.visualization.components.length > 0) {
@@ -2679,8 +2679,10 @@ const AppContent: React.FC = () => {
                     latencyMs
                 }
             });
-            if (stateModified) performVisualGeneration().then(() => refreshState());
             refreshState();
+            if (stateModified) {
+                performVisualGeneration().then(() => refreshState());
+            }
         } catch (e: any) {
             draftingEngine.addMessage({ role: 'assistant', content: `[ERROR] ${e.message}`, timestamp: new Date() });
             refreshState();
