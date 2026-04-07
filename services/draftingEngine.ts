@@ -62,11 +62,6 @@ export class DraftingEngine {
   private firestoreUnsubscribe: Unsubscribe | null = null;
   private onRemoteChange?: () => void;
 
-  // Debounced Firestore persistence
-  private firestoreSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingFirestoreSave: Promise<void> | null = null;
-  private boundBeforeUnload: (() => void) | null = null;
-
   private onImagesLoaded?: () => void;
 
   public setOnImagesLoaded(cb: () => void) {
@@ -81,10 +76,6 @@ export class DraftingEngine {
     this.session = this.loadInitialSession();
     this.saveSession();
     this.loadImagesAsync();
-
-    // Flush any pending Firestore write on tab close / navigation
-    this.boundBeforeUnload = () => this.flushFirestoreSave();
-    window.addEventListener('beforeunload', this.boundBeforeUnload);
   }
 
   private loadImagesAsync() {
@@ -257,52 +248,13 @@ export class DraftingEngine {
       this.updateProjectIndex(session);
       localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
 
-      // Mirror to Firestore for authenticated users (debounced, 2s).
+      // Save to Firestore immediately for authenticated users.
       if (UserService.isAuthenticated()) {
-        this.scheduleFirestoreSave(session);
+        this.saveSessionToFirestore(session);
       }
     } catch (e) {
       console.error("Persistence failed", e);
     }
-  }
-
-  /**
-   * Debounce Firestore writes to avoid hammering on rapid edits.
-   * Flushes immediately on beforeunload / explicit flush.
-   */
-  private scheduleFirestoreSave(session: DraftingSession) {
-    if (this.firestoreSaveTimer) clearTimeout(this.firestoreSaveTimer);
-    const snapshot = this.cloneSessionForFirestore(session);
-    this.firestoreSaveTimer = setTimeout(() => {
-      this.firestoreSaveTimer = null;
-      this.pendingFirestoreSave = this.saveSessionToFirestore(snapshot).finally(() => {
-        this.pendingFirestoreSave = null;
-      });
-    }, 2000);
-  }
-
-  /**
-   * Immediately flush any pending debounced Firestore save.
-   * Called by beforeunload, logout, and saveAllToFirestore.
-   */
-  public flushFirestoreSave() {
-    if (this.firestoreSaveTimer) {
-      clearTimeout(this.firestoreSaveTimer);
-      this.firestoreSaveTimer = null;
-      // Synchronously kick off the save (beforeunload can't await, but the
-      // browser usually allows a brief window for pending fetches).
-      this.saveSessionToFirestore(this.session);
-    }
-  }
-
-  private cloneSessionForFirestore(session: DraftingSession): DraftingSession {
-    return this.hydrateSession(JSON.parse(JSON.stringify({
-      ...session,
-      generatedImages: [],
-      createdAt: session.createdAt.toISOString(),
-      lastModified: session.lastModified.toISOString(),
-      messages: session.messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
-    })));
   }
 
   private updateProjectIndex(session: DraftingSession) {
@@ -409,11 +361,6 @@ export class DraftingEngine {
     if (!UserService.isAuthenticated()) return;
     const col = this.getFirestoreProjectsCollection();
     if (!col) return;
-
-    // Flush any pending debounced write first
-    this.flushFirestoreSave();
-    // Wait for it to complete
-    if (this.pendingFirestoreSave) await this.pendingFirestoreSave;
 
     // Save the active session first (most likely to have unsaved changes)
     await this.saveSessionToFirestore(this.session);
@@ -1463,6 +1410,11 @@ export class DraftingEngine {
             const sessionNoImages = { ...session, generatedImages: [] };
             try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
             this.updateProjectIndex(session);
+            // If this is the currently active project, update in-memory state
+            if (id === this.session.id) {
+              const images = this.session.generatedImages; // preserve local images
+              this.session = { ...session, generatedImages: images };
+            }
             changed = true;
           }
         } else if (change.type === 'removed') {
