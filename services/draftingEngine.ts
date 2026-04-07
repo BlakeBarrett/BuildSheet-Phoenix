@@ -62,6 +62,11 @@ export class DraftingEngine {
   private firestoreUnsubscribe: Unsubscribe | null = null;
   private onRemoteChange?: () => void;
 
+  // Debounced Firestore persistence
+  private firestoreSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingFirestoreSave: Promise<void> | null = null;
+  private boundBeforeUnload: (() => void) | null = null;
+
   private onImagesLoaded?: () => void;
 
   public setOnImagesLoaded(cb: () => void) {
@@ -76,6 +81,10 @@ export class DraftingEngine {
     this.session = this.loadInitialSession();
     this.saveSession();
     this.loadImagesAsync();
+
+    // Flush any pending Firestore write on tab close / navigation
+    this.boundBeforeUnload = () => this.flushFirestoreSave();
+    window.addEventListener('beforeunload', this.boundBeforeUnload);
   }
 
   private loadImagesAsync() {
@@ -248,13 +257,52 @@ export class DraftingEngine {
       this.updateProjectIndex(session);
       localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
 
-      // Mirror to Firestore for authenticated users (fire-and-forget).
+      // Mirror to Firestore for authenticated users (debounced, 2s).
       if (UserService.isAuthenticated()) {
-        this.saveSessionToFirestore(session);
+        this.scheduleFirestoreSave(session);
       }
     } catch (e) {
       console.error("Persistence failed", e);
     }
+  }
+
+  /**
+   * Debounce Firestore writes to avoid hammering on rapid edits.
+   * Flushes immediately on beforeunload / explicit flush.
+   */
+  private scheduleFirestoreSave(session: DraftingSession) {
+    if (this.firestoreSaveTimer) clearTimeout(this.firestoreSaveTimer);
+    const snapshot = this.cloneSessionForFirestore(session);
+    this.firestoreSaveTimer = setTimeout(() => {
+      this.firestoreSaveTimer = null;
+      this.pendingFirestoreSave = this.saveSessionToFirestore(snapshot).finally(() => {
+        this.pendingFirestoreSave = null;
+      });
+    }, 2000);
+  }
+
+  /**
+   * Immediately flush any pending debounced Firestore save.
+   * Called by beforeunload, logout, and saveAllToFirestore.
+   */
+  public flushFirestoreSave() {
+    if (this.firestoreSaveTimer) {
+      clearTimeout(this.firestoreSaveTimer);
+      this.firestoreSaveTimer = null;
+      // Synchronously kick off the save (beforeunload can't await, but the
+      // browser usually allows a brief window for pending fetches).
+      this.saveSessionToFirestore(this.session);
+    }
+  }
+
+  private cloneSessionForFirestore(session: DraftingSession): DraftingSession {
+    return this.hydrateSession(JSON.parse(JSON.stringify({
+      ...session,
+      generatedImages: [],
+      createdAt: session.createdAt.toISOString(),
+      lastModified: session.lastModified.toISOString(),
+      messages: session.messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
+    })));
   }
 
   private updateProjectIndex(session: DraftingSession) {
@@ -354,6 +402,41 @@ export class DraftingEngine {
   // --- Firestore-backed project loading ---
 
   /**
+   * Save ALL localStorage projects to Firestore.
+   * Called before logout to ensure nothing is lost.
+   */
+  public async saveAllToFirestore(): Promise<void> {
+    if (!UserService.isAuthenticated()) return;
+    const col = this.getFirestoreProjectsCollection();
+    if (!col) return;
+
+    // Flush any pending debounced write first
+    this.flushFirestoreSave();
+    // Wait for it to complete
+    if (this.pendingFirestoreSave) await this.pendingFirestoreSave;
+
+    // Save the active session first (most likely to have unsaved changes)
+    await this.saveSessionToFirestore(this.session);
+
+    const indexRaw = localStorage.getItem(this.INDEX_KEY);
+    if (!indexRaw) return;
+    let index: any[];
+    try { index = JSON.parse(indexRaw); } catch { return; }
+
+    for (const entry of index) {
+      if (entry.id === this.session.id) continue; // already saved above
+      const stored = localStorage.getItem(this.SESSION_PREFIX + entry.id);
+      if (!stored) continue;
+      try {
+        const session = this.hydrateSession(JSON.parse(stored));
+        await this.saveSessionToFirestore(session);
+      } catch (e) {
+        console.error('saveAllToFirestore failed for', entry.id, e);
+      }
+    }
+  }
+
+  /**
    * Loads all projects from Firestore into localStorage, merging
    * with any existing local entries. Called once after login.
    * Preserves local IDB images (which are not stored in Firestore).
@@ -423,6 +506,19 @@ export class DraftingEngine {
         const session = this.hydrateSession(JSON.parse(stored));
         // Re-assign ownership to the authenticated user
         session.ownerId = user.id;
+
+        // Check if Firestore already has a newer version — don't overwrite it
+        try {
+          const existing = await getDoc(doc(col, entry.id));
+          if (existing.exists()) {
+            const remoteModified = new Date(existing.data().lastModified).getTime();
+            const localModified = session.lastModified.getTime();
+            if (remoteModified > localModified) {
+              // Firestore is newer — skip migration for this project
+              continue;
+            }
+          }
+        } catch { /* Firestore read failed — proceed with overwrite as fallback */ }
 
         // Generate a thumbnail from IDB images if we don't have one yet
         if (!session.thumbnail) {
@@ -635,8 +731,12 @@ export class DraftingEngine {
   public initialize(name: string, requirements: string) {
     this.session.name = name;
     this.session.designRequirements = requirements;
-    this.session.bom = [];
-    this.session.cacheIsDirty = true;
+    // Only clear the BOM when the project is truly new (no existing parts).
+    // Re-emitted initializeDraft calls from follow-up architect responses
+    // must not wipe hydrated parts.
+    if (this.session.bom.length === 0) {
+      this.session.cacheIsDirty = true;
+    }
     this.saveSession();
   }
 

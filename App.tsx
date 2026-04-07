@@ -1755,7 +1755,6 @@ const AppContent: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(UserService.getCurrentUser());
     const [isMigrating, setIsMigrating] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const loginInProgressRef = useRef(false);
 
     // New feature state
     const [voiceOpen, setVoiceOpen] = useState(false);
@@ -1803,12 +1802,10 @@ const AppContent: React.FC = () => {
     const handleLogin = useCallback(async () => {
         // Capture whether guest data exists BEFORE login
         const hadLocalProjects = draftingEngine.getProjectsList(true).length > 0;
-        loginInProgressRef.current = true;
         try {
             await UserService.login();
         } catch (e: any) {
             console.error('Login failed', e);
-            loginInProgressRef.current = false;
             return;
         }
         // Post-login migration & sync
@@ -1829,11 +1826,15 @@ const AppContent: React.FC = () => {
             // 4. Start real-time sync for cross-device changes
             draftingEngine.startRealtimeSync();
         }
-        loginInProgressRef.current = false;
+        UserService.loginComplete();
         refreshState();
     }, [draftingEngine]);
 
     const handleLogout = useCallback(async () => {
+        // Save all projects to Firestore before signing out
+        if (UserService.isAuthenticated()) {
+            await draftingEngine.saveAllToFirestore();
+        }
         draftingEngine.stopRealtimeSync();
         await UserService.logout();
         // De-authenticate and redirect to marketing site
@@ -1892,7 +1893,6 @@ const AppContent: React.FC = () => {
     // Complete passwordless email-link sign-in if the URL contains the link params.
     useEffect(() => {
         (async () => {
-            loginInProgressRef.current = true;
             try {
                 const completed = await UserService.completeEmailLinkSignIn();
                 if (completed && UserService.isAuthenticated()) {
@@ -1907,12 +1907,11 @@ const AppContent: React.FC = () => {
                         await draftingEngine.loadFoldersFromFirestore();
                     } finally { setIsMigrating(false); }
                     draftingEngine.startRealtimeSync();
+                    UserService.loginComplete();
                     refreshState();
                 }
             } catch (e) {
                 console.error('Email link sign-in failed', e);
-            } finally {
-                loginInProgressRef.current = false;
             }
         })();
     }, [draftingEngine]);
@@ -1971,9 +1970,9 @@ const AppContent: React.FC = () => {
 
     // Load projects from Firestore and start real-time sync when auth state resolves.
     // Handles returning visits where onAuthStateChanged fires after mount.
-    // Skips when handleLogin or email-link sign-in is already handling migration + load.
+    // Skips when an explicit login flow is already handling migration + load.
     useEffect(() => {
-        if (currentUser && UserService.isAuthenticated() && !loginInProgressRef.current) {
+        if (currentUser && UserService.isAuthenticated() && !UserService.isLoginInProgress()) {
             draftingEngine.loadProjectsFromFirestore().then(() => {
                 draftingEngine.loadFoldersFromFirestore();
                 setProjectsList(draftingEngine.getProjectsList());
@@ -2819,7 +2818,18 @@ const AppContent: React.FC = () => {
                     />
                     <IconButton
                         icon="folder_open"
-                        onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }}
+                        onClick={() => {
+                            // Refresh from Firestore if authenticated
+                            if (UserService.isAuthenticated()) {
+                                draftingEngine.loadProjectsFromFirestore().then(() => {
+                                    setProjectsList(draftingEngine.getProjectsList());
+                                    setProjectFolders(draftingEngine.getFolders());
+                                });
+                            } else {
+                                setProjectsList(draftingEngine.getProjectsList());
+                            }
+                            setIsNavigatorOpen(true);
+                        }}
                         title="Projects"
                     />
 
@@ -2955,7 +2965,17 @@ const AppContent: React.FC = () => {
                     {/* Toolbar */}
                     <header className="px-6 py-4 flex justify-between items-center bg-white z-20 shrink-0">
                         <div className="flex items-center gap-3 lg:hidden">
-                            <IconButton icon="menu" onClick={() => { setProjectsList(draftingEngine.getProjectsList()); setIsNavigatorOpen(true); }} className="lg:hidden -ml-2" title="Menu" />
+                            <IconButton icon="menu" onClick={() => {
+                                if (UserService.isAuthenticated()) {
+                                    draftingEngine.loadProjectsFromFirestore().then(() => {
+                                        setProjectsList(draftingEngine.getProjectsList());
+                                        setProjectFolders(draftingEngine.getFolders());
+                                    });
+                                } else {
+                                    setProjectsList(draftingEngine.getProjectsList());
+                                }
+                                setIsNavigatorOpen(true);
+                            }} className="lg:hidden -ml-2" title="Menu" />
                         </div>
 
                         <div className="flex flex-col flex-1 min-w-0">

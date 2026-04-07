@@ -18,6 +18,7 @@ export class UserService {
   private static listeners: ((user: User | null) => void)[] = [];
   private static initialized = false;
   private static authUnsub: Unsubscribe | null = null;
+  private static loginInProgress = false;
 
   static initialize() {
     if (this.initialized) return;
@@ -57,14 +58,30 @@ export class UserService {
     return !!this.currentUser && isFirebaseConfigured();
   }
 
+  /** Returns true while an explicit login or email-link sign-in is in progress. */
+  static isLoginInProgress(): boolean {
+    return this.loginInProgress;
+  }
+
   static async login(): Promise<void> {
     const auth = getFirebaseAuth();
     if (!auth) {
       console.warn('Firebase is not configured – login unavailable.');
       return;
     }
-    // signInWithPopup triggers onAuthStateChanged which updates currentUser.
-    await signInWithPopup(auth, googleProvider);
+    this.loginInProgress = true;
+    try {
+      // signInWithPopup triggers onAuthStateChanged which updates currentUser.
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      this.loginInProgress = false;
+      throw e;
+    }
+  }
+
+  /** Call after post-login work (migration, Firestore load) is complete. */
+  static loginComplete(): void {
+    this.loginInProgress = false;
   }
 
   // --- Passwordless Email Link ---
@@ -106,7 +123,13 @@ export class UserService {
       if (!email) return false;
     }
 
-    await signInWithEmailLink(auth, email, window.location.href);
+    this.loginInProgress = true;
+    try {
+      await signInWithEmailLink(auth, email, window.location.href);
+    } catch (e) {
+      this.loginInProgress = false;
+      throw e;
+    }
     localStorage.removeItem(EMAIL_LINK_KEY);
 
     // Clean the sign-in link params from the URL so a page refresh doesn't
