@@ -20,6 +20,14 @@ export interface PortDefinition {
   spec: string;
 }
 
+export interface GlobalPart {
+  id: string;
+  part: Part;
+  bestSource?: ShoppingOption;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Part {
   id: string;
   sku: string;

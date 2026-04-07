@@ -392,26 +392,40 @@ export class DraftingEngine {
     localStorage.removeItem(this.ACTIVE_ID_KEY);
   }
 
-  public addPart(partId: string, name?: string, category?: string, quantity: number = 1) {
+  public async addPart(partId: string, name?: string, category?: string, quantity: number = 1) {
     this.pushUndo();
-    const part: Part = {
-      id: partId,
-      sku: `DRAFT-${partId.toUpperCase()}`,
-      name: name || partId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-      category: category || 'Component',
-      brand: 'TBD',
-      price: 0,
-      description: `${category || 'Component'} added by architect.`,
-      ports: []
-    };
 
-    const existingEntry = this.session.bom.find(b => b.part.id === part.id);
+    let part: Part | null = null;
+    try {
+      const { partCatalogService } = await import('./partCatalogService');
+      const globalPart = await partCatalogService.findPartByNameOrSku(name || partId);
+      if (globalPart) {
+        part = { ...globalPart.part };
+      }
+    } catch (e) {
+      console.warn('Failed retrieving from global catalog', e);
+    }
+
+    if (!part) {
+      part = {
+        id: partId,
+        sku: `DRAFT-${partId.toUpperCase()}`,
+        name: name || partId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+        category: category || 'Component',
+        brand: 'TBD',
+        price: 0,
+        description: `${category || 'Component'} added by architect.`,
+        ports: []
+      };
+    }
+
+    const existingEntry = this.session.bom.find(b => b.part.id === part?.id);
     if (existingEntry) {
       this.updatePartQuantity(existingEntry.instanceId, existingEntry.quantity + quantity);
     } else {
       const entry: BOMEntry = {
-        instanceId: `${part.id}-${Math.random().toString(36).substr(2, 5)}`,
-        part: { ...part },
+        instanceId: `${part?.id}-${Math.random().toString(36).substr(2, 5)}`,
+        part: { ...part! },
         quantity,
         isCompatible: true
       };
@@ -495,12 +509,26 @@ export class DraftingEngine {
       if (onlineData && onlineData.length > 0) {
         const prices = onlineData
           .map((opt: any) => {
-            const str = (opt.price || opt.title || "").toString();
-            const match = str.match(/(?:\$|)\s?(\d+[\d,.]*)/);
-            if (match) {
-              const val = parseFloat(match[1].replace(/,/g, ''));
-              return isNaN(val) ? null : val;
+            if (typeof opt.price === 'number' && opt.price > 0) return opt.price;
+            
+            // Try to extract from string price
+            if (typeof opt.price === 'string') {
+              const priceMatch = opt.price.match(/(?:\$|)\s?(\d+[\d,.]*)/);
+              if (priceMatch) {
+                const val = parseFloat(priceMatch[1].replace(/,/g, ''));
+                if (!isNaN(val) && val > 0) return val;
+              }
             }
+
+            // Fallback to title ONLY if it specifically contains a $ sign
+            if (opt.title && typeof opt.title === 'string' && opt.title.includes('$')) {
+              const titleMatch = opt.title.match(/\$\s*(\d+[\d,.]*)/);
+              if (titleMatch) {
+                const val = parseFloat(titleMatch[1].replace(/,/g, ''));
+                if (!isNaN(val) && val > 0) return val;
+              }
+            }
+            
             return null;
           })
           .filter((p: number | null) => p !== null && p > 0);
@@ -510,11 +538,17 @@ export class DraftingEngine {
         } else if (entry.part.price === 0) {
           entry.part.price = 14.99;
         }
-      }
 
-      this.saveSession();
+          // Trigger saving this fully hydrated and sourced part to the global catalog
+          import('./partCatalogService').then(module => {
+            module.partCatalogService.saveHydratedPart(entry.part, onlineData[0]);
+          }).catch(console.warn);
+
+        }
+
+        this.saveSession();
+      }
     }
-  }
 
   public getTotalCost(): number {
     return this.session.bom.reduce((acc, curr) => acc + (curr.part.price * curr.quantity), 0);

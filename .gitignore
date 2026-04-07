@@ -32,3 +32,15 @@ dist-ssr
 .last-run.json
 error-context.md
 test-results/
+playwright-report/
+
+# Debug / ad-hoc scripts and output
+debug-*.mjs
+debug-*.ts
+output-*.txt
+git-history.txt
+patch-*.cjs
+runner.sh
+test-*.mjs
+test-*.js
+!test-results/

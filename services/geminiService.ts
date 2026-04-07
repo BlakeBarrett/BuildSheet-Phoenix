@@ -233,61 +233,100 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-    async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null> {
+        async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null> {
         try {
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
-            const localeClause = localeContext ? ` Target Locale: ${localeContext}. Prioritize authorized retailers that are local to or confidently ship to this region. Format prices using the local currency.` : '';
+            const localeClause = localeContext ? ` Target Locale: ${localeContext}. Prioritize authorized retailers that are local to or confidently ship to this region.` : '';
             const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            const prompt = `The current date is ${today}. Prioritize results from the last 30 days.
+When searching, wrap all SKUs and model numbers in double quotes.
+Find real-world purchase options and actual prices for: ${query}.${contextClause}${localeClause}
+Return a JSON array of objects representing the purchase options.
+Each object MUST have:
+- "title": Product name
+- "url": The direct URL (will be verified against search metadata)
+- "source": The hostname of the retailer
+- "price": The numeric price in USD (or local currency). Omit currency symbols, just the number. If unknown, use null.
+Do NOT wrap the JSON in markdown code blocks. Just output the array.`;
+
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
-                contents: `The current date is ${today}. Prioritize results from the last 30 days.
-When searching, wrap all SKUs and model numbers in double quotes (e.g., "NE555P", "ESP32-WROOM-32D").
-Search specifically for 'current retail price' and 'in-stock status' from authorized retailers.
-Find real-world purchase options and actual prices for: ${query}.${contextClause}${localeClause}
-For each item, you MUST include the price in the title or snippet. Format: "Product Name - Store - [Price]"`,
+                contents: prompt,
                 config: {
                     tools: [{ googleSearch: {} }],
+                    responseMimeType: 'application/json'
                 }
             });
 
             const candidate = response.candidates?.[0];
-            const chunks   = candidate?.groundingMetadata?.groundingChunks  ?? [];
-            const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
-            const confidenceMap = buildChunkConfidenceMap(supports as GroundingSupport[]);
+            const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+            const text = response.text || '[]';
 
-            // Filter noisy domains and non-retail URLs; keep track of original index for confidence lookup
-            const clean = chunks
-                .map((chunk, idx) => ({ chunk, idx }))
-                .filter(({ chunk }) => {
-                    const url = chunk.web?.uri ?? '';
-                    if (!chunk.web || !url) return false;
-                    if (NOISY_DOMAINS.some(d => url.includes(d))) return false;
-                    if (NOISY_URL_PATTERNS.some(p => p.test(url))) return false;
-                    return true;
+            let items: any[] = [];
+            try {
+                items = JSON.parse(text);
+            } catch (e) {
+                console.warn("[findPartSources] JSON parsing failed", e);
+                return null;
+            }
+
+            if (!Array.isArray(items) || items.length === 0) {
+                return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+            }
+
+            // Cross-reference hallucinated JSON URLs with the safe Google Search proxy links from chunks
+            const verifiedOptions: ShoppingOption[] = items.map(item => {
+                // Try to find the exact proxy domain or title match in the grounding chunks
+                const sourceHost = (item.source || '').toLowerCase().replace(/^www\./, '');
+                
+                const matchingChunk = chunks.find(c => {
+                    const chunkTitle = c.web?.title?.toLowerCase() || '';
+                    const chunkUrl = c.web?.uri?.toLowerCase() || '';
+                    return (sourceHost && (chunkTitle.includes(sourceHost) || chunkUrl.includes(sourceHost)));
                 });
 
-            // If nothing survives the noise filter, signal for local research
+                // Prefer the Google proxy URI if available, fallback to generated URL
+                const safeUrl = matchingChunk?.web?.uri || item.url || '';
+                
+                let finalPriceStr: string | undefined = undefined;
+                if (item.price !== null && item.price !== undefined) {
+                    const parsed = parseFloat(item.price);
+                    if (!isNaN(parsed) && parsed > 0) {
+                        finalPriceStr = `${parsed.toFixed(2)}`;
+                    } else if (typeof item.price === 'string') {
+                        finalPriceStr = item.price;
+                    }
+                }
+
+                return {
+                    title: item.title || 'Unknown Part',
+                    url: safeUrl,
+                    source: item.source || 'Unknown Retailer',
+                    price: finalPriceStr,
+                    isEstimated: false
+                } as ShoppingOption;
+            });
+
+            // Filter noisy domains and non-retail URLs AFTER verification
+            const clean = verifiedOptions.filter(opt => {
+                const url = opt.url || '';
+                if (!url) return false;
+                if (NOISY_DOMAINS.some(d => url.includes(d))) return false;
+                if (NOISY_URL_PATTERNS.some(p => p.test(url))) return false;
+                return true;
+            });
+
             if (clean.length === 0) {
                 return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
             }
 
-            return clean
-                .map(({ chunk, idx }) => {
-                    const url   = chunk.web!.uri   ?? '';
-                    const title = chunk.web!.title ?? 'Sourcing Link';
-                    const priceMatch = title.match(/\$\s?(\d+[\d,.]*)/);
-                    const confidence = confidenceMap.get(idx) ?? 1.0;
-                    return {
-                        title,
-                        url,
-                        source: url ? new URL(url).hostname : 'Web Result',
-                        price: priceMatch ? priceMatch[0] : undefined,
-                        isEstimated: confidence < 0.5,
-                    };
-                })
-                .slice(0, 5);
-        } catch (e) { return null; }
+            return clean.slice(0, 5);
+        } catch (e: any) {
+            console.error("findPartSources error:", e);
+            return null;
+        }
     }
 
     async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
