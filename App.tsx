@@ -1810,6 +1810,12 @@ const AppContent: React.FC = () => {
         }
         // Post-login migration & sync
         if (UserService.isAuthenticated()) {
+            // Test Firestore connectivity first
+            const connTest = await draftingEngine.testFirestoreConnection();
+            if (!connTest.ok) {
+                console.error('[Auth] ✗ Firestore connection test FAILED:', connTest.error);
+                alert(`Firestore sync is broken: ${connTest.error}\n\nYour projects will NOT sync between devices until this is fixed.`);
+            }
             setIsMigrating(true);
             try {
                 // 1. Push local projects to Firestore (re-assigns ownership)
