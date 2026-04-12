@@ -159,19 +159,19 @@ export class HybridAIService implements AIService {
     // These intentionally NEVER route to local models.
     // =====================
 
-    async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null> {
-        return this.geminiService.findPartSources(query, designContext, localeContext);
+    async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
+        return this.geminiService.findPartSources(query, designContext, localeContext, preferredVendors);
     }
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         return this.geminiService.findLocalSuppliers(query);
     }
 
-    async procureVerifiedSources(query: string, category: string, designContext?: string, localeContext?: string): Promise<ProcurementResult> {
-        return this.procurementEngine.procure(query, category, designContext, localeContext);
+    async procureVerifiedSources(query: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ProcurementResult> {
+        return this.procurementEngine.procure(query, category, designContext, localeContext, preferredVendors);
     }
 
-    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
-        return this.geminiService.hydratePartDetails(name, category, designContext, localeContext);
+    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null> {
+        return this.geminiService.hydratePartDetails(name, category, designContext, localeContext, preferredVendors);
     }
 }

@@ -1,4 +1,4 @@
-import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan, ProjectFolder } from '../types.ts';
+import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan, ProjectFolder, PreferredVendor } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 import { getFirebaseDb } from './firebase.ts';
@@ -116,6 +116,7 @@ export class DraftingEngine {
       cachedAuditResult: data.cachedAuditResult,
       advancedValidations: data.advancedValidations,
       thumbnail: data.thumbnail || undefined,
+      preferredVendors: data.preferredVendors || [],
       folderId: data.folderId || undefined,
       cachedAssemblyPlan: data.cachedAssemblyPlan ? {
         ...data.cachedAssemblyPlan,
@@ -174,6 +175,7 @@ export class DraftingEngine {
       tags: [],
       folderId: undefined,
       thumbnail: undefined,
+      preferredVendors: [],
     };
   }
 
@@ -651,6 +653,38 @@ export class DraftingEngine {
     this.saveSession();
   }
 
+  // --- Preferred Vendors ---
+
+  public getPreferredVendors(): PreferredVendor[] {
+    return this.session.preferredVendors || [];
+  }
+
+  public setPreferredVendors(vendors: PreferredVendor[]) {
+    this.session.preferredVendors = vendors;
+    this.saveSession();
+  }
+
+  public addPreferredVendor(name: string, url: string): PreferredVendor {
+    if (!this.session.preferredVendors) this.session.preferredVendors = [];
+    const vendor: PreferredVendor = {
+      id: Math.random().toString(36).substr(2, 8),
+      name: name.trim(),
+      url: url.trim(),
+      priority: this.session.preferredVendors.length + 1,
+    };
+    this.session.preferredVendors.push(vendor);
+    this.saveSession();
+    return vendor;
+  }
+
+  public removePreferredVendor(id: string) {
+    if (!this.session.preferredVendors) return;
+    this.session.preferredVendors = this.session.preferredVendors.filter(v => v.id !== id);
+    // Re-number priorities
+    this.session.preferredVendors.forEach((v, i) => v.priority = i + 1);
+    this.saveSession();
+  }
+
   public cacheAssemblyPlan(plan: AssemblyPlan) {
     this.session.cachedAssemblyPlan = plan;
     this.session.cacheIsDirty = false;
@@ -709,6 +743,43 @@ export class DraftingEngine {
         this.saveSession();
       }
     }
+
+  public pinPartSource(instanceId: string, index: number) {
+    const entry = this.session.bom.find(b => b.instanceId === instanceId);
+    if (!entry || !entry.sourcing || !entry.sourcing.online || !entry.sourcing.online[index]) return;
+    
+    this.pushUndo();
+    entry.sourcing.pinnedSourceIndex = index;
+    const opt = entry.sourcing.online[index];
+
+    // Try to extract price from the pinned option to update the part's canonical price
+    let val: number | null = null;
+    if (typeof opt.price === 'number' && opt.price > 0) val = opt.price;
+    else if (typeof opt.price === 'string') {
+        const match = opt.price.match(/(?:\$|)\s?(\d+[\d,.]*)/);
+        if (match) val = parseFloat(match[1].replace(/,/g, ''));
+    } else if (typeof opt.title === 'string' && opt.title.includes('$')) {
+        const match = opt.title.match(/\$\s*(\d+[\d,.]*)/);
+        if (match) val = parseFloat(match[1].replace(/,/g, ''));
+    }
+    
+    if (val !== null && !isNaN(val) && val > 0) {
+        entry.part.price = val;
+    }
+    
+    this.session.cacheIsDirty = true;
+    this.saveSession();
+  }
+
+  public unpinPartSource(instanceId: string) {
+    const entry = this.session.bom.find(b => b.instanceId === instanceId);
+    if (!entry || !entry.sourcing) return;
+    
+    this.pushUndo();
+    entry.sourcing.pinnedSourceIndex = undefined;
+    this.session.cacheIsDirty = true;
+    this.saveSession();
+  }
 
   public getTotalCost(): number {
     return this.session.bom.reduce((acc, curr) => acc + (curr.part.price * curr.quantity), 0);

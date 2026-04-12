@@ -44,7 +44,7 @@ export interface AIService {
 
   generateProductImage(description: string, referenceImage?: string): Promise<string | null>;
 
-  findPartSources?(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null>;
+  findPartSources?(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null>;
 
   findLocalSuppliers?(query: string, location?: { lat: number, lng: number }): Promise<LocalSupplier[] | null>;
 
@@ -52,12 +52,12 @@ export interface AIService {
    * Verified Procurement Engine: multi-stage pipeline with price anomaly detection
    * and geopolitical logistics risk assessment.
    */
-  procureVerifiedSources?(query: string, category: string, designContext?: string, localeContext?: string): Promise<ProcurementResult>;
+  procureVerifiedSources?(query: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ProcurementResult>;
 
   /**
    * Uses Google Search grounding to hydrate a virtual part with real-world data.
    */
-  hydratePartDetails?(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null>;
+  hydratePartDetails?(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null>;
 
   verifyDesign?(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: AuditAction[] }>;
 

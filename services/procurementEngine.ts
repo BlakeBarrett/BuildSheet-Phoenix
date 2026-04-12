@@ -101,14 +101,14 @@ export class VerifiedProcurementEngine {
    * Full Verify-Before-Display pipeline.
    * Returns a typed ProcurementResult instead of raw strings.
    */
-  async procure(query: string, category: string, designContext?: string, localeContext?: string): Promise<ProcurementResult> {
+  async procure(query: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ProcurementResult> {
     const t0 = performance.now();
     const riskFlags: RiskFlag[] = [];
     let status: ProcurementStatus = ProcurementStatus.UNVERIFIED;
 
     try {
       // --- Stage 1: Discovery via SearXNG ---
-      const discovered = await this.stageDiscovery(query, designContext, localeContext);
+      const discovered = await this.stageDiscovery(query, designContext, localeContext, preferredVendors);
 
       if (discovered.length === 0) {
         return this.buildEmptyResult(query, t0, 'No results from discovery stage');
@@ -183,7 +183,7 @@ export class VerifiedProcurementEngine {
         updateCategoryBaseline(category, bestPriced.price);
       }
 
-      return this.buildResult({ query, verified, riskFlags, status, category, t0, anomaly, logisticsRisks });
+      return this.buildResult({ query, verified, riskFlags, status, category, t0, anomaly, logisticsRisks, preferredVendors });
 
     } catch (err) {
       console.error('[ProcurementEngine] Pipeline error:', err);
@@ -195,13 +195,27 @@ export class VerifiedProcurementEngine {
   // STAGE 1: DISCOVERY — SearXNG
   // =========================================================================
 
-  private async stageDiscovery(query: string, designContext?: string, localeContext?: string): Promise<DiscoveryResult[]> {
+  private async stageDiscovery(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<DiscoveryResult[]> {
     let searchQuery = designContext
       ? `${query} buy price in stock ${designContext}`
       : `${query} buy price in stock`;
 
     if (localeContext) {
       searchQuery += ` ${localeContext}`;
+    }
+
+    // Bias search toward preferred vendor domains
+    // Bias search toward preferred vendor domains using soft keywords instead of strict site: operators
+    // which can break relevance or cause false-positive matches on the wrong vendor.
+    if (preferredVendors && preferredVendors.length > 0) {
+      const vendorKeywords = preferredVendors
+        .map(v => {
+          try {
+            return new URL(v).hostname.replace(/^(www|store|shop)\./, '').split('.')[0];
+          } catch { return v; }
+        })
+        .join(' OR ');
+      searchQuery += ` (${vendorKeywords})`;
     }
 
     const url = new URL('/search', this.config.searxng_base_url);
@@ -574,9 +588,23 @@ Return ONLY valid JSON, no explanation.`;
     t0: number;
     anomaly: PriceAnomaly | null;
     logisticsRisks?: LogisticsRisk[];
+    preferredVendors?: string[];
   }): ProcurementResult {
     const best = this.pickBestSource(opts.verified);
     const maxDelay = (opts.logisticsRisks || []).reduce((m, r) => Math.max(m, r.delay_estimate_days), 0);
+
+    // Sort shopping options so preferred vendors appear first
+    let shoppingOptions = opts.verified.map(v => this.toShoppingOption(v));
+    if (opts.preferredVendors && opts.preferredVendors.length > 0) {
+      const preferredHosts = opts.preferredVendors.map(v => {
+        try { return new URL(v).hostname.toLowerCase(); } catch { return v.toLowerCase(); }
+      });
+      shoppingOptions.sort((a, b) => {
+        const aPreferred = preferredHosts.some(h => (a.url || '').toLowerCase().includes(h)) ? 0 : 1;
+        const bPreferred = preferredHosts.some(h => (b.url || '').toLowerCase().includes(h)) ? 0 : 1;
+        return aPreferred - bPreferred;
+      });
+    }
 
     return {
       query: opts.query,
@@ -592,7 +620,7 @@ Return ONLY valid JSON, no explanation.`;
       logistics_delay_estimate_days: maxDelay,
       pipeline_duration_ms: Math.round(performance.now() - opts.t0),
       timestamp: new Date(),
-      shopping_options: opts.verified.map(v => this.toShoppingOption(v)),
+      shopping_options: shoppingOptions,
     };
   }
 

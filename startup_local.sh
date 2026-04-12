@@ -51,10 +51,6 @@ USAGE
   exit 1
 fi
 
-# build the image (DOCKER_BUILDKIT=0 avoids stale buildx container cache)
-echo "▶ building docker image ${IMAGE_NAME}..."
-DOCKER_BUILDKIT=0 docker build --no-cache -t "$IMAGE_NAME" .
-
 # ensure a container runtime is available
 if ! docker info >/dev/null 2>&1; then
   echo "▶ docker cannot connect to the local daemon."
@@ -73,6 +69,10 @@ ERROR
     exit 1
   fi
 fi
+
+# build the image 
+echo "▶ building docker image ${IMAGE_NAME}..."
+docker build --no-cache -t "$IMAGE_NAME" .
 
 # remove any old container with the same name
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true

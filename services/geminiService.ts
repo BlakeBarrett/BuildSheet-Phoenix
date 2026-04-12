@@ -269,22 +269,29 @@ export class GeminiService implements AIService {
         } catch (e) { return null; }
     }
 
-        async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[] | null> {
+        async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
         try {
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
             const localeClause = localeContext ? ` Target Locale: ${localeContext}. Prioritize authorized retailers that are local to or confidently ship to this region.` : '';
+            const vendorClause = preferredVendors && preferredVendors.length > 0
+                ? ` PREFERRED VENDORS: ${preferredVendors.join(', ')}. Prioritize these vendors ONLY IF they carry the exact part. Do not substitute the requested part just to match a preferred vendor.`
+                : '';
             const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-            
+
             const prompt = `The current date is ${today}. Prioritize results from the last 30 days.
 When searching, wrap all SKUs and model numbers in double quotes.
-Find real-world purchase options and actual prices for: ${query}.${contextClause}${localeClause}`;
+Find real-world purchase options and actual prices for: ${query}.${contextClause}${localeClause}${vendorClause}`;
+
+            const vendorSystemHint = preferredVendors && preferredVendors.length > 0
+                ? ` Prefer sourcing from these authorized vendors: ${preferredVendors.join(', ')} ONLY IF they carry the exact part requested. Never substitute parts.`
+                : '';
 
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
-                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail and e-commerce websites such as Amazon, Home Depot, McMaster-Carr, Mouser, Digi-Key, Grainger, Rockler, Woodcraft, Etsy, and Wayfair. For each result, clearly state the product name, retailer, and current price. Focus on in-stock items from authorized retailers. Never cite academic (.edu), government (.gov), Wikipedia, forum, or blog sources.`,
+                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail and e-commerce websites such as Amazon, Home Depot, McMaster-Carr, Mouser, Digi-Key, Grainger, Rockler, Woodcraft, Etsy, and Wayfair. For each result, clearly state the product name, retailer, and current price. Focus on in-stock items from authorized retailers. Never cite academic (.edu), government (.gov), Wikipedia, forum, or blog sources.${vendorSystemHint}`,
                     tools: [{ googleSearch: {} }]
                 }
             });
@@ -354,18 +361,24 @@ Find real-world purchase options and actual prices for: ${query}.${contextClause
         }
     }
 
-    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
+    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null> {
         try {
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
             const localeClause = localeContext ? ` Provide pricing and shipping context suitable for a user in locale: ${localeContext}.` : '';
+            const vendorClause = preferredVendors && preferredVendors.length > 0
+                ? ` Prefer pricing and availability data from these vendors: ${preferredVendors.join(', ')}, but only if they carry this exact part.`
+                : '';
+            const vendorSystemHint = preferredVendors && preferredVendors.length > 0
+                ? ` When available, prefer data from these authorized vendors: ${preferredVendors.join(', ')}. Do not substitute parts.`
+                : '';
             const response = await ai.models.generateContent({
                 model: 'gemini-3-flash-preview',
                 contents: `The current date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. Prioritize results from the last 30 days.
 When searching, wrap all SKUs and model numbers in double quotes (e.g., "${name}").
-Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause}${localeClause}`,
+Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause}${localeClause}${vendorClause}`,
                 config: {
-                    systemInstruction: `You are a hardware research specialist. Search for current retail pricing and technical specifications of hardware components from authorized retailers. Return manufacturer/brand, a brief technical description, current in-stock retail price (in USD or local equivalent as a number), and physical/electrical connectors (ports).`,
+                    systemInstruction: `You are a hardware research specialist. Search for current retail pricing and technical specifications of hardware components from authorized retailers. Return manufacturer/brand, a brief technical description, current in-stock retail price (in USD or local equivalent as a number), and physical/electrical connectors (ports).${vendorSystemHint}`,
                     tools: [{ googleSearch: {} }],
                     responseMimeType: "application/json",
                     responseSchema: {

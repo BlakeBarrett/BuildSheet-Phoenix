@@ -63,6 +63,13 @@ export interface ShoppingOption {
   isEstimated?: boolean;
 }
 
+export interface PreferredVendor {
+  id: string;
+  name: string;      // Display name (e.g. "DMC Houston")
+  url: string;       // Base URL (e.g. "https://store.classicdmc.com")
+  priority: number;  // 1 = highest priority
+}
+
 export interface LocalSupplier {
   name: string;
   address: string;
@@ -121,6 +128,7 @@ export interface BOMEntry {
     local?: LocalSupplier[];
     manualUrl?: string;
     lastUpdated?: Date;
+    pinnedSourceIndex?: number;
     /** Verified procurement metadata (when procurement engine is active) */
     procurement?: {
       status: string;
@@ -184,6 +192,7 @@ export interface DraftingSession {
   tags?: string[];
   folderId?: string; // Pro feature: organize projects into folders
   thumbnail?: string; // Small base64 thumbnail for quick previews
+  preferredVendors?: PreferredVendor[]; // User-configured preferred sourcing vendors
 }
 
 export interface ProjectFolder {

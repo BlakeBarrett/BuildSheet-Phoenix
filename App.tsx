@@ -8,7 +8,7 @@ import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
-import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder } from './types.ts';
+import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder, PreferredVendor } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -114,46 +114,46 @@ const ProjectNavigator: React.FC<{
     };
 
     const filtered = projects.filter(p => {
-      if (!showArchived && p.archived) return false;
-      if (showArchived && !p.archived) return false;
-      // When browsing a folder, show only projects in that folder
-      if (!searchQuery.trim() && currentFolderId !== undefined) {
-        return p.folderId === currentFolderId;
-      }
-      // At root level (no folder selected), show projects without a folder
-      if (!searchQuery.trim() && currentFolderId === undefined) {
-        return !p.folderId;
-      }
-      // Search mode: search across all folders
-      const q = searchQuery.toLowerCase();
-      return (p.name || '').toLowerCase().includes(q) || (p.preview || '').toLowerCase().includes(q);
+        if (!showArchived && p.archived) return false;
+        if (showArchived && !p.archived) return false;
+        // When browsing a folder, show only projects in that folder
+        if (!searchQuery.trim() && currentFolderId !== undefined) {
+            return p.folderId === currentFolderId;
+        }
+        // At root level (no folder selected), show projects without a folder
+        if (!searchQuery.trim() && currentFolderId === undefined) {
+            return !p.folderId;
+        }
+        // Search mode: search across all folders
+        const q = searchQuery.toLowerCase();
+        return (p.name || '').toLowerCase().includes(q) || (p.preview || '').toLowerCase().includes(q);
     });
 
     const currentSubfolders = hasFolders ? folders.filter(f => f.parentId === (currentFolderId || undefined)) : [];
     const currentFolder = currentFolderId ? folders.find(f => f.id === currentFolderId) : undefined;
     const breadcrumbs: ProjectFolder[] = [];
     if (currentFolder) {
-      let f: ProjectFolder | undefined = currentFolder;
-      while (f) {
-        breadcrumbs.unshift(f);
-        f = f.parentId ? folders.find(x => x.id === f!.parentId) : undefined;
-      }
+        let f: ProjectFolder | undefined = currentFolder;
+        while (f) {
+            breadcrumbs.unshift(f);
+            f = f.parentId ? folders.find(x => x.id === f!.parentId) : undefined;
+        }
     }
 
     const handleCreateFolder = () => {
-      if (!newFolderName.trim() || !onCreateFolder) return;
-      onCreateFolder(newFolderName.trim(), currentFolderId);
-      setNewFolderName('');
-      setIsCreatingFolder(false);
+        if (!newFolderName.trim() || !onCreateFolder) return;
+        onCreateFolder(newFolderName.trim(), currentFolderId);
+        setNewFolderName('');
+        setIsCreatingFolder(false);
     };
 
     const handleProjectDrop = (e: React.DragEvent, targetFolderId: string | undefined) => {
-      e.preventDefault();
-      setDragOverFolderId(null);
-      const projectId = e.dataTransfer.getData('text/project-id');
-      if (projectId && onMoveToFolder) {
-        onMoveToFolder(projectId, targetFolderId);
-      }
+        e.preventDefault();
+        setDragOverFolderId(null);
+        const projectId = e.dataTransfer.getData('text/project-id');
+        if (projectId && onMoveToFolder) {
+            onMoveToFolder(projectId, targetFolderId);
+        }
     };
 
     return (
@@ -460,6 +460,153 @@ const ProjectNavigator: React.FC<{
     );
 };
 
+// --- PREFERRED VENDORS MODAL ---
+const PreferredVendorsModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    vendors: PreferredVendor[];
+    onAdd: (name: string, url: string) => void;
+    onRemove: (id: string) => void;
+}> = ({ isOpen, onClose, vendors, onAdd, onRemove }) => {
+    const [newName, setNewName] = useState('');
+    const [newUrl, setNewUrl] = useState('');
+    const [error, setError] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleAdd = () => {
+        const name = newName.trim();
+        const url = newUrl.trim();
+        if (!name) { setError('Vendor name is required'); return; }
+        if (!url) { setError('URL is required'); return; }
+        // Basic URL validation
+        try {
+            const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+            if (!parsed.hostname.includes('.')) throw new Error();
+            onAdd(name, parsed.href);
+            setNewName('');
+            setNewUrl('');
+            setError('');
+        } catch {
+            setError('Please enter a valid URL (e.g. https://store.example.com)');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="vendors-title">
+            <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-6 pb-2 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-[14px] bg-amber-100 text-amber-600 flex items-center justify-center" aria-hidden="true">
+                            <span className="material-symbols-rounded text-[24px]">storefront</span>
+                        </div>
+                        <div>
+                            <h3 id="vendors-title" className="text-lg font-bold text-slate-800 tracking-tight">Preferred Vendors</h3>
+                            <p className="text-xs text-slate-500 font-medium">Prioritize sourcing from your trusted suppliers</p>
+                        </div>
+                    </div>
+                    <IconButton icon="close" onClick={onClose} title="Close" />
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                    {/* Info callout */}
+                    <div className="p-4 bg-amber-50 rounded-[16px] border border-amber-100 flex items-start gap-3">
+                        <span className="material-symbols-rounded text-amber-500 text-[18px] mt-0.5 shrink-0" aria-hidden="true">lightbulb</span>
+                        <div>
+                            <p className="text-sm text-amber-900 font-medium">How it works</p>
+                            <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                                Added vendors are searched <strong>first</strong> during part sourcing. Results from these suppliers appear at the top of your shopping options. You can also mention preferred vendors in your design chat for ad-hoc sourcing.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Vendor list */}
+                    {vendors.length > 0 ? (
+                        <div className="space-y-2">
+                            {vendors.map((v, i) => (
+                                <div key={v.id} className="flex items-center gap-3 p-3 bg-[#F4F7FC] rounded-[16px] group hover:bg-indigo-50 transition-colors">
+                                    <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">
+                                        {i + 1}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-slate-800 truncate">{v.name}</p>
+                                        <a href={v.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-indigo-600 hover:text-indigo-800 truncate block">{v.url}</a>
+                                    </div>
+                                    <button
+                                        onClick={() => onRemove(v.id)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50"
+                                        aria-label={`Remove ${v.name}`}
+                                        type="button"
+                                    >
+                                        <span className="material-symbols-rounded text-[18px]" aria-hidden="true">close</span>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-6">
+                            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                                <span className="material-symbols-rounded text-slate-400 text-[28px]" aria-hidden="true">add_business</span>
+                            </div>
+                            <p className="text-sm text-slate-500 font-medium">No preferred vendors configured</p>
+                            <p className="text-xs text-slate-400 mt-1">Add vendors below to prioritize them during sourcing</p>
+                        </div>
+                    )}
+
+                    {/* Add vendor form */}
+                    <div className="border border-slate-200 rounded-[20px] p-4 space-y-3">
+                        <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="material-symbols-rounded text-[14px]" aria-hidden="true">add</span>
+                            Add Vendor
+                        </h4>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={newName}
+                                onChange={e => { setNewName(e.target.value); setError(''); }}
+                                placeholder="Vendor name"
+                                className="flex-1 text-sm border border-slate-200 rounded-[12px] px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+                                aria-label="Vendor name"
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <input
+                                type="url"
+                                value={newUrl}
+                                onChange={e => { setNewUrl(e.target.value); setError(''); }}
+                                placeholder="https://store.example.com"
+                                className="flex-1 text-sm border border-slate-200 rounded-[12px] px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-xs"
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+                                aria-label="Vendor URL"
+                            />
+                            <Button
+                                variant="tonal"
+                                onClick={handleAdd}
+                                disabled={!newName.trim() || !newUrl.trim()}
+                                icon="add"
+                                className="shrink-0"
+                            >
+                                Add
+                            </Button>
+                        </div>
+                        {error && (
+                            <p className="text-xs text-red-600 flex items-center gap-1">
+                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">error</span>
+                                {error}
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-6 border-t border-gray-100 flex justify-end">
+                    <Button variant="primary" onClick={onClose}>Done</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const KitSummaryModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -627,7 +774,9 @@ const PartDetailModal: React.FC<{
     onGenerateEnclosure?: (entry: BOMEntry) => void;
     onExportSCAD?: (entry: BOMEntry) => void;
     onPreview3D?: (openSCADCode: string) => void;
-}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove, allEntries, onSetParent, onGenerateEnclosure, onExportSCAD, onPreview3D }) => {
+    onPinSource?: (instanceId: string, index: number) => void;
+    onUnpinSource?: (instanceId: string) => void;
+}> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove, allEntries, onSetParent, onGenerateEnclosure, onExportSCAD, onPreview3D, onPinSource, onUnpinSource }) => {
     const [editName, setEditName] = useState(entry?.part.name || '');
     const [editQty, setEditQty] = useState(entry?.quantity || 1);
 
@@ -740,12 +889,11 @@ const PartDetailModal: React.FC<{
                                             <span className="material-symbols-rounded text-indigo-600 text-[18px]" aria-hidden="true">public</span>
                                             <span className="text-[11px] font-bold text-indigo-900 uppercase tracking-widest">Global Marketplace</span>
                                             {entry.sourcing?.procurement && (
-                                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${
-                                                    entry.sourcing.procurement.status === 'VERIFIED' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
-                                                    entry.sourcing.procurement.status === 'SUSPECT' ? 'text-red-700 bg-red-50 border-red-200' :
-                                                    entry.sourcing.procurement.status === 'OUT_OF_STOCK' ? 'text-slate-700 bg-slate-100 border-slate-300' :
-                                                    'text-amber-700 bg-amber-50 border-amber-200'
-                                                }`}>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${entry.sourcing.procurement.status === 'VERIFIED' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' :
+                                                        entry.sourcing.procurement.status === 'SUSPECT' ? 'text-red-700 bg-red-50 border-red-200' :
+                                                            entry.sourcing.procurement.status === 'OUT_OF_STOCK' ? 'text-slate-700 bg-slate-100 border-slate-300' :
+                                                                'text-amber-700 bg-amber-50 border-amber-200'
+                                                    }`}>
                                                     {entry.sourcing.procurement.status} ({entry.sourcing.procurement.verified_sources_count} sources)
                                                 </span>
                                             )}
@@ -765,23 +913,39 @@ const PartDetailModal: React.FC<{
                                             </div>
                                         )}
                                         <div className="space-y-2">
-                                            {entry.sourcing.online.map((s, i) => s.url ? (
-                                                <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-4 bg-white rounded-[16px] border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all group" aria-label={`View at ${s.source}`}>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase">{s.source}</span>
-                                                        <span className="text-sm font-medium text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{s.title}</span>
+                                            {entry.sourcing.online.map((s, i) => {
+                                                const isPinned = entry.sourcing!.pinnedSourceIndex === i;
+                                                const hasPinned = entry.sourcing!.pinnedSourceIndex !== undefined;
+                                                const isDimmed = hasPinned && !isPinned;
+                                                
+                                                return s.url ? (
+                                                <div key={i} className={`flex items-stretch bg-white rounded-[16px] border ${isPinned ? 'border-amber-400 shadow-md ring-1 ring-amber-400' : isDimmed ? 'border-gray-50 opacity-60' : 'border-gray-100'} transition-all group overflow-hidden`}>
+                                                    <div className={`p-1.5 flex flex-col justify-center border-r ${isPinned ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-gray-100'}`}>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); isPinned ? onUnpinSource?.(entry.instanceId) : onPinSource?.(entry.instanceId, i); }} 
+                                                            className={`p-1.5 rounded-full transition-colors ${isPinned ? 'text-amber-600 bg-amber-100 hover:bg-amber-200' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-200'}`}
+                                                            title={isPinned ? "Unpin Source" : "Pin Source"}
+                                                        >
+                                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" style={isPinned ? { fontVariationSettings: "'FILL' 1" } : {}}>push_pin</span>
+                                                        </button>
                                                     </div>
-                                                    <div className="flex items-center gap-2 ml-4 shrink-0">
-                                                        {s.isEstimated && <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Estimated</span>}
-                                                        <span className="text-sm font-bold text-indigo-600">{s.price || 'Market Rate'}</span>
-                                                    </div>
-                                                </a>
+                                                    <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-between p-4 hover:bg-slate-50 transition-colors" aria-label={`View at ${s.source}`}>
+                                                        <div className="flex flex-col">
+                                                            <span className={`text-[10px] font-bold uppercase ${isPinned ? 'text-amber-700' : 'text-slate-500'}`}>{s.source}</span>
+                                                            <span className="text-sm font-medium text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">{s.title}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 ml-4 shrink-0">
+                                                            {s.isEstimated && <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Estimated</span>}
+                                                            <span className={`text-sm font-bold ${isPinned ? 'text-amber-700' : 'text-indigo-600'}`}>{s.price || 'Market Rate'}</span>
+                                                        </div>
+                                                    </a>
+                                                </div>
                                             ) : (
                                                 <div key={i} className="flex items-center gap-3 p-4 bg-amber-50 rounded-[16px] border border-amber-200">
                                                     <span className="material-symbols-rounded text-amber-600 text-[18px]" aria-hidden="true">store</span>
                                                     <span className="text-sm font-medium text-amber-800">{s.title}</span>
                                                 </div>
-                                            ))}
+                                            ); })}
                                         </div>
                                     </div>
                                 ) : entry.sourcing?.online !== undefined && (
@@ -1109,9 +1273,8 @@ const AuditModal: React.FC<{
                                     <div className="divide-y divide-emerald-100">
                                         {proposedActions!.map((action, i) => (
                                             <div key={i} className="px-5 py-3 flex items-start gap-3">
-                                                <span className={`material-symbols-rounded text-[18px] mt-0.5 shrink-0 ${
-                                                    action.type === 'addPart' ? 'text-emerald-600' : 'text-red-500'
-                                                }`} aria-hidden="true">
+                                                <span className={`material-symbols-rounded text-[18px] mt-0.5 shrink-0 ${action.type === 'addPart' ? 'text-emerald-600' : 'text-red-500'
+                                                    }`} aria-hidden="true">
                                                     {action.type === 'addPart' ? 'add_circle' : 'remove_circle'}
                                                 </span>
                                                 <div className="flex-1 min-w-0">
@@ -1676,6 +1839,7 @@ const AppContent: React.FC = () => {
     const [isVisualizing, setIsVisualizing] = useState(false);
     const [isKitting, setIsKitting] = useState(false);
     const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
+    const [preferredVendorsOpen, setPreferredVendorsOpen] = useState(false);
     const [isHydrating, setIsHydrating] = useState(false);
 
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
@@ -1959,7 +2123,7 @@ const AppContent: React.FC = () => {
 
     useEffect(() => {
         setProjectsList(draftingEngine.getProjectsList());
-        
+
         // Load persistent activity log from IndexedDB (only with full consent)
         if (hasFullConsent()) {
             ActivityLogService.loadFromStorage();
@@ -2018,10 +2182,10 @@ const AppContent: React.FC = () => {
             }));
             const architectResponse = await aiService.askArchitect("A manual edit occurred. Re-validate the active BOM layout and state to check for kinematic or thermal conflicts against the 836cc engine constraints. Be brief in your analysis.", history);
             const parsed = aiService.parseArchitectResponse(architectResponse.text);
-            
-            draftingEngine.addMessage({ 
-                role: 'assistant', 
-                content: parsed.reasoning || architectResponse.text, 
+
+            draftingEngine.addMessage({
+                role: 'assistant',
+                content: parsed.reasoning || architectResponse.text,
                 timestamp: new Date()
             });
         } catch (e: any) {
@@ -2064,10 +2228,11 @@ const AppContent: React.FC = () => {
         }));
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
+            const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
 
             // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
             if (aiService.procureVerifiedSources) {
-                const procResult = await aiService.procureVerifiedSources(entry.part.name, entry.part.category, designReqs, getUserLocale());
+                const procResult = await aiService.procureVerifiedSources(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
 
                 // If the pipeline succeeded (not ERROR), use verified results
                 if (procResult.status !== 'ERROR') {
@@ -2096,7 +2261,7 @@ const AppContent: React.FC = () => {
             }
 
             // Fallback to legacy Google Search grounding
-            const result = await aiService.findPartSources?.(entry.part.name, designReqs, getUserLocale());
+            const result = await aiService.findPartSources?.(entry.part.name, designReqs, getUserLocale(), vendorUrls);
             const local = await aiService.findLocalSuppliers?.(entry.part.name);
             draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
             refreshState();
@@ -2112,7 +2277,8 @@ const AppContent: React.FC = () => {
         setIsHydrating(true);
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
-            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category, designReqs, getUserLocale());
+            const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
+            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
             if (details) {
                 draftingEngine.updatePartDetails(entry.instanceId, details);
                 refreshState();
@@ -2138,13 +2304,14 @@ const AppContent: React.FC = () => {
         const virtualParts = latestSession.bom.filter(b => b.part.brand === 'TBD');
         if (virtualParts.length === 0) return;
         const designReqs = latestSession.designRequirements;
+        const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
 
         // Process in batches of 3 for speed
         for (let i = 0; i < virtualParts.length; i += 3) {
             const batch = virtualParts.slice(i, i + 3);
             await Promise.all(batch.map(async (entry) => {
                 try {
-                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category, designReqs, getUserLocale());
+                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
                     if (details) {
                         draftingEngine.updatePartDetails(entry.instanceId, details);
                     }
@@ -2257,16 +2424,22 @@ const AppContent: React.FC = () => {
         let latestSession = draftingEngine.getSession();
         if (latestSession.bom.length === 0) return;
 
+        const preferredVendors = draftingEngine.getPreferredVendors();
+        const hasVendorPrefs = preferredVendors.length > 0;
         const sourcingComplete = draftingEngine.getSourcingCompletion() === 100;
         const processDone = sourcingComplete && !latestSession.cacheIsDirty && latestSession.cachedAuditResult && latestSession.cachedAssemblyPlan;
 
+        // If vendors are configured, we previously forced re-sourcing everything which was destructive.
+        // We now respect the shortcut normally. If users want to use a newly added preferred vendor,
+        // they can manually single-source the part again using Update Sourcing button on the part card.
         if (processDone) {
             setKitSummaryOpen(true);
             return;
         }
 
         setIsKitting(true);
-        draftingEngine.addMessage({ role: 'assistant', content: "🚀 **One-Click Stabilization Initiated.**\nI'm hydrating virtual parts, finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.", timestamp: new Date() });
+        const vendorNote = hasVendorPrefs ? ` Prioritizing ${preferredVendors.length} preferred vendor(s): ${preferredVendors.map(v => v.name).join(', ')}.` : '';
+        draftingEngine.addMessage({ role: 'assistant', content: `🚀 **One-Click Stabilization Initiated.**\nI'm hydrating virtual parts, finding vendors, syncronizing pricing, and performing a heavy-reasoner technical audit.${vendorNote}`, timestamp: new Date() });
         refreshState();
 
         try {
@@ -2278,7 +2451,9 @@ const AppContent: React.FC = () => {
             // Re-fetch latest session after hydration
             latestSession = draftingEngine.getSession();
             for (const entry of latestSession.bom) {
-                if (entry.sourcing?.online === undefined) {
+                // NEVER re-source parts that already have active online results.
+                // Stop clobbering perfectly good search results or pinned sources.
+                if (entry.sourcing?.online === undefined || entry.sourcing.online.length === 0) {
                     await handleSourcePart(entry);
                 }
             }
@@ -2639,10 +2814,10 @@ const AppContent: React.FC = () => {
 
         if (selectedImage) await privacyDisclosure.triggerDisclosure('image-upload');
         await privacyDisclosure.triggerDisclosure('ai-analysis');
-        
+
         const currentInput = input;
         const currentImage = selectedImage;
-        
+
         draftingEngine.addMessage({ role: 'user', content: currentInput, attachment: currentImage || undefined, timestamp: new Date() });
         refreshState();
         setInput('');
@@ -2688,9 +2863,9 @@ const AppContent: React.FC = () => {
                 if (fallback) draftingEngine.setVisualManifest(fallback);
             }
 
-            draftingEngine.addMessage({ 
-                role: 'assistant', 
-                content: parsed.reasoning || architectResponse.text, 
+            draftingEngine.addMessage({
+                role: 'assistant',
+                content: parsed.reasoning || architectResponse.text,
                 timestamp: new Date(),
                 metadata: {
                     ...architectResponse.metadata,
@@ -2701,6 +2876,38 @@ const AppContent: React.FC = () => {
             if (stateModified) {
                 performVisualGeneration().then(() => refreshState());
             }
+
+            // --- Vendor Inference: detect URLs in user input and auto-add as preferred vendors ---
+            try {
+                const urlPattern = /https?:\/\/[^\s)"'<>]+/gi;
+                const detectedUrls = currentInput.match(urlPattern);
+                if (detectedUrls && detectedUrls.length > 0) {
+                    const existingVendorHosts = new Set(
+                        (draftingEngine.getPreferredVendors() || []).map(v => {
+                            try { return new URL(v.url).hostname.toLowerCase(); } catch { return ''; }
+                        })
+                    );
+                    const skipDomains = ['github.com', 'reddit.com', 'youtube.com', 'google.com', 'wikipedia.org', 'stackoverflow.com', 'twitter.com', 'x.com', 'facebook.com', 'instagram.com', 'linkedin.com'];
+                    for (const rawUrl of detectedUrls) {
+                        try {
+                            const parsed = new URL(rawUrl);
+                            const host = parsed.hostname.toLowerCase();
+                            if (skipDomains.some(d => host.includes(d))) continue;
+                            if (existingVendorHosts.has(host)) continue;
+                            // Auto-add with a friendly name derived from the hostname
+                            const vendorName = host.replace(/^(www|store|shop)\./, '').split('.')[0];
+                            const prettyName = vendorName.charAt(0).toUpperCase() + vendorName.slice(1);
+                            draftingEngine.addPreferredVendor(prettyName, `${parsed.protocol}//${parsed.host}`);
+                            draftingEngine.addMessage({
+                                role: 'assistant',
+                                content: `🏪 **Vendor Detected:** Added **${prettyName}** (${parsed.host}) to your preferred vendors. Future sourcing will prioritize this supplier.`,
+                                timestamp: new Date()
+                            });
+                            refreshState();
+                        } catch { /* invalid URL, skip */ }
+                    }
+                }
+            } catch { /* vendor inference is best-effort */ }
         } catch (e: any) {
             draftingEngine.addMessage({ role: 'assistant', content: `[ERROR] ${e.message}`, timestamp: new Date() });
             refreshState();
@@ -2750,6 +2957,13 @@ const AppContent: React.FC = () => {
                 onUpgrade={() => setUpgradeOpen(true)}
             />
             <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
+            <PreferredVendorsModal
+                isOpen={preferredVendorsOpen}
+                onClose={() => setPreferredVendorsOpen(false)}
+                vendors={draftingEngine.getPreferredVendors()}
+                onAdd={(name, url) => { draftingEngine.addPreferredVendor(name, url); refreshState(); }}
+                onRemove={(id) => { draftingEngine.removePreferredVendor(id); refreshState(); }}
+            />
             <BOMImportModal isOpen={importModalOpen} onClose={() => { setImportModalOpen(false); refreshState(); }} onImportCSV={handleImportCSV} onImportPaste={handleImportPaste} />
             <ValidationReportModal
                 isOpen={validationOpen}
@@ -2761,12 +2975,12 @@ const AppContent: React.FC = () => {
             />
             <AssemblyModal isOpen={assemblyOpen} onClose={() => setAssemblyOpen(false)} plan={session.cachedAssemblyPlan || null} isRunning={isPlanningAssembly} isDirty={session.cacheIsDirty} onLaunchAR={() => setArOpen(true)} onRefresh={() => performPlanAssembly()} />
             <AuditModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} result={session.cachedAuditResult || null} isRunning={isAuditing} isDirty={session.cacheIsDirty} isApplying={isApplyingAudit} proposedActions={session.cachedAuditActions} advancedValidations={advancedValidations} onAdvancedChange={handleAdvancedValidationsChange} onRefresh={() => performVerifyAudit()} onApplyChanges={handleApplyAuditChanges} />
-            <PartDetailModal 
-                entry={liveSelectedPart} 
-                onClose={() => setSelectedPart(null)} 
-                onSource={handleSourcePart} 
-                onHydrate={handleHydratePart} 
-                isHydrating={isHydrating} 
+            <PartDetailModal
+                entry={liveSelectedPart}
+                onClose={() => setSelectedPart(null)}
+                onSource={handleSourcePart}
+                onHydrate={handleHydratePart}
+                isHydrating={isHydrating}
                 onUpdateQuantity={handleUpdateQuantity}
                 onUpdateName={handleUpdateName}
                 onRemove={handleRemovePart}
@@ -2775,6 +2989,8 @@ const AppContent: React.FC = () => {
                 onGenerateEnclosure={handleGenerateEnclosure}
                 onExportSCAD={handleExportSCAD}
                 onPreview3D={(code) => { setStlPreviewCode(code); setStlPreviewOpen(true); }}
+                onPinSource={(id, idx) => { draftingEngine.pinPartSource(id, idx); refreshState(); }}
+                onUnpinSource={(id) => { draftingEngine.unpinPartSource(id); refreshState(); }}
             />
             {arOpen && session.cachedAssemblyPlan && <ARGuideView plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setArOpen(false)} />}
 
@@ -2892,7 +3108,7 @@ const AppContent: React.FC = () => {
                                         <button onClick={() => { setNavOverflowOpen(false); setImportModalOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl transition-colors text-left" role="menuitem">
                                             <span className="material-symbols-rounded text-[18px]">file_open</span>Import BOM
                                         </button>
-                                        
+
                                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1 mt-1">Tools</div>
                                         <button onClick={() => { setNavOverflowOpen(false); setScanPartOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left" role="menuitem">
                                             <span className="material-symbols-rounded text-[18px]">photo_camera</span>Scan Part
@@ -3176,10 +3392,10 @@ const AppContent: React.FC = () => {
                                     </div>
                                     {m.role === 'user' && (
                                         <div className="absolute top-full right-0 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex gap-2 pr-2 z-10 items-center">
-                                            <button onClick={() => { 
-                                                draftingEngine.revertToMessage(i - 1); 
+                                            <button onClick={() => {
+                                                draftingEngine.revertToMessage(i - 1);
                                                 setInput(m.content);
-                                                refreshState(); 
+                                                refreshState();
                                             }} title="Edit message" className="text-indigo-400 hover:text-indigo-600 bg-white/90 backdrop-blur-sm shadow-sm border border-slate-200 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">edit</span>
                                             </button>
@@ -3198,7 +3414,7 @@ const AppContent: React.FC = () => {
                                             }} title="Fork from here" className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">call_split</span>
                                             </button>
-                                            
+
                                             {m.metadata && (
                                                 <div className="flex bg-white/80 backdrop-blur-sm border border-slate-200/50 shadow-sm rounded-full px-3 py-1 items-center gap-3 text-[10px] text-slate-500 font-mono ml-1">
                                                     {m.metadata.model && (
@@ -3261,18 +3477,18 @@ const AppContent: React.FC = () => {
                                     )}
                                 </div>
                             )}
-                            <input 
-                                type="file" 
-                                accept="image/*,.heic,.heif,image/heic,image/heif" 
-                                className="hidden" 
-                                id="image-upload" 
+                            <input
+                                type="file"
+                                accept="image/*,.heic,.heif,image/heic,image/heif"
+                                className="hidden"
+                                id="image-upload"
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (file) {
                                         setIsThinking(true);
                                         let processFile = file;
                                         const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
-                                        
+
                                         if (isHeic) {
                                             try {
                                                 const convertedBlob = await heic2any({
@@ -3295,7 +3511,7 @@ const AppContent: React.FC = () => {
                                         reader.readAsDataURL(processFile);
                                     }
                                     e.target.value = '';
-                                }} 
+                                }}
                             />
                             <label
                                 htmlFor="image-upload"
@@ -3353,15 +3569,29 @@ const AppContent: React.FC = () => {
                             </div>
                         </div>
 
-                        <Button
-                            variant={kitReady ? "primary" : "fab"}
-                            className={`w-full h-14 text-sm font-bold shadow-lg transition-all ${kitReady ? 'bg-gradient-to-r from-indigo-600 to-violet-600' : ''}`}
-                            onClick={handleOneClickKit}
-                            disabled={isKitting}
-                            icon={isKitting ? "motion_mode" : kitReady ? "shopping_cart_checkout" : "magic_button"}
-                        >
-                            {isKitting ? 'Stabilizing Kit...' : kitReady ? 'Checkout Kit' : 'One-Click Kit'}
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                            <Button
+                                variant={kitReady ? "primary" : "fab"}
+                                className={`w-full h-14 text-sm font-bold shadow-lg transition-all ${kitReady ? 'bg-gradient-to-r from-indigo-600 to-violet-600' : ''}`}
+                                onClick={handleOneClickKit}
+                                disabled={isKitting}
+                                icon={isKitting ? "motion_mode" : kitReady ? "shopping_cart_checkout" : "magic_button"}
+                            >
+                                {isKitting ? 'Stabilizing Kit...' : kitReady ? 'Checkout Kit' : 'One-Click Kit'}
+                            </Button>
+                            <button
+                                onClick={() => setPreferredVendorsOpen(true)}
+                                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[12px] text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                            >
+                                <span className="material-symbols-rounded text-[16px]" aria-hidden="true">storefront</span>
+                                Preferred Vendors
+                                {draftingEngine.getPreferredVendors().length > 0 && (
+                                    <span className="bg-amber-200 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                        {draftingEngine.getPreferredVendors().length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
                     </header>
 
                     {/* BOM Toolbar */}
