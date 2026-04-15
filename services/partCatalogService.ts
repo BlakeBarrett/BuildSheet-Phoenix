@@ -1,5 +1,6 @@
 import { doc, setDoc, getDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { getFirebaseDb, isFirebaseConfigured } from './firebase';
+import { UserService } from './userService';
 import { Part, ShoppingOption, GlobalPart } from '../types';
 
 const CATALOG_COLLECTION = 'global_catalog';
@@ -13,6 +14,9 @@ export class PartCatalogService {
    */
   async findPartByNameOrSku(queryStr: string): Promise<GlobalPart | null> {
     if (!isFirebaseConfigured()) return null;
+    // Guest/unauthenticated users cannot read the global catalog (Firestore rules).
+    // Skip the query entirely to avoid FirebaseError: Missing or insufficient permissions.
+    if (!UserService.isAuthenticated()) return null;
     const db = getFirebaseDb();
     if (!db) return null;
 
@@ -47,6 +51,7 @@ export class PartCatalogService {
    */
   async saveHydratedPart(part: Part, bestSource?: ShoppingOption): Promise<void> {
     if (!isFirebaseConfigured()) return;
+    if (!UserService.isAuthenticated()) return;
     const db = getFirebaseDb();
     if (!db) return;
 

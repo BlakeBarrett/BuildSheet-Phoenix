@@ -90,6 +90,14 @@
     <script>
       // Polyfill process for browser environments
       window.process = window.process || { env: {} };
+
+      // Polyfill Object.hasOwn for older browsers (Safari < 15.4, Chrome < 93).
+      // react-markdown v9 and its unified/rehype internals rely on this ES2022 API.
+      if (!Object.hasOwn) {
+        Object.hasOwn = function(obj, prop) {
+          return Object.prototype.hasOwnProperty.call(obj, prop);
+        };
+      }
       
       // Initialize runtime env container for Cloud Run injection
       // This MUST happen before loading env-config.js

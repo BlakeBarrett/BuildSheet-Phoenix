@@ -147,6 +147,8 @@ export class TierService {
 
     // 2. Listen to Stripe subscriptions via the Invertase SDK
     //    This watches `customers/{uid}/subscriptions` automatically.
+    //    NOTE: onCurrentUserSubscriptionUpdate calls getCurrentUserSync()
+    //    which throws synchronously if Firebase Auth hasn't resolved yet.
     try {
       const payments = getStripePaymentsInstance();
       const unsubSubs = onCurrentUserSubscriptionUpdate(payments, (snapshot) => {
@@ -172,6 +174,11 @@ export class TierService {
         } else {
           this.currentState = { ...this.currentState, loading: false };
         }
+        this.notify();
+      }, (stripeErr) => {
+        // Subscription listener error — log but don't crash
+        console.warn('TierService: Stripe subscription listener error (non-fatal):', stripeErr);
+        this.currentState = { ...this.currentState, loading: false };
         this.notify();
       });
       this.unsubscribers.push(unsubSubs);
