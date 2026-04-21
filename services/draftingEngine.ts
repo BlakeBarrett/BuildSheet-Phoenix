@@ -1490,11 +1490,15 @@ export class DraftingEngine {
   /**
    * Start listening for real-time project changes from Firestore.
    * Any add/update/delete from another device will be mirrored to localStorage.
+   * Idempotent: a second call while the listener is already active is a no-op.
    */
-  public startRealtimeSync() {
-    this.stopRealtimeSync();
+  public startSync() {
+    if (this.firestoreUnsubscribe) {
+      console.log('[Sync] startSync: listener already active, skipping');
+      return;
+    }
     const col = this.getFirestoreProjectsCollection();
-    if (!col) { console.warn('[Sync] startRealtimeSync skipped – no collection'); return; }
+    if (!col) { console.warn('[Sync] startSync skipped – no collection'); return; }
     console.log('[Sync] Starting real-time Firestore listener');
 
     this.firestoreUnsubscribe = onSnapshot(col, (snapshot) => {
@@ -1559,10 +1563,11 @@ export class DraftingEngine {
   /**
    * Stop the real-time Firestore listener.
    */
-  public stopRealtimeSync() {
+  public stopSync() {
     if (this.firestoreUnsubscribe) {
       this.firestoreUnsubscribe();
       this.firestoreUnsubscribe = null;
+      console.log('[Sync] Firestore listener stopped');
     }
   }
 

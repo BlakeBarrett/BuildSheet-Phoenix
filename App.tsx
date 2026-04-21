@@ -1997,7 +1997,7 @@ const AppContent: React.FC = () => {
                 setIsMigrating(false);
             }
             // 4. Start real-time sync for cross-device changes
-            draftingEngine.startRealtimeSync();
+            draftingEngine.startSync();
         }
         UserService.loginComplete();
         refreshState();
@@ -2008,7 +2008,7 @@ const AppContent: React.FC = () => {
         if (UserService.isAuthenticated()) {
             await draftingEngine.saveAllToFirestore();
         }
-        draftingEngine.stopRealtimeSync();
+        draftingEngine.stopSync();
         await UserService.logout();
         // De-authenticate and redirect to marketing site
         window.location.href = '/';
@@ -2079,7 +2079,7 @@ const AppContent: React.FC = () => {
                         await draftingEngine.loadProjectsFromFirestore();
                         await draftingEngine.loadFoldersFromFirestore();
                     } finally { setIsMigrating(false); }
-                    draftingEngine.startRealtimeSync();
+                    draftingEngine.startSync();
                     UserService.loginComplete();
                     refreshState();
                 }
@@ -2163,14 +2163,24 @@ const AppContent: React.FC = () => {
                 setProjectsList(draftingEngine.getProjectsList());
                 setProjectFolders(draftingEngine.getFolders());
                 setSession(draftingEngine.getSession());
-                // Start real-time sync for cross-device changes
-                draftingEngine.startRealtimeSync();
+                // Start real-time sync for cross-device changes.
+                // startSync() is idempotent — safe to call even if handleLogin
+                // already started the listener (e.g. double onAuthStateChanged fire).
+                draftingEngine.startSync();
             })();
+        } else if (!currentUser) {
+            // User signed out — tear down the listener immediately.
+            draftingEngine.stopSync();
         }
-        return () => {
-            draftingEngine.stopRealtimeSync();
-        };
+        // No cleanup teardown here: removing it prevents the race where React's
+        // effect cleanup kills a listener that handleLogin started just before
+        // this effect re-ran due to onAuthStateChanged double-firing.
     }, [currentUser, draftingEngine]);
+
+    // Ensure the Firestore listener is always torn down when the component unmounts.
+    useEffect(() => {
+        return () => { draftingEngine.stopSync(); };
+    }, [draftingEngine]);
 
     const triggerArchitectRevalidation = async () => {
         draftingEngine.addMessage({ role: 'assistant', content: "**System:** Manual BOM edit detected. Triggering Architect re-validation for constraints (836cc engine).", timestamp: new Date() });
