@@ -70,7 +70,7 @@ export const CookieConsent: React.FC = () => {
             Privacy & Data Control
           </h3>
           <p id="cookie-desc" className="text-sm text-[#C4C7C5] leading-relaxed">
-            We use <strong>Local Storage</strong> to save your projects on-device. Project descriptions, images, and BOM data are sent to <strong>Google Gemini</strong> for AI processing (subject to <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer" className="underline text-indigo-300 hover:text-indigo-200">Google's API Terms</a>). No personal data is sold to third parties.
+            We use <strong>Local Storage</strong> to save your projects on-device. Project descriptions, images, and BOM data are sent to our <strong>AI service provider</strong> for AI processing. No personal data is sold to third parties.
           </p>
         </div>
         <div className="flex gap-3 shrink-0 w-full md:w-auto">

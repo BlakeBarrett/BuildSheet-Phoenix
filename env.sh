@@ -3,6 +3,15 @@
 # Create the env-config.js file in the React app webroot
 cat <<EOF > /var/www/app/env-config.js
 window._env_ = {
+  AI_PROVIDER: "${AI_PROVIDER}",
+  AI_BASE_URL: "${AI_BASE_URL}",
+  AI_DISPLAY_NAME: "${AI_DISPLAY_NAME}",
+  AI_MODEL_FAST: "${AI_MODEL_FAST}",
+  AI_MODEL_SMART: "${AI_MODEL_SMART}",
+  AI_MODEL_STRUCTURED: "${AI_MODEL_STRUCTURED}",
+  AI_MODEL_IMAGE: "${AI_MODEL_IMAGE}",
+  AI_MODEL_AUDIO: "${AI_MODEL_AUDIO}",
+  AI_KEY: "${AI_KEY}",
   API_KEY: "${API_KEY}",
   GEMINI_API_KEY: "${GEMINI_API_KEY}",
   VITE_FIREBASE_API_KEY: "${VITE_FIREBASE_API_KEY}",

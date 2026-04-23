@@ -1471,7 +1471,7 @@ const ScanPartModal: React.FC<{
                                     <span className="material-symbols-rounded text-violet-400 text-[32px]">add_a_photo</span>
                                 </div>
                                 <p className="text-sm font-bold text-slate-700 mb-1">Upload a photo of your component</p>
-                                <p className="text-xs text-slate-500">Gemini will identify it, assess condition, and suggest a BOM entry</p>
+                                <p className="text-xs text-slate-500">AI will identify it, assess condition, and suggest a BOM entry</p>
                             </div>
                         </label>
                     )}
@@ -2837,7 +2837,7 @@ const AppContent: React.FC = () => {
         setArchitectMessageCount(newMsgCount);
         saveDailyMessageCount(newMsgCount);
         try {
-            // Fix: Map 'assistant' role to 'model' for Gemini API compatibility
+            // Fix: Map 'assistant' role to 'model' for cloud AI API compatibility
             const history = session.messages.map(m => {
                 const parts: any[] = [{ text: m.content }];
                 if (m.attachment) {
@@ -3430,7 +3430,7 @@ const AppContent: React.FC = () => {
                                                     {m.metadata.model && (
                                                         <span className="flex items-center gap-1" title="Model Used">
                                                             <span className="material-symbols-rounded text-[12px] text-indigo-400" aria-hidden="true">memory</span>
-                                                            {m.metadata.model.replace('gemini-', '')}
+                                                            {m.metadata.model}
                                                         </span>
                                                     )}
                                                     {m.metadata.tokens !== undefined && (
@@ -3535,8 +3535,8 @@ const AppContent: React.FC = () => {
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                placeholder="Instruct Gemini to build..."
-                                aria-label="Instruct Gemini to build"
+                                placeholder="What do you want to build?"
+                                aria-label="Describe your build"
                                 className="w-full pr-24 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500"
                                 rows={1}
                             />

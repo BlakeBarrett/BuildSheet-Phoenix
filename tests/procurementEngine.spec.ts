@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { VerifiedProcurementEngine, GeminiVerificationClient } from '../services/procurementEngine';
+import { VerifiedProcurementEngine, AIVerificationClient } from '../services/procurementEngine';
 import { ProcurementStatus, GEOPOL_RISK_MAP, DEFAULT_CATEGORY_BASELINES } from '../services/procurementTypes';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 // Helpers: mock data factories
 // ---------------------------------------------------------------------------
 
-function mockGeminiClient(overrides?: Partial<GeminiVerificationClient>): GeminiVerificationClient {
+function mockAiClient(overrides?: Partial<AIVerificationClient>): AIVerificationClient {
   return {
     generateStructuredJson: async () => ({
       price: 89.99,
@@ -402,14 +402,14 @@ test.describe('VerifiedProcurementEngine', () => {
 
     test('uses Gemini client when backend is gemini and client is provided', async () => {
       let callCount = 0;
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => {
           callCount++;
           return { price: 99.99, stock_status: 'in_stock', shipping_location: 'USA', last_updated_date: '2026-04-01' };
         },
       });
 
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       const pages = [
         { url: 'https://store.com/p1', markdown: PRODUCT_MARKDOWN, extractedAt: new Date() },
@@ -427,11 +427,11 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('falls back to regex when Gemini client throws', async () => {
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => { throw new Error('API quota exceeded'); },
       });
 
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
       const pages = [
         { url: 'https://store.com/p', markdown: 'Product X — $45.00 — In Stock', extractedAt: new Date() },
       ];
@@ -470,7 +470,7 @@ test.describe('VerifiedProcurementEngine', () => {
     test('returns ERROR status when discovery returns nothing', async () => {
       const engine = new VerifiedProcurementEngine({
         searxng_base_url: 'http://0.0.0.0:1', // unreachable
-      }, mockGeminiClient());
+      }, mockAiClient());
 
       const result = await engine.procure('DDR5 RAM', 'DDR5 RAM');
 
@@ -481,7 +481,7 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('returns OUT_OF_STOCK with ALL_SOURCES_OOS flag when every source is OOS', async () => {
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => ({
           price: 89.99,
           stock_status: 'out_of_stock',
@@ -490,7 +490,7 @@ test.describe('VerifiedProcurementEngine', () => {
         }),
       });
 
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       // Mock discovery and extraction
       // @ts-ignore
@@ -512,7 +512,7 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('returns VERIFIED status with high-confidence sources', async () => {
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => ({
           price: 82.50,
           stock_status: 'in_stock',
@@ -521,7 +521,7 @@ test.describe('VerifiedProcurementEngine', () => {
         }),
       });
 
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       // @ts-ignore
       engine['stageDiscovery'] = async () => [
@@ -547,7 +547,7 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('flags SUSPECT status when price anomaly detected', async () => {
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => ({
           price: 15, // Way below DDR5 baseline of $85
           stock_status: 'in_stock',
@@ -557,7 +557,7 @@ test.describe('VerifiedProcurementEngine', () => {
       });
 
       const engine = new VerifiedProcurementEngine({
-        verification_backend: 'gemini',
+        verification_backend: 'cloud',
         anomaly_threshold_pct: 50,
         searxng_base_url: 'http://0.0.0.0:1', // prevent real 4th-source call
       }, client);
@@ -584,7 +584,7 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('appends logistics delay for Hormuz/Red Sea shipping', async () => {
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => ({
           price: 90,
           stock_status: 'in_stock',
@@ -594,7 +594,7 @@ test.describe('VerifiedProcurementEngine', () => {
       });
 
       const engine = new VerifiedProcurementEngine({
-        verification_backend: 'gemini',
+        verification_backend: 'cloud',
         enable_logistics_risk: true,
       }, client);
 
@@ -618,8 +618,8 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('returns pipeline_duration_ms and timestamp', async () => {
-      const client = mockGeminiClient();
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const client = mockAiClient();
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       // @ts-ignore
       engine['stageDiscovery'] = async () => [
@@ -709,8 +709,8 @@ test.describe('VerifiedProcurementEngine', () => {
   test.describe('backward compatibility', () => {
 
     test('ProcurementResult contains shopping_options array', async () => {
-      const client = mockGeminiClient();
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const client = mockAiClient();
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       // @ts-ignore
       engine['stageDiscovery'] = async () => [
@@ -742,7 +742,7 @@ test.describe('VerifiedProcurementEngine', () => {
     test('ERROR result from unreachable SearXNG has status ERROR for fallback detection', async () => {
       const engine = new VerifiedProcurementEngine({
         searxng_base_url: 'http://0.0.0.0:1', // unreachable
-      }, mockGeminiClient());
+      }, mockAiClient());
 
       const result = await engine.procure('DDR5 RAM', 'DDR5 RAM');
 
@@ -758,7 +758,7 @@ test.describe('VerifiedProcurementEngine', () => {
     test('ERROR result shopping_options contains failure message', async () => {
       const engine = new VerifiedProcurementEngine({
         searxng_base_url: 'http://0.0.0.0:1',
-      }, mockGeminiClient());
+      }, mockAiClient());
 
       const result = await engine.procure('GPU', 'GPU');
 
@@ -768,8 +768,8 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('non-ERROR statuses do not trigger fallback (VERIFIED)', async () => {
-      const client = mockGeminiClient();
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const client = mockAiClient();
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       // @ts-ignore
       engine['stageDiscovery'] = async () => [
@@ -790,7 +790,7 @@ test.describe('VerifiedProcurementEngine', () => {
     });
 
     test('OUT_OF_STOCK status does not trigger fallback', async () => {
-      const client = mockGeminiClient({
+      const client = mockAiClient({
         generateStructuredJson: async () => ({
           price: 89.99,
           stock_status: 'out_of_stock',
@@ -799,7 +799,7 @@ test.describe('VerifiedProcurementEngine', () => {
         }),
       });
 
-      const engine = new VerifiedProcurementEngine({ verification_backend: 'gemini' }, client);
+      const engine = new VerifiedProcurementEngine({ verification_backend: 'cloud' }, client);
 
       // @ts-ignore
       engine['stageDiscovery'] = async () => [

@@ -6,7 +6,7 @@
 # shell.  You can also set them on the command line.
 #
 # Examples:
-#    API_KEY=xxx GEMINI_API_KEY=yyy ./startup_local.sh
+#    AI_KEY=xxx ./startup_local.sh
 #    ./startup_local.sh        # uses values from .env if populated
 #
 # A single container serves both the marketing site (at /) and the
@@ -28,6 +28,16 @@ if [ -f .env ]; then
 fi
 
 # allow overrides from environment (after loading .env)
+AI_KEY="${AI_KEY:-}"
+AI_PROVIDER="${AI_PROVIDER:-}"
+AI_BASE_URL="${AI_BASE_URL:-}"
+AI_DISPLAY_NAME="${AI_DISPLAY_NAME:-}"
+AI_MODEL_FAST="${AI_MODEL_FAST:-}"
+AI_MODEL_SMART="${AI_MODEL_SMART:-}"
+AI_MODEL_STRUCTURED="${AI_MODEL_STRUCTURED:-}"
+AI_MODEL_IMAGE="${AI_MODEL_IMAGE:-}"
+AI_MODEL_AUDIO="${AI_MODEL_AUDIO:-}"
+# Legacy backward-compat aliases
 API_KEY="${API_KEY:-}"
 GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY:-}"
@@ -39,14 +49,16 @@ VITE_FIREBASE_APP_ID="${VITE_FIREBASE_APP_ID:-}"
 VITE_FIREBASE_MEASUREMENT_ID="${VITE_FIREBASE_MEASUREMENT_ID:-}"
 LOCAL_ARCHITECT_URL="${LOCAL_ARCHITECT_URL:-}"
 LOCAL_ARCHITECT_MODEL="${LOCAL_ARCHITECT_MODEL:-}"
+SEARCH_API_KEY="${SEARCH_API_KEY:-}"
 
-if [ -z "$API_KEY" ] || [ -z "$GEMINI_API_KEY" ]; then
+# Accept AI_KEY as the primary credential; fall back to legacy API_KEY / GEMINI_API_KEY
+EFFECTIVE_KEY="${AI_KEY:-${API_KEY:-${GEMINI_API_KEY:-}}}"
+if [ -z "$EFFECTIVE_KEY" ]; then
   cat <<'USAGE' >&2
-Usage: API_KEY=yourkey GEMINI_API_KEY=yourkey ./startup_local.sh
+Usage: AI_KEY=yourkey ./startup_local.sh
 
-Both variables are required; export them or provide them on the
-command line.  You can also set them in your shell before running the
-script.
+At least one of AI_KEY, API_KEY, or GEMINI_API_KEY must be set.
+Export it, add it to .env, or provide it on the command line.
 USAGE
   exit 1
 fi
@@ -82,8 +94,18 @@ echo "▶ launching container ${CONTAINER_NAME} on port ${HOST_PORT}..."
 docker run -d \
   --name "$CONTAINER_NAME" \
   -p "${HOST_PORT}:${CONTAINER_PORT}" \
+  -e "AI_KEY=${AI_KEY}" \
+  -e "AI_PROVIDER=${AI_PROVIDER}" \
+  -e "AI_BASE_URL=${AI_BASE_URL}" \
+  -e "AI_DISPLAY_NAME=${AI_DISPLAY_NAME}" \
+  -e "AI_MODEL_FAST=${AI_MODEL_FAST}" \
+  -e "AI_MODEL_SMART=${AI_MODEL_SMART}" \
+  -e "AI_MODEL_STRUCTURED=${AI_MODEL_STRUCTURED}" \
+  -e "AI_MODEL_IMAGE=${AI_MODEL_IMAGE}" \
+  -e "AI_MODEL_AUDIO=${AI_MODEL_AUDIO}" \
   -e "API_KEY=${API_KEY}" \
   -e "GEMINI_API_KEY=${GEMINI_API_KEY}" \
+  -e "SEARCH_API_KEY=${SEARCH_API_KEY}" \
   -e "VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}" \
   -e "VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}" \
   -e "VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}" \

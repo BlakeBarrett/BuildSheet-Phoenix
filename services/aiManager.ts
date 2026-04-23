@@ -24,7 +24,7 @@ export class AIManager {
       return false;
     }
 
-    // Google API Keys are typically much longer than 10 characters
+    // API keys are typically much longer than 10 characters
     return cleaned.length > 10;
   }
 
@@ -45,6 +45,16 @@ export class AIManager {
       }
     }
 
+    // 1b. Runtime injection: AI_KEY (preferred, provider-agnostic name)
+    // @ts-ignore
+    if (!key && typeof window !== 'undefined' && window._env_ && window._env_.AI_KEY) {
+      // @ts-ignore
+      const runtimeAiKey = window._env_.AI_KEY;
+      if (this.isValidKey(runtimeAiKey)) {
+        key = runtimeAiKey;
+      }
+    }
+
     // 2. Fallback: process.env (Vite define or manual injection)
     if (!key) {
       // @ts-ignore
@@ -54,7 +64,16 @@ export class AIManager {
       }
     }
 
-    // 2b. Fallback: process.env.GEMINI_API_KEY
+    // 2a. Fallback: process.env.AI_KEY (preferred, provider-agnostic name)
+    if (!key) {
+      // @ts-ignore
+      const aiKey = (typeof process !== 'undefined' && process.env) ? process.env.AI_KEY : undefined;
+      if (this.isValidKey(aiKey)) {
+        key = aiKey;
+      }
+    }
+
+    // 2b. Fallback: process.env.GEMINI_API_KEY — legacy, backward compat
     if (!key) {
       // @ts-ignore
       const geminiKey = (typeof process !== 'undefined' && process.env) ? process.env.GEMINI_API_KEY : undefined;
@@ -125,7 +144,7 @@ export class AIManager {
 
   /**
    * Initializes the AI Service.
-   * Uses GeminiService (REST) if API key is valid, otherwise falls back to MockService.
+   * Uses HybridAIService (cloud AI + optional local) if API key is valid, otherwise falls back to MockService.
    */
   static async createService(): Promise<{ service: AIService, error?: string }> {
     const apiKey = this.getApiKey();

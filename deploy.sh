@@ -28,6 +28,17 @@ if [ -f .env ]; then
 fi
 
 # API keys and Firebase config — set these as env vars or they'll be read from the current env
+AI_KEY="${AI_KEY:-}"
+AI_PROVIDER="${AI_PROVIDER:-}"
+AI_BASE_URL="${AI_BASE_URL:-}"
+AI_DISPLAY_NAME="${AI_DISPLAY_NAME:-}"
+AI_MODEL_FAST="${AI_MODEL_FAST:-}"
+AI_MODEL_SMART="${AI_MODEL_SMART:-}"
+AI_MODEL_STRUCTURED="${AI_MODEL_STRUCTURED:-}"
+AI_MODEL_IMAGE="${AI_MODEL_IMAGE:-}"
+AI_MODEL_AUDIO="${AI_MODEL_AUDIO:-}"
+SEARCH_API_KEY="${SEARCH_API_KEY:-}"
+# Legacy backward-compat aliases
 API_KEY="${API_KEY:-}"
 GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY:-}"
@@ -43,10 +54,11 @@ VITE_STRIPE_PRO_ANNUAL_PRICE_ID="${VITE_STRIPE_PRO_ANNUAL_PRICE_ID:-}"
 # ── Parse arguments ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --project)  PROJECT_ID="$2"; shift 2 ;;
-    --region)   REGION="$2"; shift 2 ;;
-    --api-key)  API_KEY="$2"; shift 2 ;;
-    --gemini-key) GEMINI_API_KEY="$2"; shift 2 ;;
+    --project)    PROJECT_ID="$2"; shift 2 ;;
+    --region)     REGION="$2"; shift 2 ;;
+    --ai-key)     AI_KEY="$2"; shift 2 ;;
+    --api-key)    API_KEY="$2"; shift 2 ;;   # legacy alias
+    --gemini-key) GEMINI_API_KEY="$2"; shift 2 ;;  # legacy alias
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -60,21 +72,29 @@ if [ -z "$PROJECT_ID" ]; then
   fi
 fi
 
+# Accept AI_KEY as the primary credential; fall back to legacy API_KEY / GEMINI_API_KEY
+EFFECTIVE_KEY="${AI_KEY:-${API_KEY:-${GEMINI_API_KEY:-}}}"
+
 echo "══════════════════════════════════════════════════════════════"
 echo "  Deploying '$SERVICE_NAME' to Cloud Run"
 echo "  Project:  $PROJECT_ID"
 echo "  Region:   $REGION"
-echo "  API_KEY:  ${API_KEY:0:8}... (${#API_KEY} chars)"
-echo "  GEMINI:   ${GEMINI_API_KEY:0:8}... (${#GEMINI_API_KEY} chars)"
+echo "  AI_KEY:   ${EFFECTIVE_KEY:0:8}... (${#EFFECTIVE_KEY} chars)"
+echo "  Provider: ${AI_PROVIDER:-gemini (default)}"
 echo "══════════════════════════════════════════════════════════════"
 echo ""
 
-# Validate keys are set
-if [ -z "$API_KEY" ] || [ -z "$GEMINI_API_KEY" ]; then
-  echo "❌ API_KEY and GEMINI_API_KEY must be set."
-  echo "   Export them or pass via --api-key / --gemini-key flags."
+# Validate at least one key is set
+if [ -z "$EFFECTIVE_KEY" ]; then
+  echo "❌ No AI key found. Set AI_KEY, API_KEY, or GEMINI_API_KEY."
+  echo "   Export it, add it to .env, or pass via --ai-key flag."
   exit 1
 fi
+
+# Propagate to legacy vars so env.sh receives all three
+AI_KEY="${AI_KEY:-$EFFECTIVE_KEY}"
+API_KEY="${API_KEY:-$EFFECTIVE_KEY}"
+GEMINI_API_KEY="${GEMINI_API_KEY:-$EFFECTIVE_KEY}"
 
 IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest"
 
@@ -132,7 +152,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --platform=managed \
   --port=8080 \
   --allow-unauthenticated \
-  --set-env-vars="API_KEY=${API_KEY},GEMINI_API_KEY=${GEMINI_API_KEY},VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY},VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN},VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID},VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET},VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID},VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID},VITE_FIREBASE_MEASUREMENT_ID=${VITE_FIREBASE_MEASUREMENT_ID},VITE_STRIPE_PRO_MONTHLY_PRICE_ID=${VITE_STRIPE_PRO_MONTHLY_PRICE_ID},VITE_STRIPE_PRO_ANNUAL_PRICE_ID=${VITE_STRIPE_PRO_ANNUAL_PRICE_ID}" \
+  --set-env-vars="AI_KEY=${AI_KEY},AI_PROVIDER=${AI_PROVIDER},AI_BASE_URL=${AI_BASE_URL},AI_DISPLAY_NAME=${AI_DISPLAY_NAME},AI_MODEL_FAST=${AI_MODEL_FAST},AI_MODEL_SMART=${AI_MODEL_SMART},AI_MODEL_STRUCTURED=${AI_MODEL_STRUCTURED},AI_MODEL_IMAGE=${AI_MODEL_IMAGE},AI_MODEL_AUDIO=${AI_MODEL_AUDIO},SEARCH_API_KEY=${SEARCH_API_KEY},API_KEY=${API_KEY},GEMINI_API_KEY=${GEMINI_API_KEY},VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY},VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN},VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID},VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET},VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID},VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID},VITE_FIREBASE_MEASUREMENT_ID=${VITE_FIREBASE_MEASUREMENT_ID},VITE_STRIPE_PRO_MONTHLY_PRICE_ID=${VITE_STRIPE_PRO_MONTHLY_PRICE_ID},VITE_STRIPE_PRO_ANNUAL_PRICE_ID=${VITE_STRIPE_PRO_ANNUAL_PRICE_ID}" \
   --memory=512Mi \
   --cpu=1 \
   --min-instances=0 \

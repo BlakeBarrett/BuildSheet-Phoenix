@@ -150,7 +150,7 @@ export interface ProcurementResult {
 
 // --- Engine Configuration ---
 
-export type VerificationBackend = 'gemini' | 'local';
+export type VerificationBackend = 'cloud' | 'local';
 
 export interface ProcurementEngineConfig {
   searxng_base_url: string;
@@ -160,7 +160,7 @@ export interface ProcurementEngineConfig {
   max_discovery_results: number;     // Default: 5
   verification_timeout_ms: number;   // Default: 15000
   enable_logistics_risk: boolean;    // Default: true
-  /** Which LLM backend to use for Stage 3 verification. Defaults to 'gemini'. */
+  /** Which LLM backend to use for Stage 3 verification. Defaults to 'cloud'. */
   verification_backend: VerificationBackend;
 }
 
@@ -171,5 +171,5 @@ export const DEFAULT_PROCUREMENT_CONFIG: ProcurementEngineConfig = {
   max_discovery_results: 5,
   verification_timeout_ms: 15000,
   enable_logistics_risk: true,
-  verification_backend: 'gemini',
+  verification_backend: 'cloud',
 };

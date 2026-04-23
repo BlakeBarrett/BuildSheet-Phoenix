@@ -22,6 +22,15 @@ export default defineConfig(({ mode }) => {
       target: 'es2020',
     },
     define: {
+      'process.env.AI_PROVIDER': JSON.stringify(env.AI_PROVIDER || process.env.AI_PROVIDER),
+      'process.env.AI_BASE_URL': JSON.stringify(env.AI_BASE_URL || process.env.AI_BASE_URL),
+      'process.env.AI_DISPLAY_NAME': JSON.stringify(env.AI_DISPLAY_NAME || process.env.AI_DISPLAY_NAME),
+      'process.env.AI_MODEL_FAST': JSON.stringify(env.AI_MODEL_FAST || process.env.AI_MODEL_FAST),
+      'process.env.AI_MODEL_SMART': JSON.stringify(env.AI_MODEL_SMART || process.env.AI_MODEL_SMART),
+      'process.env.AI_MODEL_STRUCTURED': JSON.stringify(env.AI_MODEL_STRUCTURED || process.env.AI_MODEL_STRUCTURED),
+      'process.env.AI_MODEL_IMAGE': JSON.stringify(env.AI_MODEL_IMAGE || process.env.AI_MODEL_IMAGE),
+      'process.env.AI_MODEL_AUDIO': JSON.stringify(env.AI_MODEL_AUDIO || process.env.AI_MODEL_AUDIO),
+      'process.env.AI_KEY': JSON.stringify(env.AI_KEY || process.env.AI_KEY),
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY)
     },

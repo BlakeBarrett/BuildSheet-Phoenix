@@ -29,10 +29,10 @@ import { ShoppingOption } from '../types.ts';
 import { getLocalProvider, LocalModelProvider } from './localAiService.ts';
 
 /**
- * Minimal interface for the Gemini client used in Stage 3 verification.
- * Avoids tight coupling to GeminiService — any object with this shape works.
+ * Minimal interface for the AI client used in Stage 3 verification.
+ * Avoids tight coupling to CloudAIService — any object with this shape works.
  */
-export interface GeminiVerificationClient {
+export interface AIVerificationClient {
   generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any>;
 }
 
@@ -76,17 +76,18 @@ function updateCategoryBaseline(category: string, price: number): void {
 // ---------------------------------------------------------------------------
 export class VerifiedProcurementEngine {
   private config: ProcurementEngineConfig;
-  private geminiClient: GeminiVerificationClient | null;
+  private aiClient: AIVerificationClient | null;
 
-  constructor(config?: Partial<ProcurementEngineConfig>, geminiClient?: GeminiVerificationClient | null) {
+  constructor(config?: Partial<ProcurementEngineConfig>, aiClient?: AIVerificationClient | null) {
     this.config = { ...DEFAULT_PROCUREMENT_CONFIG, ...config };
-    this.geminiClient = geminiClient ?? null;
+    this.aiClient = aiClient ?? null;
 
     // Allow localStorage override for verification backend
     try {
       const savedBackend = localStorage.getItem('procurementVerificationBackend');
-      if (savedBackend === 'local' || savedBackend === 'gemini') {
-        this.config.verification_backend = savedBackend;
+      // Accept 'gemini' as a legacy alias for 'cloud'
+      if (savedBackend === 'local' || savedBackend === 'cloud' || savedBackend === 'gemini') {
+        this.config.verification_backend = savedBackend === 'gemini' ? 'cloud' : savedBackend as VerificationBackend;
       }
     } catch {
       // localStorage unavailable (e.g. Node.js test environment)
@@ -306,12 +307,12 @@ export class VerifiedProcurementEngine {
   }
 
   // =========================================================================
-  // STAGE 3: VERIFICATION — Gemini (default) or Local LLM
+  // STAGE 3: VERIFICATION — Cloud AI (default) or Local LLM
   // =========================================================================
 
   private async stageVerification(pages: ExtractedPageData[]): Promise<VerifiedPartData[]> {
-    if (this.config.verification_backend === 'gemini' && this.geminiClient) {
-      return this.verifyViaGemini(pages);
+    if (this.config.verification_backend === 'cloud' && this.aiClient) {
+      return this.verifyViaCloud(pages);
     }
 
     if (this.config.verification_backend === 'local') {
@@ -319,14 +320,14 @@ export class VerifiedProcurementEngine {
       if (provider) return this.verifyViaLocalLLM(pages, provider);
     }
 
-    // Final fallback: Gemini if available, then local, then regex
-    if (this.geminiClient) return this.verifyViaGemini(pages);
+    // Final fallback: Cloud AI if available, then local, then regex
+    if (this.aiClient) return this.verifyViaCloud(pages);
     const provider = this.getLocalVerificationProvider();
     if (provider) return this.verifyViaLocalLLM(pages, provider);
     return pages.map(p => this.regexFallbackExtract(p));
   }
 
-  private async verifyViaGemini(pages: ExtractedPageData[]): Promise<VerifiedPartData[]> {
+  private async verifyViaCloud(pages: ExtractedPageData[]): Promise<VerifiedPartData[]> {
     const results: VerifiedPartData[] = [];
     const schema = {
       type: 'OBJECT',
@@ -343,7 +344,7 @@ export class VerifiedProcurementEngine {
       try {
         const truncated = page.markdown.slice(0, 6000);
         const prompt = this.buildVerificationPrompt(truncated);
-        const parsed = await this.geminiClient!.generateStructuredJson(prompt, schema);
+        const parsed = await this.aiClient!.generateStructuredJson(prompt, schema);
 
         if (parsed) {
           results.push(this.parseVerifiedData(parsed, page));
