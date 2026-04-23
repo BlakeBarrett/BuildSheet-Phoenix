@@ -1,6 +1,136 @@
 
 import { test, expect } from '@playwright/test';
 import { GeminiService } from '../services/geminiService';
+import { CloudAIService } from '../services/cloudAiService';
+
+// ---------------------------------------------------------------------------
+// CloudAIService — openai-compatible provider path
+//
+// These tests exercise the fetch-based branches added for the Qwen/DashScope
+// migration. They run in Node (no page fixture) and mock globalThis.fetch so
+// no real network calls are made.
+// ---------------------------------------------------------------------------
+
+type FetchArgs = { url: string; init: RequestInit };
+
+function mockFetch(handler: (url: string, init: RequestInit) => Response | Promise<Response>) {
+    const original = globalThis.fetch;
+    (globalThis as any).fetch = (url: string, init: RequestInit) => handler(url, init);
+    return () => { (globalThis as any).fetch = original; };
+}
+
+function chatCompletionsResponse(content: string) {
+    return new Response(
+        JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+}
+
+test.describe('CloudAIService — openai-compatible path', () => {
+
+    let restore: () => void;
+
+    test.beforeEach(() => {
+        process.env.AI_PROVIDER = 'openai-compatible';
+        process.env.AI_BASE_URL = 'https://dashscope-us.aliyuncs.com/compatible-mode/v1';
+    });
+
+    test.afterEach(() => {
+        delete process.env.AI_PROVIDER;
+        delete process.env.AI_BASE_URL;
+        if (restore) restore();
+    });
+
+    test('askArchitect POSTs to /chat/completions with bearer token', async () => {
+        const calls: FetchArgs[] = [];
+        restore = mockFetch((url, init) => {
+            calls.push({ url, init });
+            return chatCompletionsResponse('addPart("led-5mm", "5mm Red LED", "Component", 5)');
+        });
+
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.askArchitect('Build me an LED circuit', []);
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0].url).toContain('/chat/completions');
+        expect(calls[0].init.headers).toMatchObject({
+            'Authorization': 'Bearer sk-test-key-0123456789',
+            'Content-Type': 'application/json',
+        });
+        expect(result.text).toContain('addPart');
+    });
+
+    test('askArchitect sends system instruction in messages array', async () => {
+        let capturedBody: any;
+        restore = mockFetch((url, init) => {
+            capturedBody = JSON.parse(init.body as string);
+            return chatCompletionsResponse('initializeDraft("LED Circuit", "simple LED")');
+        });
+
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.askArchitect('Build me an LED circuit', []);
+
+        expect(capturedBody.messages[0].role).toBe('system');
+        expect(capturedBody.messages.at(-1).role).toBe('user');
+        expect(capturedBody.messages.at(-1).content).toContain('LED circuit');
+    });
+
+    test('askArchitect converts Gemini history roles (model → assistant)', async () => {
+        let capturedBody: any;
+        restore = mockFetch((url, init) => {
+            capturedBody = JSON.parse(init.body as string);
+            return chatCompletionsResponse('Response');
+        });
+
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const history = [
+            { role: 'user',  parts: [{ text: 'Hello' }] },
+            { role: 'model', parts: [{ text: 'Hi there' }] },
+        ];
+        await service.askArchitect('Follow up', history);
+
+        const roles = capturedBody.messages.map((m: any) => m.role);
+        expect(roles).not.toContain('model');   // Gemini role must be converted
+        expect(roles).toContain('assistant');
+    });
+
+    test('generateStructuredJson sends response_format: json_object', async () => {
+        let capturedBody: any;
+        restore = mockFetch((url, init) => {
+            capturedBody = JSON.parse(init.body as string);
+            return chatCompletionsResponse('{"price": 12.99, "brand": "Acme"}');
+        });
+
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.generateStructuredJson('price for a 5mm LED', {});
+
+        expect(capturedBody.response_format).toEqual({ type: 'json_object' });
+    });
+
+    test('findPartSources returns isEstimated:true results from LLM (no grounding)', async () => {
+        restore = mockFetch(() => chatCompletionsResponse(
+            JSON.stringify([
+                { title: 'Digi-Key 5mm Red LED', url: 'https://digikey.com/p/123', source: 'Digi-Key', price: '0.35' }
+            ])
+        ));
+
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const results = await service.findPartSources('5mm Red LED');
+
+        expect(results).not.toBeNull();
+        expect(results!.length).toBeGreaterThan(0);
+        expect(results![0].isEstimated).toBe(true);
+    });
+
+    test('findLocalSuppliers returns null gracefully (no Maps grounding)', async () => {
+        restore = mockFetch(() => { throw new Error('should not be called'); });
+
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.findLocalSuppliers('hardware store');
+
+        expect(result).toBeNull();
+    });
+});
 
 test.describe('GeminiService Nano Banana Integration', () => {
 

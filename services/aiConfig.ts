@@ -64,3 +64,11 @@ export const MODEL_AUDIO: string = readEnv('AI_MODEL_AUDIO') ?? 'gemini-2.5-flas
 export function getCloudAiDisplayName(): string {
     return readEnv('AI_DISPLAY_NAME') ?? 'BuildSheet AI';
 }
+
+/**
+ * Base URL for provider-specific image generation API.
+ * For DashScope (Wan2.6): https://dashscope-intl.aliyuncs.com/api/v1
+ */
+export function getAiImageBaseUrl(): string {
+    return readEnv('AI_IMAGE_BASE_URL') ?? 'https://dashscope-intl.aliyuncs.com/api/v1';
+}

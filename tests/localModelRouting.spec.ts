@@ -9,7 +9,11 @@ import { test, expect, Page } from '@playwright/test';
  */
 
 const LOCAL_CHAT_URL = 'http://192.168.1.41:1234/v1/chat/completions';
-const GEMINI_API_PATTERN = /generativelanguage\.googleapis\.com/;
+// Matches any cloud AI provider endpoint — currently Google Gemini OR Alibaba DashScope.
+// Update this pattern when the cloud provider changes so the test stays meaningful.
+const CLOUD_API_PATTERN = /generativelanguage\.googleapis\.com|dashscope.*\.aliyuncs\.com/;
+/** @deprecated kept for readability at call sites — use CLOUD_API_PATTERN instead */
+const GEMINI_API_PATTERN = CLOUD_API_PATTERN;
 
 /**
  * Helper: set up all 5 local model providers in localStorage

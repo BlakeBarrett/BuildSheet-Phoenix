@@ -4,7 +4,7 @@ import { parseArchitectResponse } from "./parseUtils.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 import { getAiTemperature } from "./localAiService.ts";
-import { MODEL_FAST, MODEL_SMART, MODEL_STRUCTURED, MODEL_IMAGE, MODEL_AUDIO, getCloudAiDisplayName } from "./aiConfig.ts";
+import { MODEL_FAST, MODEL_SMART, MODEL_STRUCTURED, MODEL_IMAGE, MODEL_AUDIO, getCloudAiDisplayName, getAiProvider, getAiBaseUrl, getAiImageBaseUrl } from "./aiConfig.ts";
 
 // --- Sourcing quality filters ---
 
@@ -159,6 +159,130 @@ export class CloudAIService implements AIService {
         return AIManager.getSearchApiKey() || this.getApiKey();
     }
 
+    // ---------------------------------------------------------------------------
+    // OpenAI-compatible helpers (used when AI_PROVIDER=openai-compatible)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Generic OpenAI-compatible chat completions call.
+     * Handles text, vision (base64 images), JSON mode, and conversation history.
+     */
+    private async openAiChat(options: {
+        model: string;
+        system?: string;
+        /** Gemini-style history array [{role, parts}] — converted automatically. */
+        history?: any[];
+        /** Simple text prompt OR OpenAI content array (for vision). */
+        userContent: string | Array<{ type: string; [k: string]: any }>;
+        temperature?: number;
+        maxTokens?: number;
+        jsonMode?: boolean;
+    }): Promise<string> {
+        const baseUrl = getAiBaseUrl();
+        const apiKey = this.getApiKey();
+        const messages: any[] = [];
+
+        if (options.system) {
+            messages.push({ role: 'system', content: options.system });
+        }
+        if (options.history) {
+            for (const h of options.history) {
+                const role = h.role === 'model' ? 'assistant' : h.role;
+                const content = Array.isArray(h.parts)
+                    ? h.parts.map((p: any) => p.text || '').join('')
+                    : (h.content ?? '');
+                messages.push({ role, content });
+            }
+        }
+        messages.push({ role: 'user', content: options.userContent });
+
+        const body: any = {
+            model: options.model,
+            messages,
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.maxTokens ?? 4096,
+        };
+        if (options.jsonMode) {
+            body.response_format = { type: 'json_object' };
+        }
+
+        const resp = await fetch(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+            const errText = await resp.text();
+            throw new Error(`OpenAI API ${resp.status}: ${errText.substring(0, 300)}`);
+        }
+        const data = await resp.json();
+        return data.choices?.[0]?.message?.content ?? '';
+    }
+
+    /**
+     * DashScope Wan2.6 async text-to-image generation.
+     * Submits a task, polls until SUCCEEDED or timeout, returns a base64 data URL.
+     */
+    private async dashScopeGenerateImage(prompt: string): Promise<string | null> {
+        try {
+            const imageBase = getAiImageBaseUrl();
+            const apiKey = this.getApiKey();
+
+            // Submit generation task
+            const submitResp = await fetch(`${imageBase}/services/aigc/multimodal-generation/generation`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: MODEL_IMAGE,
+                    input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
+                    parameters: { n: 1, size: '1024*1024', watermark: false },
+                }),
+            });
+            if (!submitResp.ok) return null;
+            const submitData = await submitResp.json();
+            const taskId = submitData.output?.task_id;
+            if (!taskId) return null;
+
+            // Poll for result (up to ~60s, 3s intervals)
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 3000));
+                const pollResp = await fetch(`${imageBase}/tasks/${taskId}`, {
+                    headers: { 'Authorization': `Bearer ${apiKey}` },
+                });
+                if (!pollResp.ok) return null;
+                const pollData = await pollResp.json();
+                const status = pollData.output?.task_status;
+                if (status === 'SUCCEEDED') {
+                    const url = pollData.output?.results?.[0]?.url;
+                    if (!url) return null;
+                    // Convert to base64 data URL so the app can embed it directly
+                    const imgResp = await fetch(url);
+                    if (!imgResp.ok) return null;
+                    const blob = await imgResp.blob();
+                    return new Promise<string | null>(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = () => resolve(null);
+                        reader.readAsDataURL(blob);
+                    });
+                } else if (status === 'FAILED' || status === 'CANCELED') {
+                    return null;
+                }
+                // PENDING or RUNNING — keep polling
+            }
+            return null; // timeout
+        } catch (e) {
+            console.error('[CloudAIService] dashScopeGenerateImage failed:', e);
+            return null;
+        }
+    }
+
     /**
      * Creates a fresh SDK instance for search/grounding operations.
      * Uses a potentially separate API key so Enterprise customers can
@@ -185,6 +309,15 @@ export class CloudAIService implements AIService {
      * Used by the procurement engine's verification stage.
      */
     async generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any> {
+        if (getAiProvider() === 'openai-compatible') {
+            const text = await this.openAiChat({
+                model: MODEL_STRUCTURED,
+                userContent: prompt,
+                jsonMode: true,
+                maxTokens: 4096,
+            });
+            return JSON.parse(text || 'null');
+        }
         const ai = this.getClient();
         const response = await ai.models.generateContent({
             model: MODEL_STRUCTURED,
@@ -207,6 +340,28 @@ export class CloudAIService implements AIService {
 
     async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
+            if (getAiProvider() === 'openai-compatible') {
+                const userContent: any[] = [{ type: 'text', text: prompt }];
+                if (image) {
+                    const imageData = this.cleanBase64(image);
+                    if (imageData) {
+                        userContent.unshift({ type: 'image_url', image_url: { url: image } });
+                    }
+                }
+                const text = await this.openAiChat({
+                    model: MODEL_FAST,
+                    system: SYSTEM_INSTRUCTION,
+                    history,
+                    userContent,
+                    temperature: getAiTemperature(0.7),
+                    maxTokens: 4096,
+                });
+                return {
+                    text: text || 'AI service provided no output.',
+                    metadata: { model: MODEL_FAST }
+                };
+            }
+
             const ai = this.getClient();
 
             const userParts: any[] = [{ text: prompt }];
@@ -254,6 +409,13 @@ export class CloudAIService implements AIService {
 
     async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
         try {
+            if (getAiProvider() === 'openai-compatible') {
+                return await this.dashScopeGenerateImage(
+                    referenceImage
+                        ? `Product design concept: ${description}`
+                        : `Product design concept sketch: ${description}`
+                );
+            }
             const ai = this.getClient();
             const parts: any[] = [{ text: `Product design concept sketch: ${description}` }];
             if (referenceImage) {
@@ -271,6 +433,24 @@ export class CloudAIService implements AIService {
 
     async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
         try {
+            if (getAiProvider() === 'openai-compatible') {
+                // No live search grounding — ask LLM for known vendor options from training data
+                const contextClause = designContext ? ` Compatible with: ${designContext}.` : '';
+                const vendorClause = preferredVendors?.length ? ` Prefer vendors: ${preferredVendors.join(', ')}.` : '';
+                const text = await this.openAiChat({
+                    model: MODEL_FAST,
+                    system: 'You are a hardware sourcing specialist. List up to 5 well-known retailers that carry this part, with estimated typical price if known. Return valid JSON array: [{"title","url","source","price","isEstimated"}]',
+                    userContent: `Find purchase options for: ${query}.${contextClause}${vendorClause} Return JSON array only.`,
+                    jsonMode: true,
+                    maxTokens: 1024,
+                });
+                try {
+                    const parsed = JSON.parse(text);
+                    const arr: ShoppingOption[] = (Array.isArray(parsed) ? parsed : parsed.results ?? []).map((r: any) => ({ ...r, isEstimated: true }));
+                    return arr.length ? arr : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+                } catch { return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }]; }
+            }
+
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
             const localeClause = localeContext ? ` Target Locale: ${localeContext}. Prioritize authorized retailers that are local to or confidently ship to this region.` : '';
@@ -363,6 +543,27 @@ Find real-world purchase options and actual prices for: ${query}.${contextClause
 
     async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null> {
         try {
+            if (getAiProvider() === 'openai-compatible') {
+                const contextClause = designContext ? ` For: ${designContext}.` : '';
+                const text = await this.openAiChat({
+                    model: MODEL_STRUCTURED,
+                    system: 'You are a hardware research specialist. Return JSON with keys: brand (string), description (string), price (number, USD), sku (string), ports (array of {id,name,type,gender,spec}).',
+                    userContent: `Look up hardware component: "${name}" (category: ${category}).${contextClause} Return JSON only.`,
+                    jsonMode: true,
+                    maxTokens: 1024,
+                });
+                const data = JSON.parse(text || 'null');
+                if (!data) return null;
+                if (data.ports) {
+                    data.ports = data.ports.map((p: any) => ({
+                        ...p,
+                        type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL') as PortType,
+                        gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL') as Gender
+                    }));
+                }
+                return data;
+            }
+
             const ai = this.getSearchClient();
             const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
             const localeClause = localeContext ? ` Provide pricing and shipping context suitable for a user in locale: ${localeContext}.` : '';
@@ -426,6 +627,10 @@ Look up the real-world hardware component: "${name}" (category: ${category}).${c
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         try {
+            if (getAiProvider() === 'openai-compatible') {
+                // Maps grounding not available — return null gracefully
+                return null;
+            }
             const ai = this.getSearchClient();
             const response = await ai.models.generateContent({
                 model: MODEL_STRUCTURED,
@@ -443,16 +648,10 @@ Look up the real-world hardware component: "${name}" (category: ${category}).${c
 
     async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: import('../types.ts').AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: import('./aiTypes.ts').AuditAction[] }> {
         try {
-            const ai = this.getClient();
             const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category}, Brand: ${b.part.brand || 'TBD'}) - Price: $${b.part.price} - Description: ${b.part.description}`).join('\n');
-
             const enabledAdvanced = (advancedChecks || []).filter(c => c.enabled);
 
-            let prompt = `DESIGN CONTEXT/REQUIREMENTS: ${requirements}
-
-CURRENT BILL OF MATERIALS:
-${digest}
-`;
+            let prompt = `DESIGN CONTEXT/REQUIREMENTS: ${requirements}\n\nCURRENT BILL OF MATERIALS:\n${digest}\n`;
 
             // Append advanced check sections when enabled
             if (enabledAdvanced.length > 0) {
@@ -468,33 +667,39 @@ ${digest}
                     } else if (check.id === 'patent-verification') {
                         prompt += `\n### Patent & IP Verification\nCheck whether any parts or the overall design may infringe on known patents. Cite specific patent numbers where possible.\n`;
                     } else {
-                        // Custom user-defined check
                         prompt += `\n### ${check.label}\nResearch and validate: "${check.label}". Provide a thorough assessment of compliance or applicability.\n`;
                     }
                 }
             }
 
-            // Output format instructions are in AUDIT_SYSTEM_INSTRUCTION
-
             if (previousAudit) {
                 prompt += `\nPREVIOUS AUDIT RESULT:\n${previousAudit}\n`;
             }
 
-            // Scale thinking budget based on advanced checks
-            const thinkingBudget = enabledAdvanced.length > 0 ? 4096 : 2048;
+            let fullText: string;
 
-            const response = await ai.models.generateContent({
-                model: MODEL_SMART,
-                contents: prompt,
-                config: {
-                    systemInstruction: AUDIT_SYSTEM_INSTRUCTION,
-                    maxOutputTokens: 8192,
-                    thinkingConfig: { thinkingBudget }
-                }
-            });
+            if (getAiProvider() === 'openai-compatible') {
+                fullText = await this.openAiChat({
+                    model: MODEL_SMART,
+                    system: AUDIT_SYSTEM_INSTRUCTION,
+                    userContent: prompt,
+                    maxTokens: 8192,
+                });
+            } else {
+                const ai = this.getClient();
+                const thinkingBudget = enabledAdvanced.length > 0 ? 4096 : 2048;
+                const response = await ai.models.generateContent({
+                    model: MODEL_SMART,
+                    contents: prompt,
+                    config: {
+                        systemInstruction: AUDIT_SYSTEM_INSTRUCTION,
+                        maxOutputTokens: 8192,
+                        thinkingConfig: { thinkingBudget }
+                    }
+                });
+                fullText = response.text || "";
+            }
 
-            const fullText = response.text || "";
-            
             // Parse the actions JSON from the delimiter (robust against markdown fences & whitespace)
             let auditText = fullText;
             let auditActions: import('./aiTypes.ts').AuditAction[] | undefined;
@@ -536,27 +741,37 @@ ${digest}
 
     async generateFabricationBrief(partName: string, context: string): Promise<string> {
         try {
-            const ai = this.getClient();
-            const response = await ai.models.generateContent({
-                model: MODEL_SMART,
-                contents: `Manufacturing specs for: ${partName}. Context: ${context}.`,
-                config: {
-                    systemInstruction: 'You are a senior manufacturing engineer. Provide detailed fabrication specifications including materials, tolerances, surface finishes, and manufacturing processes.',
-                    maxOutputTokens: 4096,
-                    thinkingConfig: { thinkingBudget: 2048 }
-                }
-            });
+            const system = 'You are a senior manufacturing engineer. Provide detailed fabrication specifications including materials, tolerances, surface finishes, and manufacturing processes.';
+            const contents = `Manufacturing specs for: ${partName}. Context: ${context}.`;
+            let text: string;
+            if (getAiProvider() === 'openai-compatible') {
+                text = await this.openAiChat({ model: MODEL_SMART, system, userContent: contents, maxTokens: 4096 });
+            } else {
+                const ai = this.getClient();
+                const response = await ai.models.generateContent({
+                    model: MODEL_SMART,
+                    contents,
+                    config: { systemInstruction: system, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 2048 } }
+                });
+                text = response.text || '';
+            }
             const img = await this.generateProductImage(`Engineering blueprint diagram of ${partName}. Orthographic projections.`);
-            return (img ? `![Technical Blueprint](${img})\n\n` : "") + (response.text || "");
+            return (img ? `![Technical Blueprint](${img})\n\n` : '') + (text || '');
         } catch (e: any) { return `Generation failed: ${e.message}`; }
     }
 
     async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
         try {
+            const system = 'You are a quality assurance engineer. Generate inspection protocols as structured JSON with keys: recommendedSensors (string[]), inspectionStrategy (string), defects (array of {name, severity, description}).';
+            const contents = `QA protocol for: ${partName} (category: ${category}).`;
+            if (getAiProvider() === 'openai-compatible') {
+                const text = await this.openAiChat({ model: MODEL_FAST, system, userContent: contents, jsonMode: true, maxTokens: 2048 });
+                return JSON.parse(text || 'null');
+            }
             const ai = this.getClient();
             const response = await ai.models.generateContent({
                 model: MODEL_FAST,
-                contents: `QA protocol for: ${partName} (category: ${category}).`,
+                contents,
                 config: {
                     systemInstruction: 'You are a quality assurance engineer. Generate inspection protocols as structured JSON.',
                     responseMimeType: "application/json",
@@ -588,26 +803,34 @@ ${digest}
 
     async generateAssemblyPlan(bom: any[], previousPlan?: AssemblyPlan): Promise<AssemblyPlan | null> {
         try {
-            const ai = this.getClient();
             const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
             let prompt = `Generate a robotic assembly plan for the following components:\n${bomDigest}`;
-
             if (previousPlan) {
                 prompt += `\n\n--- PREVIOUS PLAN ---\nUpdate this plan based on the new BOM.`;
             }
-
-            const response = await ai.models.generateContent({
-                model: MODEL_SMART,
-                contents: prompt,
-                config: {
-                    systemInstruction: `You are a robotics assembly planner. Generate detailed assembly plans as structured JSON.
+            const assemblySystem = `You are a robotics assembly planner. Generate detailed assembly plans as structured JSON.
 For automationFeasibility (0-100), score how practical it is to assemble with standard industrial robotic arms and off-the-shelf end-effectors. Use this scale:
 - 90-100: Simple pick-and-place, snap-fit, or screw fastening of rigid, uniform parts (e.g. PCB mounting, connector insertion)
 - 70-89: Standard assembly requiring moderate dexterity or tool changes (e.g. cable routing with clips, heat-sink mounting)
 - 50-69: Complex assembly needing specialized fixtures or force-feedback (e.g. flex-cable threading, adhesive application)
 - 30-49: Highly dexterous or non-deterministic tasks (e.g. hand-soldering, conformal coating)
 - 0-29: Practically infeasible to automate (e.g. field wiring in confined spaces)
-Most consumer-electronics and maker-project assemblies should score 70+.`,
+Most consumer-electronics and maker-project assemblies should score 70+.
+Return JSON with keys: steps (array of {stepNumber,description,requiredTool,estimatedTime}), totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.`;
+
+            if (getAiProvider() === 'openai-compatible') {
+                const text = await this.openAiChat({ model: MODEL_SMART, system: assemblySystem, userContent: prompt, jsonMode: true, maxTokens: 4096 });
+                const plan = JSON.parse(text || 'null');
+                if (plan) plan.generatedAt = new Date();
+                return plan;
+            }
+
+            const ai = this.getClient();
+            const response = await ai.models.generateContent({
+                model: MODEL_SMART,
+                contents: prompt,
+                config: {
+                    systemInstruction: assemblySystem,
                     responseMimeType: "application/json",
                     responseSchema: {
                         type: Type.OBJECT,
@@ -643,29 +866,38 @@ Most consumer-electronics and maker-project assemblies should score 70+.`,
 
     async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {
         try {
-            const ai = this.getClient();
             const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
-            const response = await ai.models.generateContent({
-                model: MODEL_SMART,
-                contents: `Generate a 3D printable enclosure or custom adapter specification for this project. Context: ${context}. Components: ${bomDigest}`,
-                config: {
-                    systemInstruction: 'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. You MUST output raw OpenSCAD code for transparency and manufacturing.',
-                    maxOutputTokens: 8192,
-                    thinkingConfig: { thinkingBudget: 4096 },
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            material: { type: Type.STRING },
-                            dimensions: { type: Type.STRING },
-                            openSCAD: { type: Type.STRING },
-                            description: { type: Type.STRING }
-                        },
-                        required: ['material', 'dimensions', 'description', 'openSCAD']
+            const enclosureContents = `Generate a 3D printable enclosure or custom adapter specification for this project. Context: ${context}. Components: ${bomDigest}`;
+            const enclosureSystem = 'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. You MUST output raw OpenSCAD code for transparency and manufacturing. Return JSON with keys: material, dimensions, openSCAD, description.';
+
+            let spec: any;
+            if (getAiProvider() === 'openai-compatible') {
+                const text = await this.openAiChat({ model: MODEL_SMART, system: enclosureSystem, userContent: enclosureContents, jsonMode: true, maxTokens: 8192 });
+                spec = JSON.parse(text || '{}');
+            } else {
+                const ai = this.getClient();
+                const response = await ai.models.generateContent({
+                    model: MODEL_SMART,
+                    contents: enclosureContents,
+                    config: {
+                        systemInstruction: 'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. You MUST output raw OpenSCAD code for transparency and manufacturing.',
+                        maxOutputTokens: 8192,
+                        thinkingConfig: { thinkingBudget: 4096 },
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: Type.OBJECT,
+                            properties: {
+                                material: { type: Type.STRING },
+                                dimensions: { type: Type.STRING },
+                                openSCAD: { type: Type.STRING },
+                                description: { type: Type.STRING }
+                            },
+                            required: ['material', 'dimensions', 'description', 'openSCAD']
+                        }
                     }
-                }
-            });
-            const spec = JSON.parse(response.text || "{}");
+                });
+                spec = JSON.parse(response.text || '{}');
+            }
             const img = await this.generateProductImage(`3D CAD render of enclosure: ${spec.description}. Minimalist industrial design.`);
             return { ...spec, renderUrl: img };
         } catch (e) { return null; }
@@ -673,22 +905,35 @@ Most consumer-electronics and maker-project assemblies should score 70+.`,
 
     async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
         try {
-            const ai = this.getClient();
             const step = plan.steps.find(s => s.stepNumber === currentStep);
             const imageData = this.cleanBase64(image);
             if (!imageData) return "Unable to process camera frame.";
+            const arSystem = 'You are an AR assembly guidance system. Analyze the camera frame and provide concise, actionable assembly instructions for the current step.';
+            const stepText = `Current Step ${currentStep}: ${step?.description}. Analyze this frame and guide the user.`;
 
+            if (getAiProvider() === 'openai-compatible') {
+                const text = await this.openAiChat({
+                    model: MODEL_FAST,
+                    system: arSystem,
+                    userContent: [
+                        { type: 'image_url', image_url: { url: image } },
+                        { type: 'text', text: stepText },
+                    ],
+                    maxTokens: 512,
+                });
+                return text || "Continue with the assembly step.";
+            }
+
+            const ai = this.getClient();
             const response = await ai.models.generateContent({
                 model: MODEL_AUDIO,
                 contents: {
                     parts: [
                         { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
-                        { text: `Current Step ${currentStep}: ${step?.description}. Analyze this frame and guide the user.` }
+                        { text: stepText }
                     ]
                 },
-                config: {
-                    systemInstruction: 'You are an AR assembly guidance system. Analyze the camera frame and provide concise, actionable assembly instructions for the current step.'
-                }
+                config: { systemInstruction: arSystem }
             });
             return response.text || "Continue with the assembly step.";
         } catch (e) { return "Guidance temporarily unavailable."; }
@@ -696,22 +941,23 @@ Most consumer-electronics and maker-project assemblies should score 70+.`,
 
     async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: import('./aiTypes.ts').AuditAction[], summary: string }> {
         try {
-            const ai = this.getClient();
             const digest = bom.map(b =>
                 `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category}) - $${b.part.price}`
             ).join('\n');
 
+            const auditPrompt = `DESIGN REQUIREMENTS: ${requirements}\n\nCURRENT BOM:\n${digest}\n\nAUDIT RESULT:\n${auditResult}\n\nBased ONLY on what the audit explicitly recommends, produce the list of actions. For addPart actions, use descriptive kebab-case IDs and real component names. For removePart actions, use the exact instanceId from the BOM above. Only include changes that directly address audit findings. If no changes are needed, return an empty actions array.`;
+            const auditSystem = 'You are a hardware engineering audit assistant. Extract concrete BOM changes from audit results. Only include changes that directly address audit findings. Return JSON with keys: actions (array of {type,partId,name,category,quantity,instanceId,reason}), summary.';
+
+            if (getAiProvider() === 'openai-compatible') {
+                const text = await this.openAiChat({ model: MODEL_FAST, system: auditSystem, userContent: auditPrompt, jsonMode: true, maxTokens: 2048 });
+                const data = JSON.parse(text || '{"actions":[],"summary":"No changes recommended."}');
+                return data;
+            }
+
+            const ai = this.getClient();
             const response = await ai.models.generateContent({
                 model: MODEL_FAST,
-                contents: `DESIGN REQUIREMENTS: ${requirements}
-
-CURRENT BOM:
-${digest}
-
-AUDIT RESULT:
-${auditResult}
-
-Based ONLY on what the audit explicitly recommends, produce the list of actions. For addPart actions, use descriptive kebab-case IDs and real component names. For removePart actions, use the exact instanceId from the BOM above. Only include changes that directly address audit findings. If no changes are needed, return an empty actions array.`,
+                contents: auditPrompt,
                 config: {
                     systemInstruction: 'You are a hardware engineering audit assistant. Extract concrete BOM changes from audit results. Only include changes that directly address audit findings.',
                     responseMimeType: "application/json",
@@ -751,54 +997,73 @@ Based ONLY on what the audit explicitly recommends, produce the list of actions.
 
     async identifyComponent(image: string): Promise<ComponentIdentification | null> {
         try {
-            const ai = this.getClient();
             const imageData = this.cleanBase64(image);
             if (!imageData) return null;
-
-            const response = await ai.models.generateContent({
-                model: MODEL_FAST,
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
-                        { text: `Identify this hardware component from the photo.` }
-                    ]
-                },
-                config: {
-                    systemInstruction: `You are a hardware component identification specialist. Identify components from photos and return structured data.
+            const identifySystem = `You are a hardware component identification specialist. Identify components from photos and return structured data.
 Determine: 1) name, category, brand if visible, 2) physical condition (Excellent/Good/Fair/Poor), 3) visible defects or wear, 4) estimated retail price in USD, 5) a suggested kebab-case part ID, 6) technical description and specifications, 7) physical/electrical ports and connectors visible.
-Be specific and accurate. If you can identify the exact manufacturer and model, do so.`,
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            name: { type: Type.STRING },
-                            category: { type: Type.STRING },
-                            brand: { type: Type.STRING },
-                            condition: { type: Type.STRING },
-                            conditionNotes: { type: Type.STRING },
-                            defects: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            estimatedPrice: { type: Type.NUMBER },
-                            suggestedPartId: { type: Type.STRING },
-                            description: { type: Type.STRING },
-                            ports: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        name: { type: Type.STRING },
-                                        type: { type: Type.STRING },
-                                        gender: { type: Type.STRING },
-                                        spec: { type: Type.STRING }
-                                    },
-                                    required: ['name', 'type', 'gender', 'spec']
+Be specific and accurate. If you can identify the exact manufacturer and model, do so.
+Return JSON with keys: name, category, brand, condition, conditionNotes, defects (string[]), estimatedPrice (number), suggestedPartId, description, ports (array of {name,type,gender,spec}).`;
+
+            let data: any;
+
+            if (getAiProvider() === 'openai-compatible') {
+                const text = await this.openAiChat({
+                    model: MODEL_FAST,
+                    system: identifySystem,
+                    userContent: [
+                        { type: 'image_url', image_url: { url: image } },
+                        { type: 'text', text: 'Identify this hardware component from the photo.' },
+                    ],
+                    jsonMode: true,
+                    maxTokens: 2048,
+                });
+                data = JSON.parse(text || 'null');
+            } else {
+                const ai = this.getClient();
+                const response = await ai.models.generateContent({
+                    model: MODEL_FAST,
+                    contents: {
+                        parts: [
+                            { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
+                            { text: `Identify this hardware component from the photo.` }
+                        ]
+                    },
+                    config: {
+                        systemInstruction: identifySystem,
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: Type.OBJECT,
+                            properties: {
+                                name: { type: Type.STRING },
+                                category: { type: Type.STRING },
+                                brand: { type: Type.STRING },
+                                condition: { type: Type.STRING },
+                                conditionNotes: { type: Type.STRING },
+                                defects: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                estimatedPrice: { type: Type.NUMBER },
+                                suggestedPartId: { type: Type.STRING },
+                                description: { type: Type.STRING },
+                                ports: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            name: { type: Type.STRING },
+                                            type: { type: Type.STRING },
+                                            gender: { type: Type.STRING },
+                                            spec: { type: Type.STRING }
+                                        },
+                                        required: ['name', 'type', 'gender', 'spec']
+                                    }
                                 }
-                            }
-                        },
-                        required: ['name', 'category', 'brand', 'condition', 'conditionNotes', 'defects', 'estimatedPrice', 'suggestedPartId', 'description', 'ports']
+                            },
+                            required: ['name', 'category', 'brand', 'condition', 'conditionNotes', 'defects', 'estimatedPrice', 'suggestedPartId', 'description', 'ports']
+                        }
                     }
-                }
-            });
-            const data = JSON.parse(response.text || "null");
+                });
+                data = JSON.parse(response.text || "null");
+            }
+
             if (!data) return null;
             // Normalize port enums
             if (data.ports) {

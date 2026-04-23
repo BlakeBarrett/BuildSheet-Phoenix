@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => {
       'process.env.AI_MODEL_STRUCTURED': JSON.stringify(env.AI_MODEL_STRUCTURED || process.env.AI_MODEL_STRUCTURED),
       'process.env.AI_MODEL_IMAGE': JSON.stringify(env.AI_MODEL_IMAGE || process.env.AI_MODEL_IMAGE),
       'process.env.AI_MODEL_AUDIO': JSON.stringify(env.AI_MODEL_AUDIO || process.env.AI_MODEL_AUDIO),
+      'process.env.AI_IMAGE_BASE_URL': JSON.stringify(env.AI_IMAGE_BASE_URL || process.env.AI_IMAGE_BASE_URL),
       'process.env.AI_KEY': JSON.stringify(env.AI_KEY || process.env.AI_KEY),
       'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY)
