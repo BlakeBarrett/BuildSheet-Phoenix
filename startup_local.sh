@@ -38,9 +38,6 @@ AI_MODEL_SMART="${AI_MODEL_SMART:-}"
 AI_MODEL_STRUCTURED="${AI_MODEL_STRUCTURED:-}"
 AI_MODEL_IMAGE="${AI_MODEL_IMAGE:-}"
 AI_MODEL_AUDIO="${AI_MODEL_AUDIO:-}"
-# Legacy backward-compat aliases
-API_KEY="${API_KEY:-}"
-GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY:-}"
 VITE_FIREBASE_AUTH_DOMAIN="${VITE_FIREBASE_AUTH_DOMAIN:-}"
 VITE_FIREBASE_PROJECT_ID="${VITE_FIREBASE_PROJECT_ID:-}"
@@ -55,13 +52,13 @@ LOCAL_ARCHITECT_URL="${LOCAL_ARCHITECT_URL:-}"
 LOCAL_ARCHITECT_MODEL="${LOCAL_ARCHITECT_MODEL:-}"
 SEARCH_API_KEY="${SEARCH_API_KEY:-}"
 
-# Accept AI_KEY as the primary credential; fall back to legacy API_KEY / GEMINI_API_KEY
-EFFECTIVE_KEY="${AI_KEY:-${API_KEY:-${GEMINI_API_KEY:-}}}"
+# Require AI_KEY only for local startup
+EFFECTIVE_KEY="${AI_KEY:-}"
 if [ -z "$EFFECTIVE_KEY" ]; then
   cat <<'USAGE' >&2
 Usage: AI_KEY=yourkey ./startup_local.sh
 
-At least one of AI_KEY, API_KEY, or GEMINI_API_KEY must be set.
+At least AI_KEY must be set.
 Export it, add it to .env, or provide it on the command line.
 USAGE
   exit 1
@@ -109,8 +106,6 @@ docker run -d \
   -e "AI_MODEL_STRUCTURED=${AI_MODEL_STRUCTURED}" \
   -e "AI_MODEL_IMAGE=${AI_MODEL_IMAGE}" \
   -e "AI_MODEL_AUDIO=${AI_MODEL_AUDIO}" \
-  -e "API_KEY=${API_KEY}" \
-  -e "GEMINI_API_KEY=${GEMINI_API_KEY}" \
   -e "SEARCH_API_KEY=${SEARCH_API_KEY}" \
   -e "VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}" \
   -e "VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}" \

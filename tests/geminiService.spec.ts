@@ -4,7 +4,7 @@ import { GeminiService } from '../services/geminiService';
 import { CloudAIService } from '../services/cloudAiService';
 
 // ---------------------------------------------------------------------------
-// CloudAIService — openai-compatible provider path
+// CloudAIService — on-prem provider path
 //
 // These tests exercise the fetch-based branches added for the Qwen/DashScope
 // migration. They run in Node (no page fixture) and mock globalThis.fetch so
@@ -26,12 +26,12 @@ function chatCompletionsResponse(content: string) {
     );
 }
 
-test.describe('CloudAIService — openai-compatible path', () => {
+test.describe('CloudAIService — on-prem path', () => {
 
     let restore: () => void;
 
     test.beforeEach(() => {
-        process.env.AI_PROVIDER = 'openai-compatible';
+        process.env.AI_PROVIDER = 'on-prem';
         process.env.AI_BASE_URL = 'https://dashscope-us.aliyuncs.com/compatible-mode/v1';
     });
 

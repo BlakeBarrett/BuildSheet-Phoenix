@@ -160,7 +160,7 @@ export class CloudAIService implements AIService {
     }
 
     // ---------------------------------------------------------------------------
-    // OpenAI-compatible helpers (used when AI_PROVIDER=openai-compatible)
+    // On-prem (OpenAI-compatible) helpers (used when AI_PROVIDER=on-prem)
     // ---------------------------------------------------------------------------
 
     /**
@@ -231,36 +231,50 @@ export class CloudAIService implements AIService {
             const imageBase = getAiImageBaseUrl();
             const apiKey = this.getApiKey();
 
-            // Submit generation task
-            const submitResp = await fetch(`${imageBase}/services/aigc/multimodal-generation/generation`, {
+            const submitUrl = `${imageBase}/services/aigc/multimodal-generation/generation`;
+            const submitBody = {
+                model: MODEL_IMAGE,
+                input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
+                parameters: { n: 1, size: '1024*1024', watermark: false },
+            };
+            console.log('[DashScope] Submitting image task:', submitUrl, JSON.stringify(submitBody));
+
+            // Submit generation task (async mode requires X-DashScope-Async header)
+            const submitResp = await fetch(submitUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`,
+                    'X-DashScope-Async': 'enable',
                 },
-                body: JSON.stringify({
-                    model: MODEL_IMAGE,
-                    input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
-                    parameters: { n: 1, size: '1024*1024', watermark: false },
-                }),
+                body: JSON.stringify(submitBody),
             });
-            if (!submitResp.ok) return null;
             const submitData = await submitResp.json();
+            console.log('[DashScope] Submit response:', submitResp.status, JSON.stringify(submitData));
+            if (!submitResp.ok) return null;
             const taskId = submitData.output?.task_id;
-            if (!taskId) return null;
+            if (!taskId) {
+                console.error('[DashScope] No task_id in submit response');
+                return null;
+            }
 
             // Poll for result (up to ~60s, 3s intervals)
             for (let i = 0; i < 20; i++) {
                 await new Promise(r => setTimeout(r, 3000));
-                const pollResp = await fetch(`${imageBase}/tasks/${taskId}`, {
+                const pollUrl = `${imageBase}/tasks/${taskId}`;
+                const pollResp = await fetch(pollUrl, {
                     headers: { 'Authorization': `Bearer ${apiKey}` },
                 });
-                if (!pollResp.ok) return null;
                 const pollData = await pollResp.json();
                 const status = pollData.output?.task_status;
+                console.log(`[DashScope] Poll ${i + 1} (${pollUrl}): status=${status}`, JSON.stringify(pollData));
+                if (!pollResp.ok) return null;
                 if (status === 'SUCCEEDED') {
                     const url = pollData.output?.results?.[0]?.url;
-                    if (!url) return null;
+                    if (!url) {
+                        console.error('[DashScope] SUCCEEDED but no URL in results:', JSON.stringify(pollData));
+                        return null;
+                    }
                     // Convert to base64 data URL so the app can embed it directly
                     const imgResp = await fetch(url);
                     if (!imgResp.ok) return null;
@@ -272,10 +286,12 @@ export class CloudAIService implements AIService {
                         reader.readAsDataURL(blob);
                     });
                 } else if (status === 'FAILED' || status === 'CANCELED') {
+                    console.error('[DashScope] Task failed/canceled:', JSON.stringify(pollData));
                     return null;
                 }
                 // PENDING or RUNNING — keep polling
             }
+            console.error('[DashScope] Timed out waiting for task', taskId);
             return null; // timeout
         } catch (e) {
             console.error('[CloudAIService] dashScopeGenerateImage failed:', e);
@@ -309,7 +325,7 @@ export class CloudAIService implements AIService {
      * Used by the procurement engine's verification stage.
      */
     async generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any> {
-        if (getAiProvider() === 'openai-compatible') {
+        if (getAiProvider() === 'on-prem') {
             const text = await this.openAiChat({
                 model: MODEL_STRUCTURED,
                 userContent: prompt,
@@ -340,7 +356,7 @@ export class CloudAIService implements AIService {
 
     async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const userContent: any[] = [{ type: 'text', text: prompt }];
                 if (image) {
                     const imageData = this.cleanBase64(image);
@@ -409,7 +425,7 @@ export class CloudAIService implements AIService {
 
     async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
         try {
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 return await this.dashScopeGenerateImage(
                     referenceImage
                         ? `Product design concept: ${description}`
@@ -433,7 +449,7 @@ export class CloudAIService implements AIService {
 
     async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
         try {
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 // No live search grounding — ask LLM for known vendor options from training data
                 const contextClause = designContext ? ` Compatible with: ${designContext}.` : '';
                 const vendorClause = preferredVendors?.length ? ` Prefer vendors: ${preferredVendors.join(', ')}.` : '';
@@ -543,7 +559,7 @@ Find real-world purchase options and actual prices for: ${query}.${contextClause
 
     async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null> {
         try {
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const contextClause = designContext ? ` For: ${designContext}.` : '';
                 const text = await this.openAiChat({
                     model: MODEL_STRUCTURED,
@@ -627,7 +643,7 @@ Look up the real-world hardware component: "${name}" (category: ${category}).${c
 
     async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
         try {
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 // Maps grounding not available — return null gracefully
                 return null;
             }
@@ -678,7 +694,7 @@ Look up the real-world hardware component: "${name}" (category: ${category}).${c
 
             let fullText: string;
 
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 fullText = await this.openAiChat({
                     model: MODEL_SMART,
                     system: AUDIT_SYSTEM_INSTRUCTION,
@@ -744,7 +760,7 @@ Look up the real-world hardware component: "${name}" (category: ${category}).${c
             const system = 'You are a senior manufacturing engineer. Provide detailed fabrication specifications including materials, tolerances, surface finishes, and manufacturing processes.';
             const contents = `Manufacturing specs for: ${partName}. Context: ${context}.`;
             let text: string;
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 text = await this.openAiChat({ model: MODEL_SMART, system, userContent: contents, maxTokens: 4096 });
             } else {
                 const ai = this.getClient();
@@ -764,7 +780,7 @@ Look up the real-world hardware component: "${name}" (category: ${category}).${c
         try {
             const system = 'You are a quality assurance engineer. Generate inspection protocols as structured JSON with keys: recommendedSensors (string[]), inspectionStrategy (string), defects (array of {name, severity, description}).';
             const contents = `QA protocol for: ${partName} (category: ${category}).`;
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const text = await this.openAiChat({ model: MODEL_FAST, system, userContent: contents, jsonMode: true, maxTokens: 2048 });
                 return JSON.parse(text || 'null');
             }
@@ -818,7 +834,7 @@ For automationFeasibility (0-100), score how practical it is to assemble with st
 Most consumer-electronics and maker-project assemblies should score 70+.
 Return JSON with keys: steps (array of {stepNumber,description,requiredTool,estimatedTime}), totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.`;
 
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const text = await this.openAiChat({ model: MODEL_SMART, system: assemblySystem, userContent: prompt, jsonMode: true, maxTokens: 4096 });
                 const plan = JSON.parse(text || 'null');
                 if (plan) plan.generatedAt = new Date();
@@ -871,7 +887,7 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
             const enclosureSystem = 'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. You MUST output raw OpenSCAD code for transparency and manufacturing. Return JSON with keys: material, dimensions, openSCAD, description.';
 
             let spec: any;
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const text = await this.openAiChat({ model: MODEL_SMART, system: enclosureSystem, userContent: enclosureContents, jsonMode: true, maxTokens: 8192 });
                 spec = JSON.parse(text || '{}');
             } else {
@@ -911,7 +927,7 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
             const arSystem = 'You are an AR assembly guidance system. Analyze the camera frame and provide concise, actionable assembly instructions for the current step.';
             const stepText = `Current Step ${currentStep}: ${step?.description}. Analyze this frame and guide the user.`;
 
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const text = await this.openAiChat({
                     model: MODEL_FAST,
                     system: arSystem,
@@ -948,7 +964,7 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
             const auditPrompt = `DESIGN REQUIREMENTS: ${requirements}\n\nCURRENT BOM:\n${digest}\n\nAUDIT RESULT:\n${auditResult}\n\nBased ONLY on what the audit explicitly recommends, produce the list of actions. For addPart actions, use descriptive kebab-case IDs and real component names. For removePart actions, use the exact instanceId from the BOM above. Only include changes that directly address audit findings. If no changes are needed, return an empty actions array.`;
             const auditSystem = 'You are a hardware engineering audit assistant. Extract concrete BOM changes from audit results. Only include changes that directly address audit findings. Return JSON with keys: actions (array of {type,partId,name,category,quantity,instanceId,reason}), summary.';
 
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const text = await this.openAiChat({ model: MODEL_FAST, system: auditSystem, userContent: auditPrompt, jsonMode: true, maxTokens: 2048 });
                 const data = JSON.parse(text || '{"actions":[],"summary":"No changes recommended."}');
                 return data;
@@ -1006,7 +1022,7 @@ Return JSON with keys: name, category, brand, condition, conditionNotes, defects
 
             let data: any;
 
-            if (getAiProvider() === 'openai-compatible') {
+            if (getAiProvider() === 'on-prem') {
                 const text = await this.openAiChat({
                     model: MODEL_FAST,
                     system: identifySystem,

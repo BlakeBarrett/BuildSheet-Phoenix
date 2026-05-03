@@ -4,11 +4,11 @@
  * allowing the backend LLM to be swapped without code changes.
  *
  * Supported providers:
- *   - 'gemini'            — Google Gemini via @google/genai SDK (default for backward compat)
- *   - 'openai-compatible' — Any OpenAI-compatible REST endpoint
+ *   - 'hosted'  — Hosted cloud AI (Google Gemini via @google/genai SDK)
+ *   - 'on-prem' — Any OpenAI-compatible REST endpoint (self-hosted or third-party)
  */
 
-export type AiProvider = 'gemini' | 'openai-compatible';
+export type AiProvider = 'hosted' | 'on-prem';
 
 function readEnv(key: string): string | undefined {
     // 1. Runtime injection via env-config.js (Cloud Run)
@@ -29,11 +29,11 @@ function readEnv(key: string): string | undefined {
     return undefined;
 }
 
-/** The active LLM provider. Defaults to 'gemini' for backward compatibility. */
+/** The active LLM provider. Defaults to 'on-prem' for OpenAI-compatible endpoints. */
 export function getAiProvider(): AiProvider {
     const val = readEnv('AI_PROVIDER');
-    if (val === 'openai-compatible') return 'openai-compatible';
-    return 'gemini';
+    if (val === 'hosted') return 'hosted';
+    return 'on-prem';
 }
 
 /** Base URL for OpenAI-compatible providers (e.g. https://api.openai.com/v1). */
@@ -46,19 +46,19 @@ export function getAiBaseUrl(): string {
 // ---------------------------------------------------------------------------
 
 /** Fast model for everyday generation tasks (chat, QA protocols, audit apply, component ID). */
-export const MODEL_FAST: string = readEnv('AI_MODEL_FAST') ?? 'gemini-3-flash-preview';
+export const MODEL_FAST: string = readEnv('AI_MODEL_FAST') ?? '';
 
 /** Smart/pro model for reasoning-heavy tasks (design verification, assembly plans, enclosures, fab briefs). */
-export const MODEL_SMART: string = readEnv('AI_MODEL_SMART') ?? 'gemini-3.1-pro-preview';
+export const MODEL_SMART: string = readEnv('AI_MODEL_SMART') ?? '';
 
 /** Model for structured-JSON and search-grounded procurement tasks. */
-export const MODEL_STRUCTURED: string = readEnv('AI_MODEL_STRUCTURED') ?? 'gemini-2.5-flash';
+export const MODEL_STRUCTURED: string = readEnv('AI_MODEL_STRUCTURED') ?? '';
 
 /** Model for image generation. */
-export const MODEL_IMAGE: string = readEnv('AI_MODEL_IMAGE') ?? 'gemini-2.5-flash-image';
+export const MODEL_IMAGE: string = readEnv('AI_MODEL_IMAGE') ?? '';
 
 /** Model for audio/video AR guidance. */
-export const MODEL_AUDIO: string = readEnv('AI_MODEL_AUDIO') ?? 'gemini-2.5-flash-native-audio-preview-12-2025';
+export const MODEL_AUDIO: string = readEnv('AI_MODEL_AUDIO') ?? '';
 
 /** Human-readable display name shown in the UI for the active cloud AI service. */
 export function getCloudAiDisplayName(): string {
