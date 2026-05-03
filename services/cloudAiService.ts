@@ -230,73 +230,71 @@ export class CloudAIService implements AIService {
         try {
             const imageBase = getAiImageBaseUrl();
             const apiKey = this.getApiKey();
-
-            const submitUrl = `${imageBase}/services/aigc/multimodal-generation/generation`;
-            const submitBody = {
+            const submitUrl = `${imageBase}/services/aigc/image-generation/generation`;
+            const body = {
                 model: MODEL_IMAGE,
-                input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
-                parameters: { n: 1, size: '1024*1024', watermark: false },
+                input: { prompt },
+                parameters: { n: 1, size: '1024*576' },
             };
-            console.log('[DashScope] Submitting image task:', submitUrl, JSON.stringify(submitBody));
-
-            // Submit generation task (async mode requires X-DashScope-Async header)
-            const submitResp = await fetch(submitUrl, {
+            console.log(`[DashScope] POST ${submitUrl} model=${MODEL_IMAGE}`);
+            const resp = await fetch(submitUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`,
                     'X-DashScope-Async': 'enable',
                 },
-                body: JSON.stringify(submitBody),
+                body: JSON.stringify(body),
             });
-            const submitData = await submitResp.json();
-            console.log('[DashScope] Submit response:', submitResp.status, JSON.stringify(submitData));
-            if (!submitResp.ok) return null;
-            const taskId = submitData.output?.task_id;
+            const data = await resp.json();
+            console.log(`[DashScope] Submit response ${resp.status}:`, JSON.stringify(data));
+            if (!resp.ok) return null;
+
+            const taskId = data.output?.task_id;
             if (!taskId) {
-                console.error('[DashScope] No task_id in submit response');
+                console.error('[DashScope] No task_id in response');
                 return null;
             }
 
-            // Poll for result (up to ~60s, 3s intervals)
             for (let i = 0; i < 20; i++) {
                 await new Promise(r => setTimeout(r, 3000));
                 const pollUrl = `${imageBase}/tasks/${taskId}`;
-                const pollResp = await fetch(pollUrl, {
-                    headers: { 'Authorization': `Bearer ${apiKey}` },
-                });
+                const pollResp = await fetch(pollUrl, { headers: { 'Authorization': `Bearer ${apiKey}` } });
                 const pollData = await pollResp.json();
                 const status = pollData.output?.task_status;
-                console.log(`[DashScope] Poll ${i + 1} (${pollUrl}): status=${status}`, JSON.stringify(pollData));
+                console.log(`[DashScope] Poll ${i + 1}: status=${status}`);
                 if (!pollResp.ok) return null;
                 if (status === 'SUCCEEDED') {
-                    const url = pollData.output?.results?.[0]?.url;
-                    if (!url) {
-                        console.error('[DashScope] SUCCEEDED but no URL in results:', JSON.stringify(pollData));
+                    const imageUrl = pollData.output?.results?.[0]?.url;
+                    if (!imageUrl) {
+                        console.error('[DashScope] SUCCEEDED but no URL:', JSON.stringify(pollData));
                         return null;
                     }
-                    // Convert to base64 data URL so the app can embed it directly
-                    const imgResp = await fetch(url);
-                    if (!imgResp.ok) return null;
-                    const blob = await imgResp.blob();
-                    return new Promise<string | null>(resolve => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result as string);
-                        reader.onerror = () => resolve(null);
-                        reader.readAsDataURL(blob);
-                    });
-                } else if (status === 'FAILED' || status === 'CANCELED') {
+                    return await this.fetchImageAsDataUrl(imageUrl);
+                }
+                if (status === 'FAILED' || status === 'CANCELED') {
                     console.error('[DashScope] Task failed/canceled:', JSON.stringify(pollData));
                     return null;
                 }
-                // PENDING or RUNNING — keep polling
             }
             console.error('[DashScope] Timed out waiting for task', taskId);
-            return null; // timeout
+            return null;
         } catch (e) {
-            console.error('[CloudAIService] dashScopeGenerateImage failed:', e);
+            console.error('[DashScope] dashScopeGenerateImage threw:', e);
             return null;
         }
+    }
+
+    private async fetchImageAsDataUrl(url: string): Promise<string | null> {
+        const imgResp = await fetch(url);
+        if (!imgResp.ok) return null;
+        const blob = await imgResp.blob();
+        return new Promise<string | null>(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
     }
 
     /**
@@ -357,12 +355,14 @@ export class CloudAIService implements AIService {
     async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
             if (getAiProvider() === 'on-prem') {
-                const userContent: any[] = [{ type: 'text', text: prompt }];
+                let userContent: string | Array<{ type: string; [k: string]: any }>;
                 if (image) {
                     const imageData = this.cleanBase64(image);
-                    if (imageData) {
-                        userContent.unshift({ type: 'image_url', image_url: { url: image } });
-                    }
+                    const parts: any[] = [{ type: 'text', text: prompt }];
+                    if (imageData) parts.unshift({ type: 'image_url', image_url: { url: image } });
+                    userContent = parts;
+                } else {
+                    userContent = prompt;
                 }
                 const text = await this.openAiChat({
                     model: MODEL_FAST,

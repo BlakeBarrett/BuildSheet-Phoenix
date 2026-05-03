@@ -134,6 +134,14 @@ test.describe('CloudAIService — on-prem path', () => {
 
 test.describe('GeminiService Nano Banana Integration', () => {
 
+    test.beforeEach(() => {
+        process.env.AI_PROVIDER = 'hosted';
+    });
+
+    test.afterEach(() => {
+        delete process.env.AI_PROVIDER;
+    });
+
     test('generateProductImage should call correct Nano Banana model and payload', async () => {
         // Mock the GoogleGenAI client and its methods
         const mockGenerateContent = async (params: any) => {
@@ -220,7 +228,7 @@ test.describe('GeminiService Nano Banana Integration', () => {
         await service.generateProductImage('test prompt');
 
         expect(capturedParams).not.toBeNull();
-        expect(capturedParams.model).toBe('gemini-2.5-flash-image'); // Expecting the REVERTED model name
+        expect(capturedParams.model).toBe(process.env.AI_MODEL_IMAGE || '');
 
         // Expecting an object { parts } now, NOT an array of contents
         expect(capturedParams.contents.parts).toBeDefined();
@@ -279,6 +287,14 @@ addPart("seville-classics-24x36-shelf", "Seville Classics UltraDurable 5-Tier St
 });
 
 test.describe('GeminiService findPartSources URL filtering', () => {
+
+    test.beforeEach(() => {
+        process.env.AI_PROVIDER = 'hosted';
+    });
+
+    test.afterEach(() => {
+        delete process.env.AI_PROVIDER;
+    });
 
     function buildMockService(groundingChunks: any[], groundingSupports: any[] = []) {
         const service = new GeminiService('fake-key');
