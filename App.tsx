@@ -2421,10 +2421,22 @@ const AppContent: React.FC = () => {
         if (isVisualizing || currentSession.bom.length === 0) return;
         setIsVisualizing(true);
         try {
-            const requirements = customPrompt || currentSession.designRequirements || currentSession.name || "Hardware assembly";
-            const imageUrl = await aiService.generateProductImage(requirements);
+            let prompt: string;
+            if (customPrompt) {
+                prompt = customPrompt;
+            } else {
+                const projectName = currentSession.name || currentSession.designRequirements || 'hardware assembly';
+                const bomSummary = currentSession.bom
+                    .slice(0, 8)
+                    .map(p => p.name + (p.category ? ` (${p.category})` : ''))
+                    .join(', ');
+                prompt = `Technical product visualization of ${projectName}. `
+                    + `Key components: ${bomSummary}. `
+                    + `Photorealistic 3D render, clean studio lighting, white background, engineering product photo.`;
+            }
+            const imageUrl = await aiService.generateProductImage(prompt);
             if (imageUrl) {
-                const promptLabel = customPrompt ? customPrompt : `Design concept for: ${requirements}`;
+                const promptLabel = customPrompt ? customPrompt : `Design concept for: ${currentSession.name || currentSession.designRequirements || 'Hardware assembly'}`;
                 draftingEngine.addGeneratedImage(imageUrl, promptLabel);
             }
         } catch (e) { console.error(e); } finally { setIsVisualizing(false); }

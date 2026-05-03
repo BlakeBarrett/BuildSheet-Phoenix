@@ -233,8 +233,8 @@ export class CloudAIService implements AIService {
             const submitUrl = `${imageBase}/services/aigc/image-generation/generation`;
             const body = {
                 model: MODEL_IMAGE,
-                input: { prompt },
-                parameters: { n: 1, size: '1024*576' },
+                input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
+                parameters: { n: 1, size: '1024*1024' },
             };
             console.log(`[DashScope] POST ${submitUrl} model=${MODEL_IMAGE}`);
             const resp = await fetch(submitUrl, {
@@ -265,7 +265,7 @@ export class CloudAIService implements AIService {
                 console.log(`[DashScope] Poll ${i + 1}: status=${status}`);
                 if (!pollResp.ok) return null;
                 if (status === 'SUCCEEDED') {
-                    const imageUrl = pollData.output?.results?.[0]?.url;
+                    const imageUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
                     if (!imageUrl) {
                         console.error('[DashScope] SUCCEEDED but no URL:', JSON.stringify(pollData));
                         return null;
@@ -426,11 +426,7 @@ export class CloudAIService implements AIService {
     async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
         try {
             if (getAiProvider() === 'on-prem') {
-                return await this.dashScopeGenerateImage(
-                    referenceImage
-                        ? `Product design concept: ${description}`
-                        : `Product design concept sketch: ${description}`
-                );
+                return await this.dashScopeGenerateImage(description);
             }
             const ai = this.getClient();
             const parts: any[] = [{ text: `Product design concept sketch: ${description}` }];

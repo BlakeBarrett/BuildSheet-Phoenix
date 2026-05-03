@@ -13,6 +13,13 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      proxy: {
+        '/dashscope-image': {
+          target: 'https://dashscope-us.aliyuncs.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/dashscope-image/, '/api/v1'),
+        },
+      },
     },
     plugins: [react()],
     build: {
