@@ -1,5 +1,6 @@
 /* ============================================
    BuildSheet — Base & Global Styles
+   Blue Collar Industrial Edition
    ============================================ */
 
 /* ── Modern Reset ───────────────────────────── */
@@ -30,25 +31,43 @@ body {
   min-height: 100vh;
 }
 
-/* Blueprint grid background */
+/* Industrial noise/grain texture background */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  opacity: 0.03;
+  opacity: 0.035;
   background-image:
-    linear-gradient(var(--color-accent-teal) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-accent-teal) 1px, transparent 1px);
-  background-size: 60px 60px;
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  pointer-events: none;
+}
+
+/* Subtle grid lines on top of noise — like a workshop wall */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.02;
+  background-image:
+    linear-gradient(var(--color-accent-orange) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-accent-orange) 1px, transparent 1px);
+  background-size: 80px 80px;
   pointer-events: none;
 }
 
 [data-theme="light"] body::before {
-  opacity: 0.04;
+  opacity: 0.025;
+}
+
+[data-theme="light"] body::after {
+  opacity: 0.03;
   background-image:
-    linear-gradient(var(--color-navy-400) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-navy-400) 1px, transparent 1px);
+    linear-gradient(var(--color-charcoal-400) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-charcoal-400) 1px, transparent 1px);
 }
 
 /* ── Base Elements ──────────────────────────── */
@@ -80,13 +99,13 @@ button {
 }
 
 a {
-  color: var(--color-accent-teal);
+  color: var(--color-accent-orange);
   text-decoration: none;
   transition: var(--transition-colors);
 }
 
 a:hover {
-  color: var(--color-accent-cyan-light);
+  color: var(--color-accent-amber-light);
 }
 
 ul,
@@ -96,15 +115,16 @@ ol {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-black);
   line-height: var(--leading-tight);
   color: var(--text-primary);
   letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
 }
 
-h1 { font-size: var(--text-5xl); font-weight: var(--weight-extrabold); }
+h1 { font-size: var(--text-5xl); font-weight: var(--weight-black); }
 h2 { font-size: var(--text-4xl); }
-h3 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-2xl); font-weight: var(--weight-extrabold); }
 h4 { font-size: var(--text-xl); }
 h5 { font-size: var(--text-lg); }
 h6 { font-size: var(--text-base); }
@@ -115,13 +135,13 @@ p {
 }
 
 ::selection {
-  background-color: var(--color-accent-teal);
-  color: var(--color-navy-950);
+  background-color: var(--color-accent-orange);
+  color: white;
 }
 
 /* ── Focus Styles ───────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--color-accent-teal);
+  outline: 2px solid var(--color-accent-orange);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -164,6 +184,7 @@ p {
   font-size: var(--text-lg);
   max-width: 600px;
   margin-inline: auto;
+  text-transform: none;
 }
 
 .text-gradient {
@@ -201,12 +222,31 @@ p {
 .gap-6 { gap: var(--space-6); }
 .gap-8 { gap: var(--space-8); }
 
-/* Section divider */
+/* Section divider — industrial style */
 .section-divider {
   width: 100%;
-  height: 1px;
-  background: var(--divider);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-accent-orange), transparent);
   border: none;
+  opacity: 0.3;
+}
+
+/* Weathered edge section transition */
+.section--torn-bottom {
+  clip-path: polygon(
+    0 0, 100% 0, 100% calc(100% - 30px),
+    95% calc(100% - 15px), 90% calc(100% - 25px),
+    85% calc(100% - 10px), 80% calc(100% - 28px),
+    75% calc(100% - 8px), 70% calc(100% - 22px),
+    65% calc(100% - 12px), 60% calc(100% - 26px),
+    55% calc(100% - 6px), 50% calc(100% - 20px),
+    45% calc(100% - 14px), 40% calc(100% - 24px),
+    35% calc(100% - 9px), 30% calc(100% - 27px),
+    25% calc(100% - 11px), 20% calc(100% - 23px),
+    15% calc(100% - 7px), 10% calc(100% - 19px),
+    5% calc(100% - 13px), 0 calc(100% - 25px)
+  );
+  padding-bottom: calc(var(--space-20) + 30px);
 }
 
 /* ── RTL Layout Support (Arabic) ────────────── */
