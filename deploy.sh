@@ -133,36 +133,40 @@ docker push "$IMAGE_URI"
 echo "   ✅ Image pushed."
 echo ""
 
-# ── Step 5: Remove stale GCS FUSE volume mounts from AI Studio ───────────────
-# The AI Studio applet-proxy mounts a GCS bucket over /app/dist (read-only),
-# which overwrites our Vite build and blocks env.sh from writing env-config.js.
-# We must remove this to use our own Docker image.
-echo "🔧 Step 5: Removing stale AI Studio volume mounts..."
-gcloud run services update "$SERVICE_NAME" \
-  --region="$REGION" \
-  --project="$PROJECT_ID" \
-  --clear-volumes \
-  --clear-volume-mounts \
-  --quiet 2>/dev/null || true
-echo "   ✅ Volume mounts cleared."
-echo ""
+# ── Step 5: Deploy to Cloud Run via service.yaml ───────────────────────────
+# envsubst fills ${VAR} placeholders in service.yaml with values from the
+# current environment (sourced from .env above). This avoids the fragile
+# comma-separated --set-env-vars approach which breaks on values with commas.
+echo "🔧 Step 5: Deploying to Cloud Run..."
 
-# ── Step 6: Deploy to Cloud Run ─────────────────────────────────────────────
-echo "🔧 Step 6: Deploying to Cloud Run..."
-gcloud run deploy "$SERVICE_NAME" \
-  --image="$IMAGE_URI" \
+if ! command -v envsubst &>/dev/null; then
+  echo "❌ envsubst not found. Install gettext: brew install gettext / apt install gettext"
+  exit 1
+fi
+
+export IMAGE_URI AI_KEY AI_PROVIDER AI_BASE_URL AI_IMAGE_BASE_URL AI_DISPLAY_NAME \
+       AI_MODEL_FAST AI_MODEL_SMART AI_MODEL_STRUCTURED AI_MODEL_IMAGE AI_MODEL_AUDIO \
+       VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID \
+       VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID \
+       VITE_FIREBASE_APP_ID VITE_FIREBASE_MEASUREMENT_ID \
+       VITE_RECAPTCHA_SITE_KEY VITE_STRIPE_PRO_MONTHLY_PRICE_ID \
+       VITE_STRIPE_PRO_ANNUAL_PRICE_ID REGION
+
+envsubst < service.yaml | gcloud run services replace - \
   --region="$REGION" \
   --project="$PROJECT_ID" \
-  --platform=managed \
-  --port=8080 \
-  --allow-unauthenticated \
-  --set-env-vars="AI_KEY=${AI_KEY},AI_PROVIDER=${AI_PROVIDER},AI_BASE_URL=${AI_BASE_URL},AI_IMAGE_BASE_URL=${AI_IMAGE_BASE_URL},AI_DISPLAY_NAME=${AI_DISPLAY_NAME},AI_MODEL_FAST=${AI_MODEL_FAST},AI_MODEL_SMART=${AI_MODEL_SMART},AI_MODEL_STRUCTURED=${AI_MODEL_STRUCTURED},AI_MODEL_IMAGE=${AI_MODEL_IMAGE},AI_MODEL_AUDIO=${AI_MODEL_AUDIO},SEARCH_API_KEY=${SEARCH_API_KEY},API_KEY=${API_KEY},GEMINI_API_KEY=${GEMINI_API_KEY},VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY},VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN},VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID},VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET},VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID},VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID},VITE_FIREBASE_MEASUREMENT_ID=${VITE_FIREBASE_MEASUREMENT_ID},VITE_RECAPTCHA_SITE_KEY=${VITE_RECAPTCHA_SITE_KEY},VITE_STRIPE_PRO_MONTHLY_PRICE_ID=${VITE_STRIPE_PRO_MONTHLY_PRICE_ID},VITE_STRIPE_PRO_ANNUAL_PRICE_ID=${VITE_STRIPE_PRO_ANNUAL_PRICE_ID},LOCAL_ARCHITECT_URL=${LOCAL_ARCHITECT_URL},LOCAL_ARCHITECT_MODEL=${LOCAL_ARCHITECT_MODEL}" \
-  --memory=512Mi \
-  --cpu=1 \
-  --min-instances=0 \
-  --max-instances=3 \
-  --concurrency=80 \
-  --timeout=300
+  --quiet
+
+# Ensure unauthenticated (public) access is set — replace only manages config,
+# not IAM bindings.
+gcloud run services add-iam-policy-binding "$SERVICE_NAME" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  --member=allUsers \
+  --role=roles/run.invoker \
+  --quiet 2>/dev/null || true
+
+echo "   ✅ Deployed via service.yaml."
 echo ""
 
 # ── Done ─────────────────────────────────────────────────────────────────────

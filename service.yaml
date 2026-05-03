@@ -1,0 +1,72 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: buildsheet
+  labels:
+    cloud.googleapis.com/location: ${REGION}
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/cpu-throttling: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: ${IMAGE_URI}
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          env:
+            # ── AI provider ──────────────────────────────────────────────────
+            - name: AI_KEY
+              value: "${AI_KEY}"
+            - name: AI_PROVIDER
+              value: "${AI_PROVIDER}"
+            - name: AI_BASE_URL
+              value: "${AI_BASE_URL}"
+            - name: AI_IMAGE_BASE_URL
+              value: "${AI_IMAGE_BASE_URL}"
+            - name: AI_DISPLAY_NAME
+              value: "${AI_DISPLAY_NAME}"
+            # ── Model selection ───────────────────────────────────────────────
+            - name: AI_MODEL_FAST
+              value: "${AI_MODEL_FAST}"
+            - name: AI_MODEL_SMART
+              value: "${AI_MODEL_SMART}"
+            - name: AI_MODEL_STRUCTURED
+              value: "${AI_MODEL_STRUCTURED}"
+            - name: AI_MODEL_IMAGE
+              value: "${AI_MODEL_IMAGE}"
+            - name: AI_MODEL_AUDIO
+              value: "${AI_MODEL_AUDIO}"
+            # ── Firebase ─────────────────────────────────────────────────────
+            - name: VITE_FIREBASE_API_KEY
+              value: "${VITE_FIREBASE_API_KEY}"
+            - name: VITE_FIREBASE_AUTH_DOMAIN
+              value: "${VITE_FIREBASE_AUTH_DOMAIN}"
+            - name: VITE_FIREBASE_PROJECT_ID
+              value: "${VITE_FIREBASE_PROJECT_ID}"
+            - name: VITE_FIREBASE_STORAGE_BUCKET
+              value: "${VITE_FIREBASE_STORAGE_BUCKET}"
+            - name: VITE_FIREBASE_MESSAGING_SENDER_ID
+              value: "${VITE_FIREBASE_MESSAGING_SENDER_ID}"
+            - name: VITE_FIREBASE_APP_ID
+              value: "${VITE_FIREBASE_APP_ID}"
+            - name: VITE_FIREBASE_MEASUREMENT_ID
+              value: "${VITE_FIREBASE_MEASUREMENT_ID}"
+            # ── Stripe & reCAPTCHA ────────────────────────────────────────────
+            - name: VITE_RECAPTCHA_SITE_KEY
+              value: "${VITE_RECAPTCHA_SITE_KEY}"
+            - name: VITE_STRIPE_PRO_MONTHLY_PRICE_ID
+              value: "${VITE_STRIPE_PRO_MONTHLY_PRICE_ID}"
+            - name: VITE_STRIPE_PRO_ANNUAL_PRICE_ID
+              value: "${VITE_STRIPE_PRO_ANNUAL_PRICE_ID}"
+  traffic:
+    - percent: 100
+      latestRevision: true
