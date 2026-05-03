@@ -20,7 +20,7 @@ test('visualizer takes up 40% of viewport height', async ({ page }) => {
     // </div>
 
     // We can find the ChiltonVisualizer text "Gemini Nano" or "Blank Canvas" and go up to the container.
-    const visualizerComponent = page.getByText('Nano Banana').first();
+    const visualizerComponent = page.locator('[data-testid="visualizer-root"], .ChiltonVisualizer, div.h-full.w-full.flex').first();
     await expect(visualizerComponent).toBeVisible();
 
     // The ChiltonVisualizer renders a div with "h-full w-full".
@@ -86,4 +86,86 @@ test('visualizer takes up 40% of viewport height', async ({ page }) => {
     if (viewportHeight > 800) {
         expect(visualizerHeight).toBeGreaterThan(300);
     }
+});
+
+// ---------------------------------------------------------------------------
+// performVisualGeneration — prompt construction
+//
+// Verifies that when a BOM is loaded, clicking "New" sends a rich prompt
+// containing the project name and component names, not a bare fallback.
+// ---------------------------------------------------------------------------
+
+test('performVisualGeneration builds BOM-rich prompt from session', async ({ page }) => {
+    const sessionId = 'vis-prompt-test';
+    const mockSession = {
+        id: sessionId,
+        slug: sessionId,
+        ownerId: '',
+        name: 'LED Wristwatch',
+        designRequirements: '',
+        bom: [
+            { instanceId: 'i1', quantity: 1, isCompatible: true,
+              part: { id: 'mcu-1', sku: '', name: 'ATtiny85 MCU', category: 'Microcontroller', brand: '', price: 0, ports: [], description: '' } },
+            { instanceId: 'i2', quantity: 4, isCompatible: true,
+              part: { id: 'led-1', sku: '', name: '3mm Red LED', category: 'LED', brand: '', price: 0, ports: [], description: '' } },
+            { instanceId: 'i3', quantity: 1, isCompatible: true,
+              part: { id: 'bat-1', sku: '', name: 'CR2032 Battery', category: 'Power', brand: '', price: 0, ports: [], description: '' } },
+        ],
+        generatedImages: [],
+        messages: [],
+        createdAt: new Date().toISOString(),
+        lastModified: new Date().toISOString(),
+        cacheIsDirty: false,
+    };
+
+    // Intercept the image generation request before it hits the Vite proxy
+    let capturedBody: any = null;
+    await page.route('**/dashscope-image/**', async route => {
+        capturedBody = JSON.parse(route.request().postData() || '{}');
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ output: { task_id: 'mock-task', task_status: 'PENDING' } }),
+        });
+    });
+
+    // Pre-load the session into localStorage before the app boots
+    await page.addInitScript(({ id, session }) => {
+        localStorage.setItem('buildsheet_active_project_id', id);
+        localStorage.setItem(`buildsheet_project_${id}`, JSON.stringify(session));
+        localStorage.setItem('buildsheet_projects_index', JSON.stringify(
+            [{ id, name: session.name, lastModified: session.lastModified, preview: '' }]
+        ));
+    }, { id: sessionId, session: mockSession });
+
+    await page.goto('http://localhost:3000');
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.waitForTimeout(800);
+
+    // Dismiss cookie consent if present
+    const acceptAll = page.locator('button:has-text("Accept All")');
+    if (await acceptAll.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await acceptAll.click();
+        await page.waitForTimeout(300);
+    }
+
+    // Click the "New" generate button in the visualizer gallery strip
+    const newImageBtn = page.locator('button.border-dashed').first();
+    await expect(newImageBtn).toBeEnabled({ timeout: 5000 });
+    await newImageBtn.click();
+
+    // Wait for the intercepted request
+    await page.waitForTimeout(500);
+
+    expect(capturedBody).not.toBeNull();
+    const promptText: string = capturedBody?.input?.messages?.[0]?.content?.[0]?.text ?? '';
+
+    // Should include project name and component names
+    expect(promptText).toContain('LED Wristwatch');
+    expect(promptText).toContain('ATtiny85 MCU');
+    expect(promptText).toContain('3mm Red LED');
+    expect(promptText).toContain('CR2032 Battery');
+    // Should NOT be a bare fallback string
+    expect(promptText).not.toBe('LED Wristwatch');
+    expect(promptText).toContain('Technical product visualization');
 });

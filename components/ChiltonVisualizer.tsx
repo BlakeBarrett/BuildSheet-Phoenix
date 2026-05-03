@@ -67,7 +67,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                 {/* Header / Meta */}
                 <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-start pointer-events-none">
                     <Chip
-                        label={isGenerating ? t('vis.generating') : "Nano Banana"}
+                        label={isGenerating ? t('vis.generating') : t('vis.model')}
                         icon={isGenerating ? "motion_mode" : "temp_preferences_custom"}
                         color={isGenerating ? "bg-indigo-600 text-white border-transparent animate-pulse" : "bg-white/80 backdrop-blur text-slate-700 border-white shadow-sm"}
                     />

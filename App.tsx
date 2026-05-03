@@ -2428,7 +2428,7 @@ const AppContent: React.FC = () => {
                 const projectName = currentSession.name || currentSession.designRequirements || 'hardware assembly';
                 const bomSummary = currentSession.bom
                     .slice(0, 8)
-                    .map(p => p.name + (p.category ? ` (${p.category})` : ''))
+                    .map(p => p.part.name + (p.part.category ? ` (${p.part.category})` : ''))
                     .join(', ');
                 prompt = `Technical product visualization of ${projectName}. `
                     + `Key components: ${bomSummary}. `

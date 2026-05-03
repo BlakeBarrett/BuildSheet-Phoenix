@@ -2,6 +2,8 @@
 import { test, expect } from '@playwright/test';
 import { GeminiService } from '../services/geminiService';
 import { CloudAIService } from '../services/cloudAiService';
+import http from 'http';
+import * as net from 'net';
 
 // ---------------------------------------------------------------------------
 // CloudAIService — on-prem provider path
@@ -132,7 +134,7 @@ test.describe('CloudAIService — on-prem path', () => {
     });
 });
 
-test.describe('GeminiService Nano Banana Integration', () => {
+test.describe('GeminiService hosted image generation', () => {
 
     test.beforeEach(() => {
         process.env.AI_PROVIDER = 'hosted';
@@ -142,7 +144,7 @@ test.describe('GeminiService Nano Banana Integration', () => {
         delete process.env.AI_PROVIDER;
     });
 
-    test('generateProductImage should call correct Nano Banana model and payload', async () => {
+    test('generateProductImage calls the configured hosted model with correct payload', async () => {
         // Mock the GoogleGenAI client and its methods
         const mockGenerateContent = async (params: any) => {
             return {
@@ -190,13 +192,7 @@ test.describe('GeminiService Nano Banana Integration', () => {
         // but I'll likely hit the issue of not having a real API key or creating real network requests.
         // The previous `visualizer.spec.ts` interacts with the UI. 
 
-        // I will stick to modifying the existing `visualizer.spec.ts` to check the UI text "Nano Banana".
-        // I will ALSO create a unit test `tests/unit/geminiService.test.ts`? 
-        // The project structure shows `tests/visualizer.spec.ts`.
-
-        // Let's create `tests/geminiService.spec.ts` and attempt to mock.
-        // If I can't mock easily, I will rename the model in the service and rely on the UI test to verify the "Nano Banana" text.
-        // The payload verification is critical though.
+        // We rely on the private `getClient` override pattern used throughout these tests.
 
         let capturedParams: any = null;
         const mockGenerateContentSpy = async (params: any) => {
@@ -418,5 +414,191 @@ test.describe('GeminiService findPartSources URL filtering', () => {
         expect(results).not.toBeNull();
         expect(results!.length).toBe(1);
         expect(results![0].url).toContain('shop.com');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// CloudAIService — DashScope image generation (wan2.6-t2i)
+//
+// Exercises the dashScopeGenerateImage() path: submit, poll, response parsing,
+// and error handling. A local HTTP server is used for mocking so no globals
+// are patched — this avoids races when Playwright runs tests in parallel.
+// ---------------------------------------------------------------------------
+
+test.describe('CloudAIService — DashScope image generation', () => {
+    // Serial mode: tests share a single worker to avoid port conflicts.
+    test.describe.configure({ mode: 'serial' });
+
+    let server: http.Server;
+    let mockPort: number;
+    let submitStatusCode: number;
+    let pollTaskStatus: string;
+    const requestLog: { url: string; method: string; headers: Record<string, string>; body: string }[] = [];
+
+    test.beforeEach(async () => {
+        process.env.AI_PROVIDER = 'on-prem';
+        process.env.AI_MODEL_IMAGE = 'wan2.6-t2i';
+        submitStatusCode = 200;
+        pollTaskStatus = 'SUCCEEDED';
+        requestLog.length = 0;
+
+        // Polyfill FileReader — not available in Node test environment
+        (globalThis as any).FileReader = class {
+            result: string = 'data:image/png;base64,bW9jaw==';
+            onload: () => void = () => {};
+            onerror: () => void = () => {};
+            readAsDataURL(_blob: any) { Promise.resolve().then(() => this.onload()); }
+        };
+
+        // Start a local HTTP mock server — no globalThis.fetch patching needed.
+        server = http.createServer(async (req, res) => {
+            const body = await new Promise<string>(resolve => {
+                let data = '';
+                req.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+                req.on('end', () => resolve(data));
+            });
+            requestLog.push({
+                url: req.url ?? '',
+                method: req.method ?? '',
+                headers: req.headers as Record<string, string>,
+                body,
+            });
+
+            if (req.url?.includes('/services/aigc/image-generation/generation')) {
+                res.writeHead(submitStatusCode, { 'Content-Type': 'application/json' });
+                if (submitStatusCode !== 200) {
+                    res.end(JSON.stringify({ code: 'InvalidApiKey', message: 'Invalid API-key provided.' }));
+                } else {
+                    res.end(JSON.stringify({ output: { task_id: 'task-abc-123', task_status: 'PENDING' } }));
+                }
+            } else if (req.url?.includes('/tasks/task-abc-123')) {
+                const pollBody: any = { task_status: pollTaskStatus };
+                if (pollTaskStatus === 'SUCCEEDED') {
+                    pollBody.choices = [
+                        { message: { content: [{ image: `http://127.0.0.1:${mockPort}/image.png`, type: 'image' }] } }
+                    ];
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ output: pollBody }));
+            } else {
+                // Image download (fetchImageAsDataUrl) or unknown path
+                res.writeHead(200, { 'Content-Type': 'image/png' });
+                res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47])); // PNG magic bytes
+            }
+        });
+
+        await new Promise<void>(resolve => server.listen(0, '127.0.0.1', () => resolve()));
+        mockPort = (server.address() as net.AddressInfo).port;
+        process.env.AI_IMAGE_BASE_URL = `http://127.0.0.1:${mockPort}`;
+    });
+
+    test.afterEach(async () => {
+        delete process.env.AI_PROVIDER;
+        delete process.env.AI_IMAGE_BASE_URL;
+        delete process.env.AI_MODEL_IMAGE;
+        delete (globalThis as any).FileReader;
+        await new Promise<void>((resolve, reject) =>
+            server.close(err => (err ? reject(err) : resolve()))
+        );
+    });
+
+    test('submits to image-generation endpoint with correct URL and model', async () => {
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.generateProductImage('a red sports car');
+
+        const submitReq = requestLog.find(r => r.url.includes('/services/aigc/image-generation/generation'));
+        expect(submitReq).toBeDefined();
+        const body = JSON.parse(submitReq!.body);
+        // MODEL_IMAGE is a module-level const; assert it's included in the request (value depends on env at module load)
+        expect(body).toHaveProperty('model');
+        expect(body.parameters.size).toBe('1024*1024');
+    });
+
+    test('sets X-DashScope-Async and Authorization headers on submit', async () => {
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.generateProductImage('test');
+
+        const submitReq = requestLog.find(r => r.url.includes('/services/aigc/image-generation/generation'));
+        expect(submitReq!.headers['authorization']).toBe('Bearer sk-test-key-0123456789');
+        expect(submitReq!.headers['x-dashscope-async']).toBe('enable');
+        expect(submitReq!.headers['content-type']).toContain('application/json');
+    });
+
+    test('sends input.messages (not input.prompt) in submit body', async () => {
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.generateProductImage('a red sports car');
+
+        const submitReq = requestLog.find(r => r.url.includes('/services/aigc/image-generation/generation'));
+        const body = JSON.parse(submitReq!.body);
+        expect(body.input.messages).toBeDefined();
+        expect(body.input.prompt).toBeUndefined();
+        expect(body.input.messages[0].role).toBe('user');
+        expect(body.input.messages[0].content[0].text).toBe('a red sports car');
+    });
+
+    test('passes description to DashScope unmodified — no wrapper text added', async () => {
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.generateProductImage('custom prompt here');
+
+        const submitReq = requestLog.find(r => r.url.includes('/services/aigc/image-generation/generation'));
+        const text = JSON.parse(submitReq!.body).input.messages[0].content[0].text;
+        expect(text).toBe('custom prompt here');
+        expect(text).not.toContain('Product design concept');
+    });
+
+    test('polls tasks/{taskId} with bearer token', async () => {
+        const service = new CloudAIService('sk-test-key-0123456789');
+        await service.generateProductImage('test');
+
+        const pollReq = requestLog.find(r => r.url.includes('/tasks/task-abc-123'));
+        expect(pollReq).toBeDefined();
+        expect(pollReq!.headers['authorization']).toBe('Bearer sk-test-key-0123456789');
+    });
+
+    test('returns data URL when poll status is SUCCEEDED and image in choices[0]', async () => {
+        pollTaskStatus = 'SUCCEEDED';
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.generateProductImage('test');
+        expect(result).not.toBeNull();
+        expect(result).toMatch(/^data:/);
+    });
+
+    test('returns null when poll status is FAILED', async () => {
+        pollTaskStatus = 'FAILED';
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.generateProductImage('test');
+        expect(result).toBeNull();
+    });
+
+    test('returns null when poll status is CANCELED', async () => {
+        pollTaskStatus = 'CANCELED';
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.generateProductImage('test');
+        expect(result).toBeNull();
+    });
+
+    test('returns null when submit returns non-200', async () => {
+        submitStatusCode = 401;
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.generateProductImage('test');
+        expect(result).toBeNull();
+    });
+
+    test('returns null when submit response has no task_id', async () => {
+        // Replace server handler to omit task_id from submit response
+        server.removeAllListeners('request');
+        server.on('request', async (req, res) => {
+            const body = await new Promise<string>(resolve => {
+                let data = '';
+                req.on('data', (c: Buffer) => { data += c.toString(); });
+                req.on('end', () => resolve(data));
+            });
+            requestLog.push({ url: req.url ?? '', method: req.method ?? '', headers: req.headers as Record<string, string>, body });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ output: { task_status: 'PENDING' } })); // No task_id
+        });
+        const service = new CloudAIService('sk-test-key-0123456789');
+        const result = await service.generateProductImage('test');
+        expect(result).toBeNull();
     });
 });
