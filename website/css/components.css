@@ -302,7 +302,7 @@
 .btn--secondary:hover {
   border-color: var(--color-accent-orange);
   color: var(--color-accent-orange);
-  background: rgba(59, 130, 246, 0.06);
+  background: rgba(255, 79, 0, 0.06);
   transform: translateY(-2px);
 }
 
@@ -358,7 +358,7 @@
 .card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-xl);
-  border-color: rgba(59, 130, 246, 0.2);
+  border-color: rgba(255, 79, 0, 0.2);
 }
 
 .card:hover::before {
@@ -369,8 +369,8 @@
   width: 56px;
   height: 56px;
   border-radius: var(--radius-md);
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(255, 79, 0, 0.08);
+  border: 1px solid rgba(255, 79, 0, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -380,7 +380,7 @@
 }
 
 .card:hover .card__icon {
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(255, 79, 0, 0.12);
   box-shadow: 0 0 20px var(--color-accent-glow);
   transform: scale(1.05);
 }
@@ -416,9 +416,9 @@
 }
 
 .badge--accent {
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(255, 79, 0, 0.12);
   color: var(--color-accent-orange);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(255, 79, 0, 0.3);
 }
 
 .badge--popular {
@@ -431,6 +431,14 @@
   background: rgba(34, 197, 94, 0.12);
   color: var(--color-success);
   border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge--enterprise {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.10));
+  color: var(--color-enterprise-gold);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 12px var(--color-enterprise-gold-glow);
+  letter-spacing: var(--tracking-widest);
 }
 
 /* ── Billing Toggle ─────────────────────────── */
@@ -508,7 +516,7 @@
 }
 
 .accordion__item.open {
-  border-color: rgba(59, 130, 246, 0.25);
+  border-color: rgba(255, 79, 0, 0.25);
 }
 
 .accordion__header {
@@ -689,7 +697,7 @@
   font-weight: var(--weight-black);
   font-size: var(--text-lg);
   color: var(--color-accent-orange);
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(255, 79, 0, 0.08);
   flex-shrink: 0;
 }
 
