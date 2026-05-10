@@ -1,0 +1,96 @@
+# ===== Docker Compose for local multi-process development =====
+# Starts both the backend server and Vite dev server with hot-reload.
+#
+# Usage:
+#   AI_KEY=xxx docker compose up          # start with env vars
+#   docker compose up --build               # rebuild after code changes
+#   docker compose down                     # stop
+#
+# Note: This is for LOCAL DEVELOPMENT only.
+# It does NOT serve the marketing site or nginx (not needed when using Vite dev).
+
+services:
+  # Backend API server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Run the TypeScript server in watch mode for dev
+    command: npx tsx watch server/src/index.ts
+    working_dir: /app
+    ports:
+      - "8081:8081"
+    environment:
+      NODE_ENV: development
+      PORT: "8081"
+      AI_KEY: ${AI_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_IMAGE_BASE_URL: ${AI_IMAGE_BASE_URL:-}
+      AI_DISPLAY_NAME: ${AI_DISPLAY_NAME:-}
+      AI_MODEL_FAST: ${AI_MODEL_FAST:-}
+      AI_MODEL_SMART: ${AI_MODEL_SMART:-}
+      AI_MODEL_STRUCTURED: ${AI_MODEL_STRUCTURED:-}
+      AI_MODEL_IMAGE: ${AI_MODEL_IMAGE:-}
+      AI_MODEL_AUDIO: ${AI_MODEL_AUDIO:-}
+      SEARCH_API_KEY: ${SEARCH_API_KEY:-}
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://localhost:8888}
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://localhost:3002}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+      VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+      VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+      VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID:-}
+      VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+      VITE_STRIPE_PRO_MONTHLY_PRICE_ID: ${VITE_STRIPE_PRO_MONTHLY_PRICE_ID:-}
+      VITE_STRIPE_PRO_ANNUAL_PRICE_ID: ${VITE_STRIPE_PRO_ANNUAL_PRICE_ID:-}
+    # Mount source for hot-reload (server/src only — compiled to dist)
+    volumes:
+      - ./server/src:/app/server/src:cached
+      - ./server/dist:/app/server/dist:cached
+      # Bind-mount node_modules to avoid layer cache overhead
+      - api_node_modules:/app/server/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Frontend vite dev server
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npx vite --host 0.0.0.0 --port 3000
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+      VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+      VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+      VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID:-}
+      VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
+      VITE_STRIPE_PRO_MONTHLY_PRICE_ID: ${VITE_STRIPE_PRO_MONTHLY_PRICE_ID:-}
+      VITE_STRIPE_PRO_ANNUAL_PRICE_ID: ${VITE_STRIPE_PRO_ANNUAL_PRICE_ID:-}
+    # Mount source for Vite HMR
+    volumes:
+      - ./src:/app/src:cached
+      - ./public:/app/public:cached
+      - ./vite.config.ts:/app/vite.config.ts:cached
+      - ./package.json:/app/package.json:cached
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  api_node_modules:
+  frontend_node_modules:

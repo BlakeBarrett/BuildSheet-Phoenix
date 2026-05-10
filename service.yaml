@@ -8,9 +8,12 @@ spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/minScale: "0"
-        autoscaling.knative.dev/maxScale: "3"
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
         run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/startupGCD: "true"
+        run.googleapis.com/cpu: "2"
+        run.googleapis.com/memory: "1Gi"
     spec:
       containerConcurrency: 80
       timeoutSeconds: 300
@@ -22,6 +25,25 @@ spec:
             limits:
               cpu: 1000m
               memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: 8081
+            failureThreshold: 30
+            periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
           env:
             # ── AI provider ──────────────────────────────────────────────────
             - name: AI_KEY
@@ -76,6 +98,15 @@ spec:
               value: "${FIRECRAWL_BASE_URL}"
             - name: FIRECRAWL_API_KEY
               value: "${FIRECRAWL_API_KEY}"
+            # ── Server config ────────────────────────────────────────────
+            - name: PORT
+              value: "8080"
+            - name: NODE_ENV
+              value: "production"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/secrets/firebase-admin.json"
+            # ── Startup probe (wait for server to be ready) ───────────────
+            # Note: startup probe is configured via the container lifecycle below
   traffic:
     - percent: 100
       latestRevision: true
