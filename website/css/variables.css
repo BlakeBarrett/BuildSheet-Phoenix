@@ -17,13 +17,23 @@
   --color-charcoal-100: #E5E5E5;
   --color-charcoal-50:  #F5F5F5;
 
-  /* Accent — Safety Orange / Amber */
-  --color-accent-orange: #FF4F00;
-  --color-accent-amber: #FF8C00;
-  --color-accent-orange-dark: #CC3F00;
-  --color-accent-amber-light: #FFB040;
-  --color-accent-glow: rgba(255, 79, 0, 0.25);
-  --color-accent-glow-strong: rgba(255, 79, 0, 0.45);
+  /* Accent — Blue */
+  --color-accent-blue: #3B82F6;
+  --color-accent-blue-light: #60A5FA;
+  --color-accent-blue-dark: #2563EB;
+  --color-accent-blue-lighter: #93C5FD;
+  --color-accent-glow: rgba(59, 130, 246, 0.25);
+  --color-accent-glow-strong: rgba(59, 130, 246, 0.45);
+
+  /* Legacy aliases (keeps component CSS simple) */
+  --color-accent-orange: #3B82F6;
+  --color-accent-amber: #60A5FA;
+  --color-accent-orange-dark: #2563EB;
+  --color-accent-amber-light: #93C5FD;
+  --color-accent-teal: var(--color-accent-orange);
+  --color-accent-cyan: var(--color-accent-amber);
+  --color-accent-teal-dark: var(--color-accent-orange-dark);
+  --color-accent-cyan-light: var(--color-accent-amber-light);
 
   /* Legacy aliases (keeps component CSS simple) */
   --color-accent-teal: var(--color-accent-orange);
