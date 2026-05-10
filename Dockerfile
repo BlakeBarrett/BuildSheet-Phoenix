@@ -4,15 +4,21 @@ FROM node:22-slim
 # Set working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
+# ── Build the React frontend ─────────────────────────────────────────────────
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of your code
 COPY . .
 
-# Build the React app
 RUN npm run build
+
+# ── Build the API server ─────────────────────────────────────────────────────
+WORKDIR /app/server
+RUN npm install
+RUN npm run build
+
+# ── Runtime setup ────────────────────────────────────────────────────────────
+WORKDIR /app
 
 # Install nginx
 RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
@@ -31,5 +37,5 @@ RUN chmod +x env.sh
 # Expose the port
 EXPOSE 8080
 
-# Start nginx via the startup script
+# Start nginx + Node server via the startup script
 CMD ["./env.sh"]

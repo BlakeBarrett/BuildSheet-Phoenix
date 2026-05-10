@@ -1,0 +1,110 @@
+/**
+ * Architect routes — chat (SSE streaming), verify, assembly plan, apply-audit.
+ */
+import { Router, type Request, type Response } from 'express';
+import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { apiRateLimit, generationRateLimit } from '../middleware/rateLimit.js';
+import type { ServerAIService } from '../services/types.js';
+
+export const architectRouter = Router();
+
+function getAI(req: Request): ServerAIService {
+  return (req as any).aiService;
+}
+
+/**
+ * POST /api/v1/architect/chat — SSE streaming architect chat.
+ * 
+ * The response is sent as Server-Sent Events so the client can
+ * render partial results as they arrive.
+ * 
+ * Body: { prompt: string, history: any[], image?: string }
+ * SSE events: { type: 'chunk', data: string } | { type: 'done', data: { text, metadata } }
+ */
+architectRouter.post('/chat', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
+  const { prompt, history = [], image } = req.body;
+  if (!prompt) { res.status(400).json({ error: 'prompt is required' }); return; }
+
+  const ai = getAI(req);
+
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  res.flushHeaders();
+
+  try {
+    // For now, we get the full response and stream it in chunks.
+    // TODO: When the Gemini SDK supports true streaming, switch to generateContentStream.
+    const result = await ai.askArchitect(prompt, history, image);
+    const text = result.text;
+
+    // Simulate streaming by sending the text in chunks
+    const chunkSize = 80;
+    for (let i = 0; i < text.length; i += chunkSize) {
+      const chunk = text.substring(i, i + chunkSize);
+      res.write(`data: ${JSON.stringify({ type: 'chunk', data: chunk })}\n\n`);
+    }
+
+    // Send the final event with full result + metadata
+    res.write(`data: ${JSON.stringify({ type: 'done', data: result })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error('[architect/chat] Error:', err.message);
+    res.write(`data: ${JSON.stringify({ type: 'error', data: err.message })}\n\n`);
+    res.end();
+  }
+});
+
+/**
+ * POST /api/v1/architect/verify — Design verification / audit.
+ * Body: { bom, requirements, previousAudit?, advancedChecks? }
+ */
+architectRouter.post('/verify', requireAuth, generationRateLimit, async (req: Request, res: Response) => {
+  const { bom, requirements, previousAudit, advancedChecks } = req.body;
+  if (!bom || !requirements) { res.status(400).json({ error: 'bom and requirements are required' }); return; }
+
+  try {
+    const ai = getAI(req);
+    const result = await ai.verifyDesign(bom, requirements, previousAudit, advancedChecks);
+    res.json(result);
+  } catch (err: any) {
+    console.error('[architect/verify] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/architect/assembly-plan
+ * Body: { bom, previousPlan? }
+ */
+architectRouter.post('/assembly-plan', requireAuth, generationRateLimit, async (req: Request, res: Response) => {
+  const { bom, previousPlan } = req.body;
+  if (!bom) { res.status(400).json({ error: 'bom is required' }); return; }
+
+  try {
+    const ai = getAI(req);
+    const plan = await ai.generateAssemblyPlan(bom, previousPlan);
+    res.json(plan);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/architect/apply-audit
+ * Body: { bom, auditResult, requirements }
+ */
+architectRouter.post('/apply-audit', requireAuth, apiRateLimit, async (req: Request, res: Response) => {
+  const { bom, auditResult, requirements } = req.body;
+  if (!bom || !auditResult || !requirements) { res.status(400).json({ error: 'bom, auditResult, and requirements are required' }); return; }
+
+  try {
+    const ai = getAI(req);
+    const result = await ai.applyAuditRecommendations(bom, auditResult, requirements);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});

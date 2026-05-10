@@ -1,20 +1,10 @@
 #!/bin/sh
 
-# Create the env-config.js file in the React app webroot
+# Create the env-config.js file in the React app webroot.
+# AI keys are NO LONGER sent to the browser — they stay server-side only.
+# Only Firebase and Stripe config (needed for client-side auth/payments) is exposed.
 cat <<EOF > /var/www/app/env-config.js
 window._env_ = {
-  AI_PROVIDER: "${AI_PROVIDER}",
-  AI_BASE_URL: "${AI_BASE_URL}",
-  AI_DISPLAY_NAME: "${AI_DISPLAY_NAME}",
-  AI_MODEL_FAST: "${AI_MODEL_FAST}",
-  AI_MODEL_SMART: "${AI_MODEL_SMART}",
-  AI_MODEL_STRUCTURED: "${AI_MODEL_STRUCTURED}",
-  AI_MODEL_IMAGE: "${AI_MODEL_IMAGE}",
-  AI_MODEL_AUDIO: "${AI_MODEL_AUDIO}",
-  AI_IMAGE_BASE_URL: "${AI_IMAGE_BASE_URL}",
-  AI_KEY: "${AI_KEY}",
-  API_KEY: "${API_KEY}",
-  GEMINI_API_KEY: "${GEMINI_API_KEY}",
   VITE_FIREBASE_API_KEY: "${VITE_FIREBASE_API_KEY}",
   VITE_FIREBASE_AUTH_DOMAIN: "${VITE_FIREBASE_AUTH_DOMAIN}",
   VITE_FIREBASE_PROJECT_ID: "${VITE_FIREBASE_PROJECT_ID}",
@@ -24,12 +14,13 @@ window._env_ = {
   VITE_FIREBASE_MEASUREMENT_ID: "${VITE_FIREBASE_MEASUREMENT_ID}",
   VITE_RECAPTCHA_SITE_KEY: "${VITE_RECAPTCHA_SITE_KEY}",
   VITE_STRIPE_PRO_MONTHLY_PRICE_ID: "${VITE_STRIPE_PRO_MONTHLY_PRICE_ID}",
-  VITE_STRIPE_PRO_ANNUAL_PRICE_ID: "${VITE_STRIPE_PRO_ANNUAL_PRICE_ID}",
-  LOCAL_ARCHITECT_URL: "${LOCAL_ARCHITECT_URL}",
-  LOCAL_ARCHITECT_MODEL: "${LOCAL_ARCHITECT_MODEL}",
-  SEARCH_API_KEY: "${SEARCH_API_KEY}"
+  VITE_STRIPE_PRO_ANNUAL_PRICE_ID: "${VITE_STRIPE_PRO_ANNUAL_PRICE_ID}"
 };
 EOF
 
-# Start nginx
+# Start the Node.js API server in the background.
+# AI keys and model config are passed via environment variables (already set by Cloud Run).
+cd /app/server && node dist/index.js &
+
+# Start nginx in the foreground.
 exec nginx -g 'daemon off;'
