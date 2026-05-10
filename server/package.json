@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
@@ -21,8 +24,10 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.3",
-    "@types/node": "^22.14.0",
+    "@types/node": "^22.19.18",
+    "@vitest/coverage-v8": "^4.1.5",
     "tsx": "^4.19.4",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vitest": "^4.1.5"
   }
 }
