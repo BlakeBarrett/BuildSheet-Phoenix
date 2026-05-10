@@ -21,17 +21,25 @@ const PORT = parseInt(process.env.PORT || '8081', 10);
 const isDev = process.env.NODE_ENV !== 'production';
 
 // ---------------------------------------------------------------------------
-// Firebase Admin — initialize once
-// ---------------------------------------------------------------------------
+// Firebase Admin — initialize with proper credentials handling
+// ------
 const firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
 if (firebaseProjectId) {
   try {
-    // In production, use Application Default Credentials (Cloud Run injects these).
-    // In dev, set GOOGLE_APPLICATION_CREDENTIALS env var or use gcloud auth.
-    initializeApp({
-      projectId: firebaseProjectId,
-    });
+    let appConfig: any = { projectId: firebaseProjectId };
+    
+    if (credentialsPath) {
+      // Production: load from mounted secrets file (Cloud Run / K8s)
+      appConfig = cert(credentialsPath);
+      console.log('[Server] Firebase Admin initialized from credentials file');
+    } else {
+      // Dev: use Application Default Credentials (ADC) — gcloud CLI or GCP metadata server
+      console.log('[Server] Firebase Admin using Application Default Credentials (ADC)');
+    }
+    
+    initializeApp(appConfig);
     console.log(`[Server] Firebase Admin initialized (project: ${firebaseProjectId})`);
   } catch (err) {
     console.warn('[Server] Firebase Admin init failed — auth middleware will skip token verification:', err);
