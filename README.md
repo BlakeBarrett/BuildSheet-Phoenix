@@ -66,23 +66,52 @@ BuildSheet is the "Top of Funnel" for the Google Industrial Cloud ecosystem:
 
 ---
 
-## 🛠 Deployment & Architecture
+## 🛠 Architecture
 
-This application is a **Local-First**, containerized SPA deployable on Google Cloud Run or on-premise via Docker.
+BuildSheet follows a **backend-for-frontend** pattern: a React thin client communicates with a co-located Express.js API server. API keys and AI orchestration live exclusively on the server — nothing sensitive reaches the browser.
 
-*   **Runtime:** Node.js 18 (React + Vite)
-*   **Persistence:** Browser LocalStorage + IndexedDB (images) + Firestore (authenticated users)
+```
+┌─────────────────────────────────────────────────────────┐
+│  Docker Container (Cloud Run / local)                   │
+│                                                         │
+│  ┌──────────┐       ┌───────────────────────────────┐   │
+│  │  nginx   │──/api/│  Express.js API Server (:8081)│   │
+│  │  (:8080) │       │  • Firebase Admin Auth        │   │
+│  │          │       │  • AI Orchestration (Gemini)  │   │
+│  │  /       │       │  • Procurement Pipeline       │   │
+│  │  → mktg  │       │  • Project CRUD (Firestore)   │   │
+│  │          │       │  • Rate Limiting              │   │
+│  │  /app/   │       └───────────────────────────────┘   │
+│  │  → SPA   │                                           │
+│  └──────────┘                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+*   **Runtime:** Node.js 22 (React + Vite frontend, Express.js backend)
+*   **Frontend:** React SPA with i18next (8 languages), locale-aware formatting
+*   **Backend:** Express.js API server with Firebase Admin SDK
+*   **Persistence:** Firestore (via server-side Admin SDK) + browser IndexedDB (images)
 *   **AI Backend:** Gemini Cloud (default), or self-hosted OpenAI-compatible models
-*   **API Security:** Client-side environmental injection via `env.sh` / `env-config.js`
+*   **API Security:** Firebase ID token verification; all AI keys server-side only
 
 ### Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `API_KEY` / `GEMINI_API_KEY` | Yes* | Gemini API key for generation + search |
-| `SEARCH_API_KEY` | No | Separate API key for search/grounding (defaults to main key) |
-| `LOCAL_ARCHITECT_URL` | No | OpenAI-compatible endpoint for local model |
-| `LOCAL_ARCHITECT_MODEL` | No | Model ID at the local endpoint |
+| `AI_KEY` | Yes* | Primary AI key (server-side only — never sent to browser) |
+| `AI_PROVIDER` | No | `hosted` (Gemini SDK) or `on-prem` (OpenAI-compatible) |
+| `AI_BASE_URL` | No | Base URL for OpenAI-compatible provider |
+| `AI_IMAGE_BASE_URL` | No | Base URL for image generation API |
+| `AI_DISPLAY_NAME` | No | Display name shown in UI for the AI service |
+| `AI_MODEL_FAST` | No | Model for chat, sourcing, component ID |
+| `AI_MODEL_SMART` | No | Model for audit, assembly planning, enclosures |
+| `AI_MODEL_STRUCTURED` | No | Model for structured JSON extraction |
+| `AI_MODEL_IMAGE` | No | Model for image generation |
+| `AI_MODEL_AUDIO` | No | Model for AR guidance |
+| `SEARCH_API_KEY` | No | Separate key for search/grounding (defaults to `AI_KEY`) |
+| `SEARXNG_BASE_URL` | No | SearXNG instance for procurement discovery |
+| `FIRECRAWL_BASE_URL` | No | Firecrawl instance for web page extraction |
+| `FIRECRAWL_API_KEY` | No | Firecrawl API key |
 | `VITE_FIREBASE_*` | No | Firebase config (auth, Firestore, analytics) |
 | `VITE_RECAPTCHA_SITE_KEY` | No | App Check (bot protection) |
 | `VITE_STRIPE_*` | No | Stripe billing integration |
@@ -90,27 +119,97 @@ This application is a **Local-First**, containerized SPA deployable on Google Cl
 \* Not required if all models are configured locally via the Settings Modal.
 
 ### Routing
-The `app.yaml` supports dynamic sharing:
-*   **`/sheet/:slug`**: Routes custom share links (e.g., `buildsheet.app/sheet/gaming-pc-v1`) to the main application for hydration.
+The nginx config supports dynamic sharing:
+*   **`/`** — Marketing website
+*   **`/app/`** — React SPA
+*   **`/api/v1/`** — Backend API server (proxied to Express on port 8081)
+*   **`/{username}/{slug}`** — Share links (fall through to SPA)
 
 ## Simulation Mode
 If no API Key is provided, the app gracefully degrades into **Simulation Mode**, using a deterministic `MockService` to demonstrate the UI and logic flow without consuming API credits.
 
+## 🌐 Internationalization
+
+BuildSheet supports **8 languages** out of the box with auto-detection:
+- 🇺🇸 English, 🇪🇸 Spanish, 🇧🇷 Brazilian Portuguese, 🇩🇪 German, 🇫🇷 French, 🇮🇳 Hindi, 🇰🇪 Swahili, 🇸🇦 Arabic (RTL)
+
+Pricing is locale-aware via `formatPrice()` with 40+ locale→currency mappings.
+
 ## 📁 Project Structure
 
 ```
-services/
-├── aiTypes.ts          # AIService interface (13 methods)
-├── aiManager.ts        # Service factory + API key resolution
-├── geminiService.ts    # Gemini Cloud implementation
-├── localAiService.ts   # Local model implementation (OpenAI-compatible)
-├── hybridAiService.ts  # Router: local vs cloud with fallback chain
-├── parseUtils.ts       # Shared LLM response parsing
-├── mockService.ts      # Offline simulation
+server/                     # Express.js API server (backend)
+├── src/
+│   ├── index.ts            # Entry point — Express app, Firebase Admin
+│   ├── middleware/
+│   │   ├── auth.ts         # Firebase ID token verification
+│   │   └── rateLimit.ts    # Per-user rate limiting
+│   ├── routes/
+│   │   ├── architect.ts    # Chat (SSE streaming), verify, assembly plan
+│   │   ├── sourcing.ts     # Find sources, hydrate, procurement pipeline
+│   │   ├── generation.ts   # Image, fabrication, QA, enclosure, component ID
+│   │   └── projects.ts     # CRUD: list, get, save, delete, archive, duplicate
+│   └── services/
+│       ├── cloudAiService.ts    # Server-side Gemini/OpenAI orchestration
+│       ├── procurementEngine.ts # SearXNG → Firecrawl → LLM verification
+│       ├── aiServiceFactory.ts  # AI service creation from env vars
+│       └── types.ts             # Server-side type definitions
+services/                   # Frontend services (thin client)
+├── apiClient.ts            # HTTP client with Firebase token auth + SSE
+├── aiTypes.ts              # AIService interface (13 methods)
+├── aiManager.ts            # Service factory + API key resolution
+├── cloudAiService.ts       # Client-side AI service (delegates to server API)
+├── hybridAiService.ts      # Router: local vs cloud with fallback chain
+├── i18n.ts                 # 8-language translation bundles
+├── locale.ts               # Locale-aware formatPrice() utility
+├── parseUtils.ts           # Shared LLM response parsing
+├── mockService.ts          # Offline simulation
 └── ...
 docs/
-└── ON_PREM_READINESS.md  # On-prem deployment audit
+└── ON_PREM_READINESS.md    # On-prem deployment audit
 tests/
-├── settingsModal.spec.ts       # Settings UI tests (all 5 model selectors)
-└── localModelRouting.spec.ts   # Zero-leakage routing tests
+├── marketing_site.spec.ts  # Marketing site E2E tests
+├── settingsModal.spec.ts   # Settings UI tests
+└── localModelRouting.spec.ts # Zero-leakage routing tests
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 22+
+- An AI API key (`AI_KEY`)
+
+### Development
+
+```bash
+# 1. Copy and fill in your environment variables
+cp example.env .env
+
+# 2. Install frontend dependencies
+npm install
+
+# 3. Install server dependencies
+cd server && npm install && cd ..
+
+# 4. Start the backend API server (terminal 1)
+cd server && npm run dev
+
+# 5. Start the frontend dev server (terminal 2)
+npm run dev
+
+# Frontend: http://localhost:3000/app/
+# API:      http://localhost:8081/api/v1/health
+```
+
+### Docker (local)
+
+```bash
+./startup_local.sh    # Build & run container
+./shutdown-local.sh   # Stop container
+```
+
+### Deploy to Cloud Run
+
+```bash
+./deploy.sh           # Build, push, deploy
 ```

@@ -124,3 +124,4 @@ docker run -d \
 echo "✅ container started"
 echo "   Marketing site: http://localhost:${HOST_PORT}/"
 echo "   Live Demo app:  http://localhost:${HOST_PORT}/app/"
+echo "   API health:     http://localhost:${HOST_PORT}/api/v1/health"

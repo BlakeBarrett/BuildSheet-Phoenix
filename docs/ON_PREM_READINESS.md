@@ -14,6 +14,8 @@ A comprehensive analysis of every external dependency that would need to be addr
 | **Search API Key** | ✅ Abstracted | Separate `SEARCH_API_KEY` for grounding operations |
 | **Icon Fonts** | ✅ Self-hosted | Material Symbols loaded from `/app/fonts/material-symbols-rounded.woff2` |
 | **Docker/Nginx** | ✅ Ready | Already containerized, nginx serves static assets |
+| **Backend API Server** | ✅ Ready | Express.js server co-located in container, all AI keys server-side |
+| **Project CRUD** | ✅ Server-side | Firestore access via Firebase Admin SDK on the server |
 
 ---
 
@@ -36,25 +38,25 @@ A comprehensive analysis of every external dependency that would need to be addr
 ---
 
 #### 2. Firestore (Project Persistence)
-**Current**: `draftingEngine.ts` stores projects in both `localStorage` + Firestore (for authenticated users). Uses `firebase/firestore` for CRUD, real-time sync, and cloud backup.
+**Current**: Project CRUD now runs server-side via `server/src/routes/projects.ts`, using Firebase Admin SDK. The client calls the backend API (`/api/v1/projects/*`) instead of using the Firestore client SDK directly.
 
-**On-prem impact**: Firestore requires Google Cloud connectivity. Without it, you fall back to localStorage-only — which works but has a 5MB quota limit and no cross-device sync.
+**On-prem impact**: Firestore still requires Google Cloud connectivity. However, since all persistence is now behind the server API, swapping the storage backend is **much simpler** — only the server route handlers need to change, not the client.
 
 **Recommended approach**:
-- Abstract `draftingEngine.ts` storage behind a `StorageBackend` interface:
+- Abstract the project routes' Firestore calls behind a `StorageBackend` interface on the server:
   ```ts
   interface StorageBackend {
-    save(id: string, data: DraftingSession): Promise<void>;
-    load(id: string): Promise<DraftingSession | null>;
-    delete(id: string): Promise<void>;
-    listAll(): Promise<ProjectIndexEntry[]>;
+    save(uid: string, id: string, data: any): Promise<void>;
+    load(uid: string, id: string): Promise<any | null>;
+    delete(uid: string, id: string): Promise<void>;
+    listAll(uid: string): Promise<any[]>;
   }
   ```
-- Implement backends: `FirestoreBackend` (current), `PostgresBackend` (REST API), `LocalStorageBackend` (current fallback)
-- IndexedDB via `idb-keyval` is already used for image storage — this is local and fine for on-prem
+- Implement backends: `FirestoreBackend` (current), `PostgresBackend`, `SQLiteBackend` (air-gapped)
+- IndexedDB via `idb-keyval` is still used client-side for image blob storage — this is local and fine for on-prem
 
-> [!WARNING]
-> Firestore is also used by `TierService` to read custom tier overrides (`customers/{uid}/tier`). This would need its own abstraction or simply be replaced by an env-var/config-file approach for on-prem.
+> [!NOTE]
+> The server-side architecture makes this abstraction significantly easier than the previous client-side approach. Only one file (`projects.ts`) needs to change.
 
 ---
 
@@ -73,14 +75,15 @@ A comprehensive analysis of every external dependency that would need to be addr
 
 ---
 
-#### 4. Google Search Grounding (findPartSources, findLocalSuppliers, hydratePartDetails)
-**Current**: Uses `@google/genai` SDK with `googleSearch` and `googleMaps` tools. Requires Gemini API key.
+#### 4. Google Search Grounding & Procurement Pipeline
+**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts` and `server/src/services/procurementEngine.ts`. The pipeline uses SearXNG (discovery), Firecrawl (extraction), and LLM verification — all from the server, eliminating CORS issues.
 
-**On-prem impact**: These functions make requests to `generativelanguage.googleapis.com`. In a fully air-gapped network, they won't work.
+**On-prem impact**: The Gemini Search Grounding functions still require `generativelanguage.googleapis.com`. However, the SearXNG + Firecrawl pipeline is **fully self-hostable** and works in air-gapped environments.
 
 **Recommended approach**:
-- Already abstracted with `SEARCH_API_KEY` ✅
-- For air-gapped: implement a `SearchProvider` interface:
+- SearXNG and Firecrawl are already configured via env vars (`SEARXNG_BASE_URL`, `FIRECRAWL_BASE_URL`) ✅
+- For air-gapped: point `SEARXNG_BASE_URL` to an internal SearXNG instance connected to an intranet search engine
+- For internal parts catalog: implement a `SearchProvider` interface:
   ```ts
   interface SearchProvider {
     findPartSources(query: string, context?: string): Promise<ShoppingOption[]>;
@@ -88,8 +91,8 @@ A comprehensive analysis of every external dependency that would need to be addr
     hydratePartDetails(name: string, category: string): Promise<Partial<Part>>;
   }
   ```
-- Backends: `GeminiSearchProvider` (current), `VertexAIProductsProvider` (future), `InternalCatalogProvider` (on-prem — queries customer's own parts database via REST)
-- For MVP on-prem: these functions can return `null` gracefully (UI already handles this)
+- Backends: `GeminiSearchProvider` (current), `SearXNGProvider` (self-hosted), `InternalCatalogProvider` (on-prem — queries customer's own parts database via REST)
+- For MVP on-prem: these functions return `null` gracefully (UI already handles this)
 
 ---
 
@@ -130,19 +133,21 @@ The app itself (`index.html`) already self-hosts its icon font.
 | # | Item | Effort | Priority | Approach |
 |---|------|--------|----------|----------|
 | 1 | **Auth Provider Abstraction** | Medium | 🔴 Critical | `AuthProvider` interface + OIDC/LDAP adapter |
-| 2 | **Storage Backend Abstraction** | Medium | 🔴 Critical | `StorageBackend` interface + Postgres/REST adapter |
+| 2 | **Storage Backend Abstraction** | Low | 🟡 Simplified | Server-side only: swap `projects.ts` Firestore calls → Postgres/SQLite |
 | 3 | **Billing Bypass** | Low | 🟢 Easy | `ENTERPRISE_MODE=true` env var → force enterprise tier |
-| 4 | **Search Provider Abstraction** | Medium | 🟡 Nice-to-have | `SearchProvider` interface, graceful `null` for MVP |
+| 4 | **Search Provider Abstraction** | Low | 🟡 Partially done | SearXNG/Firecrawl already self-hostable via env vars |
 | 5 | **Analytics Disable** | Trivial | 🟢 Already done | Omit `VITE_FIREBASE_MEASUREMENT_ID` |
 | 6 | **App Check Disable** | Trivial | 🟢 Already done | Omit `VITE_RECAPTCHA_SITE_KEY` |
 | 7 | **Google Fonts** | N/A | ✅ Not applicable | Marketing site only, not in the app |
+| 8 | **Backend API Server** | N/A | ✅ Already done | All AI keys server-side, co-located in container |
+| 9 | **Project CRUD** | N/A | ✅ Already done | Server-side Firestore via Admin SDK |
 
 ## Recommended Implementation Order
 
 1. **`ENTERPRISE_MODE` env var** — 1 hour. Bypasses Stripe, forces enterprise tier, skips Firebase subscription listeners. Immediate value.
 2. **Auth Provider Interface** — 1-2 days. Abstract `UserService`, implement OIDC adapter. Required for any real Enterprise deployment.
-3. **Storage Backend Interface** — 1-2 days. Abstract `draftingEngine.ts` persistence, implement REST/Postgres backend. Required for multi-user on-prem.
-4. **Search Provider Interface** — 1 day. Already partially done with `SEARCH_API_KEY`. Full abstraction for internal parts catalog integration.
+3. **Storage Backend Interface** — 1 day. Now server-side only: swap Firestore calls in `server/src/routes/projects.ts` with Postgres/SQLite adapter. Much simpler than the previous client-side approach.
+4. **Search Provider Interface** — 0.5 day. SearXNG and Firecrawl are already self-hostable. For internal catalog, implement a REST adapter.
 
 ## env.sh for On-Prem Deployment
 

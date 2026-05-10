@@ -67,6 +67,15 @@ spec:
               value: "${VITE_STRIPE_PRO_MONTHLY_PRICE_ID}"
             - name: VITE_STRIPE_PRO_ANNUAL_PRICE_ID
               value: "${VITE_STRIPE_PRO_ANNUAL_PRICE_ID}"
+            # ── Search & Procurement ──────────────────────────────────────────
+            - name: SEARCH_API_KEY
+              value: "${SEARCH_API_KEY}"
+            - name: SEARXNG_BASE_URL
+              value: "${SEARXNG_BASE_URL}"
+            - name: FIRECRAWL_BASE_URL
+              value: "${FIRECRAWL_BASE_URL}"
+            - name: FIRECRAWL_API_KEY
+              value: "${FIRECRAWL_API_KEY}"
   traffic:
     - percent: 100
       latestRevision: true
