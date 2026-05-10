@@ -10,6 +10,7 @@ import { sourcingRouter } from './routes/sourcing.js';
 import { generationRouter } from './routes/generation.js';
 import { projectsRouter } from './routes/projects.js';
 import { createAiService } from './services/aiServiceFactory.js';
+import { requestLogger } from './middleware/logger.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -57,6 +58,8 @@ app.use(helmet({
 }));
 
 // CORS — in production nginx handles this; in dev we need it for Vite proxy
+// Request logger — first to catch all requests and add request ID
+app.use(requestLogger);
 app.use(cors({
   origin: isDev ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : false,
   credentials: true,
