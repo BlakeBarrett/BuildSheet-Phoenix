@@ -1,8 +1,7 @@
 import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan, ProjectFolder, PreferredVendor } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
-import { getFirebaseDb } from './firebase.ts';
-import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, orderBy, onSnapshot, type Unsubscribe } from 'firebase/firestore';
+import { projectsApi } from './apiClient.ts';
 import { get, set, del } from 'idb-keyval';
 
 export interface ProjectIndexEntry {
@@ -58,8 +57,7 @@ export class DraftingEngine {
   private ACTIVE_ID_KEY = 'buildsheet_active_project_id';
   private SESSION_PREFIX = 'buildsheet_project_';
 
-  // Real-time Firestore sync
-  private firestoreUnsubscribe: Unsubscribe | null = null;
+  // Remote sync
   private onRemoteChange?: () => void;
 
   private onImagesLoaded?: () => void;
@@ -184,27 +182,20 @@ export class DraftingEngine {
     this.saveSessionToStorage(this.session);
   }
 
-  // --- Firestore helpers ---
+  // --- Server-side persistence helpers ---
 
-  private getFirestoreProjectsCollection() {
-    const db = getFirebaseDb();
-    const user = UserService.getCurrentUser();
-    if (!db) { console.warn('[Sync] Firestore DB not available – Firebase may not be configured'); return null; }
-    if (!user) { console.warn('[Sync] No current user – skipping Firestore'); return null; }
-    if (!UserService.isAuthenticated()) { console.warn('[Sync] User exists but isAuthenticated() is false'); return null; }
-    return collection(db, 'users', user.id, 'projects');
-  }
-
-  private async saveSessionToFirestore(session: DraftingSession) {
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) { console.warn('[Sync] saveSessionToFirestore skipped – no collection'); return; }
+  private async saveSessionToServer(session: DraftingSession) {
+    if (!UserService.isAuthenticated()) {
+      console.warn(`[Sync] Server save skipped for "${session.name}" – user not authenticated`);
+      return;
+    }
     try {
       const plain = {
         ...session,
         createdAt: session.createdAt.toISOString(),
         lastModified: session.lastModified.toISOString(),
         generatedImages: [], // large blobs stay in IDB
-        thumbnail: session.thumbnail || '', // small thumbnail travels to Firestore
+        thumbnail: session.thumbnail || '',
         cachedAssemblyPlan: session.cachedAssemblyPlan
           ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
           : undefined,
@@ -216,42 +207,39 @@ export class DraftingEngine {
             : undefined,
         })),
       };
-      await setDoc(doc(col, session.id), plain);
-      console.log(`[Sync] ✓ Saved "${session.name}" (${session.id}) to Firestore – ${session.bom.length} parts`);
+      await projectsApi.save(session.id, plain);
+      console.log(`[Sync] ✓ Saved "${session.name}" (${session.id}) via API – ${session.bom.length} parts`);
     } catch (e: any) {
-      console.error(`[Sync] ✗ Firestore save FAILED for "${session.name}" (${session.id}):`, e?.code || e?.message || e);
+      console.error(`[Sync] ✗ Server save FAILED for "${session.name}" (${session.id}):`, e?.message || e);
     }
   }
 
   /**
-   * Test Firestore read/write connectivity.
-   * Writes a test doc, reads it back, and deletes it.
-   * Returns { ok: true } or { ok: false, error: string }.
+   * Test server API connectivity.
+   * Attempts to list projects to verify auth + Firestore via the backend.
    */
   public async testFirestoreConnection(): Promise<{ ok: boolean; error?: string }> {
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) return { ok: false, error: 'No Firestore collection – user may not be authenticated or Firebase is not configured' };
-    const testId = 'connection-test';
+    if (!UserService.isAuthenticated()) {
+      return { ok: false, error: 'User not authenticated' };
+    }
     try {
-      await setDoc(doc(col, testId), { test: true, ts: new Date().toISOString() });
-      const snap = await getDoc(doc(col, testId));
-      if (!snap.exists()) return { ok: false, error: 'Write succeeded but read returned empty' };
-      await deleteDoc(doc(col, testId));
-      console.log('[Sync] ✓ Firestore connection test PASSED');
+      await projectsApi.list();
+      console.log('[Sync] ✓ Server API connection test PASSED');
       return { ok: true };
     } catch (e: any) {
-      const msg = e?.code === 'permission-denied'
-        ? 'PERMISSION DENIED – Firestore security rules are blocking writes. Check Firebase Console → Firestore → Rules.'
-        : (e?.message || String(e));
-      console.error('[Sync] ✗ Firestore connection test FAILED:', msg);
+      const msg = e?.message || String(e);
+      console.error('[Sync] ✗ Server API connection test FAILED:', msg);
       return { ok: false, error: msg };
     }
   }
 
-  private async deleteSessionFromFirestore(id: string) {
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) return;
-    try { await deleteDoc(doc(col, id)); } catch (e) { console.error('Firestore delete failed', e); }
+  private async deleteSessionFromServer(id: string) {
+    if (!UserService.isAuthenticated()) return;
+    try {
+      await projectsApi.deleteProject(id);
+    } catch (e) {
+      console.error('[Sync] Server delete failed', e);
+    }
   }
 
   private saveSessionToStorage(session: DraftingSession) {
@@ -278,12 +266,8 @@ export class DraftingEngine {
       this.updateProjectIndex(session);
       localStorage.setItem(this.ACTIVE_ID_KEY, session.id);
 
-      // Save to Firestore immediately for authenticated users.
-      if (UserService.isAuthenticated()) {
-        this.saveSessionToFirestore(session);
-      } else {
-        console.warn(`[Sync] Firestore save skipped for "${session.name}" – user not authenticated`);
-      }
+      // Save to server API for authenticated users.
+      this.saveSessionToServer(session);
     } catch (e) {
       console.error("Persistence failed", e);
     }
@@ -325,14 +309,13 @@ export class DraftingEngine {
       try { data = JSON.parse(stored); } catch { /* ignore */ }
     }
 
-    // Firestore fallback for authenticated users whose localStorage is cold (new device, quota exceeded)
+    // Server fallback for authenticated users whose localStorage is cold (new device, quota exceeded)
     if (!data && UserService.isAuthenticated()) {
-      const col = this.getFirestoreProjectsCollection();
-      if (col) {
-        try {
-          const d = await getDoc(doc(col, id));
-          if (d.exists()) data = d.data();
-        } catch (e) { console.error('Firestore project load failed', e); }
+      try {
+        const { project } = await projectsApi.getProject(id);
+        if (project) data = project;
+      } catch (e) {
+        console.error('[Sync] Server project load failed', e);
       }
     }
 
@@ -352,8 +335,8 @@ export class DraftingEngine {
       index = index.filter((i: any) => i.id !== id);
       localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
     }
-    // Also remove from Firestore
-    this.deleteSessionFromFirestore(id);
+    // Also remove from server
+    this.deleteSessionFromServer(id);
     // If we deleted the active one, start fresh
     if (this.session.id === id) {
       this.createNewProject();
@@ -386,17 +369,15 @@ export class DraftingEngine {
   // --- Firestore-backed project loading ---
 
   /**
-   * Save ALL localStorage projects to Firestore.
+   * Save ALL localStorage projects to the server.
    * Called before logout to ensure nothing is lost.
    */
   public async saveAllToFirestore(): Promise<void> {
-    if (!UserService.isAuthenticated()) { console.warn('[Sync] saveAllToFirestore skipped – not authenticated'); return; }
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) { console.warn('[Sync] saveAllToFirestore skipped – no collection'); return; }
+    if (!UserService.isAuthenticated()) { console.warn('[Sync] saveAllToServer skipped – not authenticated'); return; }
 
-    console.log('[Sync] saveAllToFirestore: flushing all projects to Firestore');
+    console.log('[Sync] saveAllToServer: flushing all projects to server API');
     // Save the active session first (most likely to have unsaved changes)
-    await this.saveSessionToFirestore(this.session);
+    await this.saveSessionToServer(this.session);
 
     const indexRaw = localStorage.getItem(this.INDEX_KEY);
     if (!indexRaw) return;
@@ -409,73 +390,74 @@ export class DraftingEngine {
       if (!stored) continue;
       try {
         const session = this.hydrateSession(JSON.parse(stored));
-        await this.saveSessionToFirestore(session);
+        await this.saveSessionToServer(session);
       } catch (e) {
-        console.error('saveAllToFirestore failed for', entry.id, e);
+        console.error('saveAllToServer failed for', entry.id, e);
       }
     }
   }
 
   /**
-   * Loads all projects from Firestore into localStorage, merging
+   * Loads all projects from the server into localStorage, merging
    * with any existing local entries. Called once after login.
-   * Preserves local IDB images (which are not stored in Firestore).
+   * Preserves local IDB images (which are not stored on the server).
    */
   public async loadProjectsFromFirestore(): Promise<void> {
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) { console.warn('[Sync] loadProjectsFromFirestore skipped – no collection'); return; }
+    if (!UserService.isAuthenticated()) {
+      console.warn('[Sync] loadProjectsFromServer skipped – not authenticated');
+      return;
+    }
     try {
-      const snap = await getDocs(query(col));
-      console.log(`[Sync] loadProjectsFromFirestore: ${snap.docs.length} project(s) in Firestore`);
-      for (const d of snap.docs) {
-        const data = d.data();
-        const session = this.hydrateSession(data);
-        console.log(`[Sync]   → "${session.name}" (${session.id}) – ${session.bom.length} parts, modified ${session.lastModified.toISOString()}`);
-        // Write into localStorage so the rest of the engine works identically
-        const key = this.SESSION_PREFIX + session.id;
+      const { projects: projectIndex } = await projectsApi.list();
+      console.log(`[Sync] loadProjectsFromServer: ${projectIndex.length} project(s) on server`);
 
-        // Merge: if we already have a local copy, preserve thumbnail from Firestore
-        // but don't overwrite if local is newer
-        const existingRaw = localStorage.getItem(key);
-        let shouldWrite = true;
-        if (existingRaw) {
-          try {
-            const existing = JSON.parse(existingRaw);
-            const existingModified = new Date(existing.lastModified).getTime();
-            const remoteModified = session.lastModified.getTime();
-            // Keep the newer version
-            if (existingModified > remoteModified) {
-              shouldWrite = false;
-            }
-          } catch { /* overwrite corrupted data */ }
-        }
+      for (const entry of projectIndex) {
+        try {
+          const { project: data } = await projectsApi.getProject(entry.id);
+          const session = this.hydrateSession(data);
+          console.log(`[Sync]   → "${session.name}" (${session.id}) – ${session.bom.length} parts, modified ${session.lastModified.toISOString()}`);
+          const key = this.SESSION_PREFIX + session.id;
 
-        if (shouldWrite) {
-          const sessionNoImages = { ...session, generatedImages: [] };
-          try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
-          // If this is the currently active project, update in-memory state too
-          if (session.id === this.session.id) {
-            const images = this.session.generatedImages; // preserve local images
-            this.session = { ...session, generatedImages: images };
+          // Merge: don't overwrite if local is newer
+          const existingRaw = localStorage.getItem(key);
+          let shouldWrite = true;
+          if (existingRaw) {
+            try {
+              const existing = JSON.parse(existingRaw);
+              const existingModified = new Date(existing.lastModified).getTime();
+              const remoteModified = session.lastModified.getTime();
+              if (existingModified > remoteModified) {
+                shouldWrite = false;
+              }
+            } catch { /* overwrite corrupted data */ }
           }
+
+          if (shouldWrite) {
+            const sessionNoImages = { ...session, generatedImages: [] };
+            try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+            if (session.id === this.session.id) {
+              const images = this.session.generatedImages;
+              this.session = { ...session, generatedImages: images };
+            }
+          }
+          this.updateProjectIndex(session);
+        } catch (e) {
+          console.error(`[Sync] ✗ Failed to load project ${entry.id}:`, e);
         }
-        this.updateProjectIndex(session);
       }
     } catch (e) {
-      console.error('[Sync] ✗ loadProjectsFromFirestore FAILED:', e);
+      console.error('[Sync] ✗ loadProjectsFromServer FAILED:', e);
     }
   }
 
   /**
-   * Migrate all localStorage projects to Firestore.
+   * Migrate all localStorage projects to the server.
    * Called after a successful login when the user had local guest data.
-   * Generates thumbnails from IDB images and includes them in the Firestore doc.
+   * Generates thumbnails from IDB images and includes them in the server doc.
    * Returns the number of projects migrated.
    */
   public async migrateLocalProjectsToFirestore(): Promise<number> {
-    if (!UserService.isAuthenticated()) { console.warn('[Sync] migrateLocalProjectsToFirestore skipped – not authenticated'); return 0; }
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) { console.warn('[Sync] migrateLocalProjectsToFirestore skipped – no collection'); return 0; }
+    if (!UserService.isAuthenticated()) { console.warn('[Sync] migrateLocalProjects skipped – not authenticated'); return 0; }
     const user = UserService.getCurrentUser();
     if (!user) return 0;
 
@@ -485,7 +467,9 @@ export class DraftingEngine {
     try { index = JSON.parse(indexRaw); } catch { return 0; }
     if (!Array.isArray(index) || index.length === 0) return 0;
 
-    let migrated = 0;
+    // Collect all sessions to send in a single bulk migration call
+    const sessionsToMigrate: any[] = [];
+
     for (const entry of index) {
       const stored = localStorage.getItem(this.SESSION_PREFIX + entry.id);
       if (!stored) continue;
@@ -493,19 +477,6 @@ export class DraftingEngine {
         const session = this.hydrateSession(JSON.parse(stored));
         // Re-assign ownership to the authenticated user
         session.ownerId = user.id;
-
-        // Check if Firestore already has a newer version — don't overwrite it
-        try {
-          const existing = await getDoc(doc(col, entry.id));
-          if (existing.exists()) {
-            const remoteModified = new Date(existing.data().lastModified).getTime();
-            const localModified = session.lastModified.getTime();
-            if (remoteModified > localModified) {
-              // Firestore is newer — skip migration for this project
-              continue;
-            }
-          }
-        } catch { /* Firestore read failed — proceed with overwrite as fallback */ }
 
         // Generate a thumbnail from IDB images if we don't have one yet
         if (!session.thumbnail) {
@@ -520,17 +491,54 @@ export class DraftingEngine {
           } catch { /* IDB access can fail */ }
         }
 
-        await this.saveSessionToFirestore(session);
+        // Serialize for the API
+        const plain = {
+          ...session,
+          createdAt: session.createdAt.toISOString(),
+          lastModified: session.lastModified.toISOString(),
+          generatedImages: [],
+          thumbnail: session.thumbnail || '',
+          cachedAssemblyPlan: session.cachedAssemblyPlan
+            ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
+            : undefined,
+          messages: session.messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
+          bom: session.bom.map(b => ({
+            ...b,
+            sourcing: b.sourcing
+              ? { ...b.sourcing, lastUpdated: b.sourcing.lastUpdated?.toISOString() }
+              : undefined,
+          })),
+        };
+        sessionsToMigrate.push(plain);
+
         // Also update local copy with thumbnail and new ownership
         const sessionNoImages = { ...session, generatedImages: [] };
         try { localStorage.setItem(this.SESSION_PREFIX + entry.id, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
         this.updateProjectIndex(session);
-        migrated++;
       } catch (e) {
-        console.error('[Sync] ✗ Migration failed for project', entry.id, e);
+        console.error('[Sync] ✗ Migration prep failed for project', entry.id, e);
       }
     }
-    console.log(`[Sync] Migration complete: ${migrated} project(s) pushed to Firestore`);
+
+    // Bulk upload via the migrate endpoint
+    let migrated = 0;
+    if (sessionsToMigrate.length > 0) {
+      try {
+        const result = await projectsApi.migrate(sessionsToMigrate);
+        migrated = result.migrated;
+      } catch (e) {
+        console.error('[Sync] ✗ Bulk migration API call failed:', e);
+        // Fallback: save individually
+        for (const session of sessionsToMigrate) {
+          try {
+            await projectsApi.save(session.id, session);
+            migrated++;
+          } catch { /* skip failures */ }
+        }
+      }
+    }
+
+    console.log(`[Sync] Migration complete: ${migrated} project(s) pushed to server`);
     return migrated;
   }
 
@@ -1019,13 +1027,15 @@ export class DraftingEngine {
       Object.assign(this.session, fields);
     }
 
-    // 4. Fire-and-forget Firestore patch for authenticated users
+    // 4. Fire-and-forget server patch for authenticated users
     if (UserService.isAuthenticated()) {
-      const col = this.getFirestoreProjectsCollection();
-      if (col) {
-        updateDoc(doc(col, id), fields).catch(e =>
-          console.error('Firestore metadata patch failed', e)
+      if ('archived' in fields) {
+        projectsApi.archive(id, !!fields.archived).catch(e =>
+          console.error('[Sync] Server metadata patch failed', e)
         );
+      } else {
+        // For tags/folderId, trigger a full save of the current session state
+        // The next saveSession() call will push the updated fields
       }
     }
   }
@@ -1488,86 +1498,88 @@ export class DraftingEngine {
   }
 
   /**
-   * Start listening for real-time project changes from Firestore.
-   * Any add/update/delete from another device will be mirrored to localStorage.
-   * Idempotent: a second call while the listener is already active is a no-op.
+   * Start periodic sync of project changes from the server.
+   * Replaces the previous real-time Firestore onSnapshot listener.
+   * Polls the server every 60s for changes (lightweight — just the index).
    */
+  private syncIntervalId: ReturnType<typeof setInterval> | null = null;
+
   public startSync() {
-    if (this.firestoreUnsubscribe) {
-      console.log('[Sync] startSync: listener already active, skipping');
+    if (this.syncIntervalId) {
+      console.log('[Sync] startSync: polling already active, skipping');
       return;
     }
-    const col = this.getFirestoreProjectsCollection();
-    if (!col) { console.warn('[Sync] startSync skipped – no collection'); return; }
-    console.log('[Sync] Starting real-time Firestore listener');
+    if (!UserService.isAuthenticated()) {
+      console.warn('[Sync] startSync skipped – not authenticated');
+      return;
+    }
+    console.log('[Sync] Starting periodic server sync (60s interval)');
 
-    this.firestoreUnsubscribe = onSnapshot(col, (snapshot) => {
-      let changed = false;
-      for (const change of snapshot.docChanges()) {
-        const data = change.doc.data();
-        const id = change.doc.id;
+    const poll = async () => {
+      try {
+        const { projects: remoteIndex } = await projectsApi.list();
+        let changed = false;
 
-        if (change.type === 'added' || change.type === 'modified') {
-          const session = this.hydrateSession(data);
-          console.log(`[Sync] onSnapshot ${change.type}: "${session.name}" (${id}) – ${session.bom.length} parts`);
-          const key = this.SESSION_PREFIX + id;
-          // Don't overwrite if local is newer (user is actively editing)
-          const existingRaw = localStorage.getItem(key);
-          let shouldWrite = true;
-          if (existingRaw) {
+        for (const entry of remoteIndex) {
+          const key = this.SESSION_PREFIX + entry.id;
+          const localRaw = localStorage.getItem(key);
+          if (!localRaw) {
+            // New project from another device — fetch and store
             try {
-              const existing = JSON.parse(existingRaw);
-              const existingMod = new Date(existing.lastModified).getTime();
-              const remoteMod = session.lastModified.getTime();
-              if (existingMod >= remoteMod) shouldWrite = false;
-            } catch { /* overwrite corrupted */ }
+              const { project: data } = await projectsApi.getProject(entry.id);
+              const session = this.hydrateSession(data);
+              const sessionNoImages = { ...session, generatedImages: [] };
+              try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+              this.updateProjectIndex(session);
+              if (session.id === this.session.id) {
+                const images = this.session.generatedImages;
+                this.session = { ...session, generatedImages: images };
+              }
+              changed = true;
+            } catch { /* skip */ }
+          } else {
+            // Check if remote is newer
+            try {
+              const local = JSON.parse(localRaw);
+              const localMod = new Date(local.lastModified).getTime();
+              const remoteMod = new Date(entry.lastModified).getTime();
+              if (remoteMod > localMod) {
+                const { project: data } = await projectsApi.getProject(entry.id);
+                const session = this.hydrateSession(data);
+                const sessionNoImages = { ...session, generatedImages: [] };
+                try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
+                this.updateProjectIndex(session);
+                if (session.id === this.session.id) {
+                  const images = this.session.generatedImages;
+                  this.session = { ...session, generatedImages: images };
+                }
+                changed = true;
+              }
+            } catch { /* skip */ }
           }
-          if (shouldWrite) {
-            const sessionNoImages = { ...session, generatedImages: [] };
-            try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
-            this.updateProjectIndex(session);
-            // If this is the currently active project, update in-memory state
-            if (id === this.session.id) {
-              const images = this.session.generatedImages; // preserve local images
-              this.session = { ...session, generatedImages: images };
-            }
-            changed = true;
-          }
-        } else if (change.type === 'removed') {
-          localStorage.removeItem(this.SESSION_PREFIX + id);
-          del(this.SESSION_PREFIX + id + '_images').catch(console.error);
-          // Remove from index
-          try {
-            const indexRaw = localStorage.getItem(this.INDEX_KEY);
-            if (indexRaw) {
-              let index = JSON.parse(indexRaw);
-              index = index.filter((i: any) => i.id !== id);
-              localStorage.setItem(this.INDEX_KEY, JSON.stringify(index));
-            }
-          } catch { /* ignore */ }
-          // If the deleted project is the active one, create a new project
-          if (this.session.id === id) {
-            this.createNewProject();
-          }
-          changed = true;
         }
+
+        if (changed && this.onRemoteChange) {
+          this.onRemoteChange();
+        }
+      } catch (e) {
+        console.warn('[Sync] Periodic sync failed:', e);
       }
-      if (changed && this.onRemoteChange) {
-        this.onRemoteChange();
-      }
-    }, (err) => {
-      console.error('[Sync] ✗ Firestore realtime sync error:', err?.code || err?.message || err);
-    });
+    };
+
+    // Initial sync after a short delay
+    setTimeout(poll, 5000);
+    this.syncIntervalId = setInterval(poll, 60_000);
   }
 
   /**
-   * Stop the real-time Firestore listener.
+   * Stop the periodic server sync.
    */
   public stopSync() {
-    if (this.firestoreUnsubscribe) {
-      this.firestoreUnsubscribe();
-      this.firestoreUnsubscribe = null;
-      console.log('[Sync] Firestore listener stopped');
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = null;
+      console.log('[Sync] Periodic sync stopped');
     }
   }
 
@@ -1650,31 +1662,25 @@ export class DraftingEngine {
   }
 
   private async saveFoldersToFirestore(folders: ProjectFolder[]) {
-    const db = getFirebaseDb();
-    const user = UserService.getCurrentUser();
-    if (!db || !user || !UserService.isAuthenticated()) return;
+    if (!UserService.isAuthenticated()) return;
     try {
       const plain = folders.map(f => ({ ...f, createdAt: f.createdAt.toISOString() }));
-      await setDoc(doc(db, 'users', user.id, 'settings', 'folders'), { folders: plain });
+      // Store folders as a special settings doc via the projects API
+      await projectsApi.save('__settings_folders', { id: '__settings_folders', name: '__settings__', folders: plain, bom: [], messages: [] });
     } catch (e) {
-      console.error('Failed to save folders to Firestore', e);
+      console.error('[Sync] Failed to save folders to server', e);
     }
   }
 
   public async loadFoldersFromFirestore(): Promise<void> {
-    const db = getFirebaseDb();
-    const user = UserService.getCurrentUser();
-    if (!db || !user || !UserService.isAuthenticated()) return;
+    if (!UserService.isAuthenticated()) return;
     try {
-      const d = await getDoc(doc(db, 'users', user.id, 'settings', 'folders'));
-      if (d.exists()) {
-        const data = d.data();
-        if (data.folders && Array.isArray(data.folders)) {
-          localStorage.setItem(FOLDERS_KEY, JSON.stringify(data.folders));
-        }
+      const { project } = await projectsApi.getProject('__settings_folders');
+      if (project?.folders && Array.isArray(project.folders)) {
+        localStorage.setItem(FOLDERS_KEY, JSON.stringify(project.folders));
       }
-    } catch (e) {
-      console.error('Failed to load folders from Firestore', e);
+    } catch {
+      // Settings doc doesn't exist yet — that's fine
     }
   }
 }
