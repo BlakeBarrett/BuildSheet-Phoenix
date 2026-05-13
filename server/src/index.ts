@@ -9,6 +9,7 @@ import { architectRouter } from './routes/architect.js';
 import { sourcingRouter } from './routes/sourcing.js';
 import { generationRouter } from './routes/generation.js';
 import { projectsRouter } from './routes/projects.js';
+import { sharesRouter, sharePageRouter } from './routes/shares.js';
 import { createAiService } from './services/aiServiceFactory.js';
 import { requestLogger } from './middleware/logger.js';
 
@@ -92,6 +93,9 @@ app.get('/api/v1/health', (_req, res) => {
 // API Routes
 // ---------------------------------------------------------------------------
 
+// Public share pages — served BEFORE /api middleware (no auth needed)
+app.use('/share', sharePageRouter);
+
 // Attach the AI service to the request for route handlers
 app.use('/api/v1', (req, _res, next) => {
   (req as any).aiService = aiService;
@@ -102,6 +106,7 @@ app.use('/api/v1/architect', architectRouter);
 app.use('/api/v1/sourcing', sourcingRouter);
 app.use('/api/v1/generate', generationRouter);
 app.use('/api/v1/projects', projectsRouter);
+app.use('/api/v1/shares', sharesRouter);
 
 // ---------------------------------------------------------------------------
 // Error Handler

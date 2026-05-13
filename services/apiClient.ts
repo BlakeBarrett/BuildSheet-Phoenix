@@ -237,6 +237,19 @@ export const projectsApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Shares API
+// ---------------------------------------------------------------------------
+
+export const sharesApi = {
+  create: (data: { projectId: string; name: string; description: string; assemblyUrl?: string; slug?: string; bom: { name: string; category: string; quantity: number }[] }) =>
+    post<{ ok: boolean; shareId: string; slug: string; url: string }>('/shares', data),
+
+  mine: () => get<{ shares: any[] }>('/shares/mine'),
+
+  getShare: (slug: string) => get<{ share: any }>(`/shares/${slug}`),
+};
+
+// ---------------------------------------------------------------------------
 // Health Check
 // ---------------------------------------------------------------------------
 

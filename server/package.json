@@ -19,6 +19,7 @@
     "express-rate-limit": "^7.5.0",
     "firebase-admin": "^13.4.0",
     "helmet": "^8.1.0",
+    "nanoid": "^5.1.11",
     "pino-http": "^11.0.0"
   },
   "devDependencies": {
