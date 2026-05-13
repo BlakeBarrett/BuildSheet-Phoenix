@@ -3,6 +3,7 @@ import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine, DraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
+import { sharesApi } from './services/apiClient.ts';
 import { UserService } from './services/userService.ts';
 import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
@@ -1851,6 +1852,8 @@ const AppContent: React.FC = () => {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [editTitleValue, setEditTitleValue] = useState(session.name || '');
     const [shareToast, setShareToast] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
 
     // Auth dropdown
     const [authMenuOpen, setAuthMenuOpen] = useState(false);
@@ -1946,7 +1949,7 @@ const AppContent: React.FC = () => {
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Load shared project from URL ?shared= parameter
+    // Load shared project from URL ?shared= parameter (legacy base64 links)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const shared = params.get('shared');
@@ -1961,6 +1964,43 @@ const AppContent: React.FC = () => {
             if (window.history?.replaceState) {
                 window.history.replaceState(null, '', window.location.pathname);
             }
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Remix: load a shared build from the server API via ?remix= parameter
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const remixSlug = params.get('remix');
+        if (!remixSlug) return;
+
+        (async () => {
+            try {
+                const { share } = await sharesApi.getShare(remixSlug);
+                if (share) {
+                    // Create a new project from the shared BOM
+                    draftingEngine.createNewSession(`${share.name} (Remix)`);
+                    if (share.description) {
+                        draftingEngine.getSession().requirements = share.description;
+                    }
+                    // Add each BOM entry from the shared build
+                    for (const entry of (share.bom || [])) {
+                        draftingEngine.addPart(
+                            entry.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                            entry.name,
+                            entry.category || 'General',
+                            entry.quantity || 1
+                        );
+                    }
+                    refreshState();
+                }
+            } catch (err) {
+                console.warn('[Remix] Failed to load shared build:', err);
+            }
+        })();
+
+        // Clean the query param
+        if (window.history?.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname);
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2594,6 +2634,39 @@ const AppContent: React.FC = () => {
         URL.revokeObjectURL(url);
     };
 
+    const handleShareBuild = async () => {
+        if (isSharing || session.bom.length === 0) return;
+        setIsSharing(true);
+        try {
+            const bomSnapshot = session.bom.map(entry => ({
+                name: entry.part.name,
+                category: entry.part.category,
+                quantity: entry.quantity,
+            }));
+            const result = await sharesApi.create({
+                projectId: session.id,
+                name: session.name || 'Untitled Build',
+                description: session.requirements || '',
+                bom: bomSnapshot,
+            });
+            const fullUrl = `${window.location.origin}/share/${result.slug}`;
+            setShareUrl(fullUrl);
+            await navigator.clipboard.writeText(fullUrl);
+            setShareToast(true);
+            setTimeout(() => setShareToast(false), 3000);
+        } catch (err: any) {
+            console.error('[Share] Failed to create share link:', err);
+            // Fallback: copy the old-style base64 link
+            const url = window.location.origin + draftingEngine.getShareUrl();
+            navigator.clipboard.writeText(url).then(() => {
+                setShareToast(true);
+                setTimeout(() => setShareToast(false), 2000);
+            });
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
     const handleExportCSV = () => {
         const csv = draftingEngine.exportCSV();
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -3131,6 +3204,11 @@ const AppContent: React.FC = () => {
                                             <span className="material-symbols-rounded text-[18px]">file_open</span>Import BOM
                                         </button>
 
+                                        <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1 mt-1">Share</div>
+                                        <button onClick={() => { setNavOverflowOpen(false); handleShareBuild(); }} disabled={session.bom.length === 0 || isSharing} className={`flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-colors text-left ${session.bom.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-700 hover:bg-indigo-50 hover:text-indigo-700'}`} role="menuitem">
+                                            <span className="material-symbols-rounded text-[18px]">{isSharing ? 'hourglass_empty' : 'share'}</span>{isSharing ? 'Creating Link...' : 'Share Build'}
+                                        </button>
+
                                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1 mt-1">Tools</div>
                                         <button onClick={() => { setNavOverflowOpen(false); setScanPartOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left" role="menuitem">
                                             <span className="material-symbols-rounded text-[18px]">photo_camera</span>Scan Part
@@ -3288,20 +3366,14 @@ const AppContent: React.FC = () => {
                         <div className="flex gap-2 items-center shrink-0 ml-3">
                             <div className="relative">
                                 <IconButton
-                                    icon="share"
-                                    title="Copy share link"
-                                    onClick={() => {
-                                        const url = window.location.origin + draftingEngine.getShareUrl();
-                                        navigator.clipboard.writeText(url).then(() => {
-                                            setShareToast(true);
-                                            setTimeout(() => setShareToast(false), 2000);
-                                        });
-                                    }}
-                                    className="text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                                    icon={isSharing ? 'hourglass_empty' : 'share'}
+                                    title={session.bom.length === 0 ? 'Add parts to share' : 'Share this build'}
+                                    onClick={handleShareBuild}
+                                    className={`${session.bom.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'} ${isSharing ? 'animate-spin' : ''}`}
                                 />
                                 {shareToast && (
-                                    <div className="absolute top-full right-0 mt-2 bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 z-30">
-                                        Link Copied!
+                                    <div className="absolute top-full right-0 mt-2 bg-indigo-600 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 z-30">
+                                        ✓ Share Link Copied!
                                     </div>
                                 )}
                             </div>
