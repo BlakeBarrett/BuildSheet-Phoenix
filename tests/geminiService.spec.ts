@@ -33,17 +33,27 @@ test.describe('CloudAIService — on-prem path', () => {
     let restore: () => void;
 
     test.beforeEach(() => {
+        // Support both Node and Browser contexts
+        if (typeof window !== 'undefined') {
+            (window as any)._env_ = (window as any)._env_ || {};
+            (window as any)._env_.AI_PROVIDER = 'on-prem';
+            (window as any)._env_.AI_BASE_URL = 'https://dashscope-us.aliyuncs.com/compatible-mode/v1';
+        }
         process.env.AI_PROVIDER = 'on-prem';
         process.env.AI_BASE_URL = 'https://dashscope-us.aliyuncs.com/compatible-mode/v1';
     });
 
     test.afterEach(() => {
+        if (typeof window !== 'undefined' && (window as any)._env_) {
+            delete (window as any)._env_.AI_PROVIDER;
+            delete (window as any)._env_.AI_BASE_URL;
+        }
         delete process.env.AI_PROVIDER;
         delete process.env.AI_BASE_URL;
         if (restore) restore();
     });
 
-    test('askArchitect POSTs to /chat/completions with bearer token', async () => {
+    test('askArchitect POSTs to internal /api/v1/ai/chat', async () => {
         const calls: FetchArgs[] = [];
         restore = mockFetch((url, init) => {
             calls.push({ url, init });
@@ -54,9 +64,8 @@ test.describe('CloudAIService — on-prem path', () => {
         const result = await service.askArchitect('Build me an LED circuit', []);
 
         expect(calls).toHaveLength(1);
-        expect(calls[0].url).toContain('/chat/completions');
+        expect(calls[0].url).toContain('/api/v1/ai/chat');
         expect(calls[0].init.headers).toMatchObject({
-            'Authorization': 'Bearer sk-test-key-0123456789',
             'Content-Type': 'application/json',
         });
         expect(result.text).toContain('addPart');
@@ -96,17 +105,17 @@ test.describe('CloudAIService — on-prem path', () => {
         expect(roles).toContain('assistant');
     });
 
-    test('generateStructuredJson sends response_format: json_object', async () => {
-        let capturedBody: any;
+    test('generateStructuredJson sends request to /api/v1/ai/generate-structured', async () => {
+        let capturedUrl: string = '';
         restore = mockFetch((url, init) => {
-            capturedBody = JSON.parse(init.body as string);
+            capturedUrl = url;
             return chatCompletionsResponse('{"price": 12.99, "brand": "Acme"}');
         });
 
         const service = new CloudAIService('sk-test-key-0123456789');
         await service.generateStructuredJson('price for a 5mm LED', {});
 
-        expect(capturedBody.response_format).toEqual({ type: 'json_object' });
+        expect(capturedUrl).toContain('/api/v1/ai/generate-structured');
     });
 });
 

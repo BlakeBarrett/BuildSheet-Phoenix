@@ -830,8 +830,8 @@ test.describe('VerifiedProcurementEngine', () => {
       // Verify the fallback guard exists
       expect(appSource).toContain("procResult.status !== 'ERROR'");
       // Verify legacy fallback path is still present
-      expect(appSource).toContain('findPartSources');
-      expect(appSource).toContain('findLocalSuppliers');
+      expect(appSource).toContain('sourcingApi.find');
+      expect(appSource).toContain('sourcingApi.local');
     });
   });
 });

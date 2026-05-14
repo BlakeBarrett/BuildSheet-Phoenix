@@ -2,7 +2,6 @@ import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { CloudAIService } from "./cloudAiService.ts";
 import { LocalArchitectService, LocalModelProvider, getLocalProvider } from "./localAiService.ts";
 import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
-import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
 
 /**
  * HybridAIService delegates between local models and the cloud AI service.

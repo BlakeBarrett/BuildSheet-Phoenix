@@ -1851,7 +1851,7 @@ const AppContent: React.FC = () => {
     // Editable Title State
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [editTitleValue, setEditTitleValue] = useState(session.name || '');
-    const [shareToast, setShareToast] = useState(false);
+    const [shareToast, setShareToast] = useState<string | null>(null);
     const [isSharing, setIsSharing] = useState(false);
     const [shareUrl, setShareUrl] = useState<string | null>(null);
 
@@ -2280,6 +2280,39 @@ const AppContent: React.FC = () => {
             const designReqs = draftingEngine.getSession().designRequirements;
             const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
 
+            // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
+            try {
+                const procResult = await sourcingApi.procure(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
+
+                // If the pipeline succeeded (not ERROR), use verified results
+                if (procResult && procResult.status !== 'ERROR') {
+                    const localResp = await sourcingApi.local(entry.part.name);
+                    const local = localResp?.results || [];
+
+                    // Store procurement metadata alongside legacy shopping options
+                    const bomEntry = draftingEngine.getSession().bom.find(b => b.instanceId === entry.instanceId);
+                    if (bomEntry) {
+                        if (!bomEntry.sourcing) bomEntry.sourcing = {};
+                        bomEntry.sourcing.procurement = {
+                            status: procResult.status,
+                            confidence_score: procResult.confidence_score,
+                            verified_sources_count: procResult.verified_sources_count,
+                            risk_flags: procResult.risk_flags,
+                            logistics_delay_days: procResult.logistics_delay_estimate_days,
+                            price_anomaly_detected: procResult.price_anomaly?.detected ?? false,
+                            pipeline_duration_ms: procResult.pipeline_duration_ms,
+                        };
+                    }
+
+                    draftingEngine.updatePartSourcing(entry.instanceId, procResult.shopping_options, local);
+                    refreshState();
+                    return;
+                }
+                // Pipeline failed — fall through to server-side search
+            } catch (e) {
+                console.warn('[ProcurementEngine] Server-side pipeline failed, falling back to Google Grounding', e);
+            }
+
             // Server-side Google Search grounding via backend API
             const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
             const localResp = await sourcingApi.local(entry.part.name);
@@ -2614,25 +2647,25 @@ const AppContent: React.FC = () => {
                 category: entry.part.category,
                 quantity: entry.quantity,
             }));
+            const latestImage = session.generatedImages.length > 0 
+                ? session.generatedImages[session.generatedImages.length - 1].url 
+                : undefined;
             const result = await sharesApi.create({
                 projectId: session.id,
                 name: session.name || 'Untitled Build',
                 description: session.requirements || '',
+                assemblyUrl: latestImage,
                 bom: bomSnapshot,
             });
             const fullUrl = `${window.location.origin}/share/${result.slug}`;
             setShareUrl(fullUrl);
             await navigator.clipboard.writeText(fullUrl);
-            setShareToast(true);
-            setTimeout(() => setShareToast(false), 3000);
+            setShareToast('success');
+            setTimeout(() => setShareToast(null), 3000);
         } catch (err: any) {
             console.error('[Share] Failed to create share link:', err);
-            // Fallback: copy the old-style base64 link
-            const url = window.location.origin + draftingEngine.getShareUrl();
-            navigator.clipboard.writeText(url).then(() => {
-                setShareToast(true);
-                setTimeout(() => setShareToast(false), 2000);
-            });
+            setShareToast('error');
+            setTimeout(() => setShareToast(null), 3000);
         } finally {
             setIsSharing(false);
         }
@@ -3342,9 +3375,14 @@ const AppContent: React.FC = () => {
                                     onClick={handleShareBuild}
                                     className={`${session.bom.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'} ${isSharing ? 'animate-spin' : ''}`}
                                 />
-                                {shareToast && (
+                                {shareToast === 'success' && (
                                     <div className="absolute top-full right-0 mt-2 bg-indigo-600 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 z-30">
                                         ✓ Share Link Copied!
+                                    </div>
+                                )}
+                                {shareToast === 'error' && (
+                                    <div className="absolute top-full right-0 mt-2 bg-rose-600 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full whitespace-nowrap shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 z-30">
+                                        ✗ Failed to create link
                                     </div>
                                 )}
                             </div>

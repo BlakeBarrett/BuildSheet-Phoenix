@@ -32,6 +32,61 @@ function getSharesCollection() {
 }
 
 // ---------------------------------------------------------------------------
+// Local Memory Fallback (for local development without credentials)
+// ---------------------------------------------------------------------------
+const isLocal = process.env.NODE_ENV !== 'production';
+const localSharesStore = new Map<string, any>();
+
+async function getShareDocLocallyOrRemote(slugOrId: string) {
+  const col = getSharesCollection();
+  try {
+    let doc = await col.doc(slugOrId).get();
+    if (!doc.exists) {
+      const snap = await col.where('slug', '==', slugOrId).limit(1).get();
+      if (!snap.empty) doc = snap.docs[0];
+    }
+    if (doc.exists) return { id: doc.id, data: doc.data() };
+    return null;
+  } catch (err: any) {
+    if (isLocal && (err.message.includes('credentials') || err.message.includes('Permission') || err.message.includes('NOT_FOUND'))) {
+      const byId = localSharesStore.get(slugOrId);
+      if (byId) return { id: slugOrId, data: byId };
+      const bySlug = Array.from(localSharesStore.values()).find(s => s.slug === slugOrId);
+      if (bySlug) return { id: bySlug.shareId, data: bySlug };
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function isSlugTakenLocallyOrRemote(slug: string) {
+  try {
+    const col = getSharesCollection();
+    const existing = await col.where('slug', '==', slug).limit(1).get();
+    return !existing.empty;
+  } catch (err: any) {
+    if (isLocal && (err.message.includes('credentials') || err.message.includes('Permission') || err.message.includes('NOT_FOUND'))) {
+      return Array.from(localSharesStore.values()).some(s => s.slug === slug);
+    }
+    throw err;
+  }
+}
+
+async function saveShareLocallyOrRemote(shareId: string, shareDoc: any) {
+  try {
+    const col = getSharesCollection();
+    await col.doc(shareId).set(shareDoc);
+  } catch (err: any) {
+    if (isLocal && (err.message.includes('credentials') || err.message.includes('Permission') || err.message.includes('NOT_FOUND'))) {
+      console.warn('[shares] Firebase ADC missing. Using in-memory mock for local dev.');
+      localSharesStore.set(shareId, shareDoc);
+      return;
+    }
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Share page HTML template
 // ---------------------------------------------------------------------------
 
@@ -41,6 +96,7 @@ function renderSharePage(share: any, host: string): string {
   const escapedName = escapeHtml(share.name || 'Untitled Build');
   const escapedDesc = escapeHtml(share.description || '');
   const escapedAssemblyUrl = share.assemblyUrl ? escapeHtml(share.assemblyUrl) : '';
+  const cssSafeAssemblyUrl = share.assemblyUrl ? share.assemblyUrl.replace(/'/g, "\\'") : '';
 
   // BOM table rows
   const bomRows = (share.bom || [])
@@ -84,12 +140,31 @@ function renderSharePage(share: any, host: string): string {
       display: flex;
       flex-direction: column;
       align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* Background flourish */
+    .bg-flourish {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: -1;
+      background: #0a0a0f;
+      ${cssSafeAssemblyUrl ? `
+      background-image: url('${cssSafeAssemblyUrl}');
+      background-size: cover;
+      background-position: center;
+      filter: blur(60px) brightness(0.45);
+      transform: scale(1.15);
+      opacity: 1;
+      ` : ''}
     }
 
     .container {
       max-width: 720px;
       width: 100%;
       padding: 2rem 1.5rem;
+      position: relative;
+      z-index: 10;
     }
 
     /* Header */
@@ -103,8 +178,10 @@ function renderSharePage(share: any, host: string): string {
       font-size: 0.875rem;
       letter-spacing: 0.05em;
       text-transform: uppercase;
+      opacity: 0.8;
+      transition: opacity 0.2s;
     }
-    .brand:hover { color: #e2e8f0; }
+    .brand:hover { color: #e2e8f0; opacity: 1; }
     .brand-icon {
       width: 28px; height: 28px;
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
@@ -113,14 +190,16 @@ function renderSharePage(share: any, host: string): string {
       font-weight: 700; font-size: 14px; color: #fff;
     }
 
-    /* Card */
+    /* Card with Glassmorphism */
     .card {
-      background: #14141f;
-      border: 1px solid rgba(99, 102, 241, 0.15);
-      border-radius: 16px;
-      padding: 2.5rem;
+      background: rgba(20, 20, 31, 0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 24px;
+      padding: 3rem 2.5rem;
       margin-bottom: 1.5rem;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     }
 
     .card h1 {
@@ -277,6 +356,7 @@ function renderSharePage(share: any, host: string): string {
   </style>
 </head>
 <body>
+  <div class="bg-flourish"></div>
   <div class="container">
     <a href="/" class="brand">
       <span class="brand-icon">B</span>
@@ -390,23 +470,16 @@ export const sharePageRouter = Router();
 sharePageRouter.get('/:slug', async (req: Request, res: Response) => {
   try {
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
-    const col = getSharesCollection();
+    const doc = await getShareDocLocallyOrRemote(slug);
 
-    // Try exact shareId match first, then slug field
-    let doc = await col.doc(slug).get();
-    if (!doc.exists) {
-      const snapshot = await col.where('slug', '==', slug).limit(1).get();
-      if (!snapshot.empty) doc = snapshot.docs[0];
-    }
-
-    if (!doc.exists) {
+    if (!doc) {
       res.status(404).type('html').send(render404Page());
       return;
     }
 
     const host = req.get('host') || 'buildsheet.cloud';
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.type('html').send(renderSharePage({ ...doc.data(), slug: doc.data()?.slug || doc.id }, host));
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(renderSharePage({ ...doc.data, slug: doc.data?.slug || doc.id }, host));
   } catch (err: any) {
     console.error('[shares] Page render error:', err.message);
     res.status(500).type('html').send(render404Page());
@@ -424,24 +497,46 @@ export const sharesRouter = Router();
  */
 sharesRouter.get('/mine', requireAuth, async (req: Request, res: Response) => {
   try {
-    const snapshot = await getSharesCollection()
-      .where('ownerUid', '==', req.user!.uid)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
+    let shares: any[] = [];
+    try {
+      const snapshot = await getSharesCollection()
+        .where('ownerUid', '==', req.user!.uid)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
 
-    const shares = snapshot.docs.map(doc => {
-      const d = doc.data();
-      return {
-        shareId: doc.id,
-        slug: d.slug || doc.id,
-        name: d.name,
-        description: d.description,
-        assemblyUrl: d.assemblyUrl,
-        bomCount: (d.bom || []).length,
-        createdAt: d.createdAt,
-      };
-    });
+      shares = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          shareId: doc.id,
+          slug: d.slug || doc.id,
+          name: d.name,
+          description: d.description,
+          assemblyUrl: d.assemblyUrl,
+          bomCount: (d.bom || []).length,
+          createdAt: d.createdAt,
+        };
+      });
+    } catch (err: any) {
+      if (isLocal && (err.message.includes('credentials') || err.message.includes('Permission') || err.message.includes('NOT_FOUND'))) {
+        shares = Array.from(localSharesStore.values())
+          .filter(s => s.ownerUid === req.user!.uid)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 50)
+          .map(d => ({
+            shareId: d.shareId,
+            slug: d.slug || d.shareId,
+            name: d.name,
+            description: d.description,
+            assemblyUrl: d.assemblyUrl,
+            bomCount: (d.bom || []).length,
+            createdAt: d.createdAt,
+          }));
+      } else {
+        throw err;
+      }
+    }
+
     res.json({ shares });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -454,20 +549,14 @@ sharesRouter.get('/mine', requireAuth, async (req: Request, res: Response) => {
 sharesRouter.get('/:slug', optionalAuth, async (req: Request, res: Response) => {
   try {
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
-    const col = getSharesCollection();
+    const doc = await getShareDocLocallyOrRemote(slug);
 
-    let doc = await col.doc(slug).get();
-    if (!doc.exists) {
-      const snapshot = await col.where('slug', '==', slug).limit(1).get();
-      if (!snapshot.empty) doc = snapshot.docs[0];
-    }
-
-    if (!doc.exists) {
+    if (!doc) {
       res.status(404).json({ error: 'Share not found' });
       return;
     }
 
-    const d = doc.data()!;
+    const d = doc.data!;
     // Public response — omit ownerUid and projectId
     res.json({
       share: {
@@ -509,8 +598,8 @@ sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Res
         return;
       }
       // Check uniqueness
-      const existing = await col.where('slug', '==', normalized).limit(1).get();
-      if (!existing.empty) {
+      const isTaken = await isSlugTakenLocallyOrRemote(normalized);
+      if (isTaken) {
         res.status(409).json({ error: 'That vanity URL is already taken. Try another.' });
         return;
       }
@@ -533,15 +622,15 @@ sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Res
       shareId,
       slug,
       name: String(name).substring(0, 200),
-      description: String(description || '').substring(0, 2000),
-      assemblyUrl: assemblyUrl ? String(assemblyUrl).substring(0, 500) : null,
+      description: String(description || '').substring(0, 5000),
+      assemblyUrl: assemblyUrl ? String(assemblyUrl).substring(0, 2000000) : null,
       bom: minimalBom,
       ownerUid: req.user!.uid,
       projectId: projectId || null,
       createdAt: now,
     };
 
-    await col.doc(shareId).set(shareDoc);
+    await saveShareLocallyOrRemote(shareId, shareDoc);
 
     res.status(201).json({
       ok: true,

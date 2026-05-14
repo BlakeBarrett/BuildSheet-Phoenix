@@ -102,8 +102,29 @@ GEMINI_API_KEY="${GEMINI_API_KEY:-$EFFECTIVE_KEY}"
 
 IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest"
 
-# ── Step 1: Ensure Artifact Registry repo exists ─────────────────────────────
-echo "🔧 Step 1: Ensuring Artifact Registry repo '${REPO_NAME}' exists..."
+# ── Step 0: Run Tests ────────────────────────────────────────────────────────
+echo "🔧 Step 0: Running tests..."
+if [ -f "./run_all_tests.sh" ]; then
+  ./run_all_tests.sh
+else
+  npx playwright test
+fi
+echo "   ✅ Tests passed."
+echo ""
+
+# ── Step 1: Detect Container Engine ──────────────────────────────────────────
+if command -v podman &>/dev/null; then
+  DOCKER_BIN="podman"
+elif command -v docker &>/dev/null; then
+  DOCKER_BIN="docker"
+else
+  echo "❌ Neither docker nor podman found."
+  exit 1
+fi
+echo "🔧 Using container engine: $DOCKER_BIN"
+
+# ── Step 2: Ensure Artifact Registry repo exists ─────────────────────────────
+echo "🔧 Step 2: Ensuring Artifact Registry repo '${REPO_NAME}' exists..."
 gcloud artifacts repositories describe "$REPO_NAME" \
   --location="$REGION" \
   --project="$PROJECT_ID" >/dev/null 2>&1 || \
@@ -115,29 +136,29 @@ gcloud artifacts repositories create "$REPO_NAME" \
 echo "   ✅ Repository ready."
 echo ""
 
-# ── Step 2: Configure Docker auth for Artifact Registry ─────────────────────
-echo "🔧 Step 2: Configuring Docker authentication..."
+# ── Step 3: Configure Docker auth for Artifact Registry ─────────────────────
+echo "🔧 Step 3: Configuring Docker authentication..."
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 echo "   ✅ Auth configured."
 echo ""
 
-# ── Step 3: Build the Docker image ──────────────────────────────────────────
-echo "🔧 Step 3: Building Docker image..."
-docker build --load -t "$IMAGE_URI" .
+# ── Step 4: Build the Docker image ──────────────────────────────────────────
+echo "🔧 Step 4: Building image..."
+$DOCKER_BIN build -t "$IMAGE_URI" .
 echo "   ✅ Image built: $IMAGE_URI"
 echo ""
 
-# ── Step 4: Push to Artifact Registry ────────────────────────────────────────
-echo "🔧 Step 4: Pushing image to Artifact Registry..."
-docker push "$IMAGE_URI"
+# ── Step 5: Push to Artifact Registry ────────────────────────────────────────
+echo "🔧 Step 5: Pushing image to Artifact Registry..."
+$DOCKER_BIN push "$IMAGE_URI"
 echo "   ✅ Image pushed."
 echo ""
 
-# ── Step 5: Deploy to Cloud Run via service.yaml ───────────────────────────
+# ── Step 6: Deploy to Cloud Run via service.yaml ───────────────────────────
 # envsubst fills ${VAR} placeholders in service.yaml with values from the
 # current environment (sourced from .env above). This avoids the fragile
 # comma-separated --set-env-vars approach which breaks on values with commas.
-echo "🔧 Step 5: Deploying to Cloud Run..."
+echo "🔧 Step 6: Deploying to Cloud Run..."
 
 if ! command -v envsubst &>/dev/null; then
   echo "❌ envsubst not found. Install gettext: brew install gettext / apt install gettext"

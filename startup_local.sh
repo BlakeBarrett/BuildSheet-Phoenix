@@ -91,11 +91,26 @@ docker build --no-cache --load -t "localhost/$IMAGE_NAME" .
 # remove any old container with the same name
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
+# Handle Google Cloud Credentials for Firestore/Vertex access
+CRED_OPTS=""
+if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+  # Mount the explicit credential file into the container
+  CRED_FILENAME=$(basename "$GOOGLE_APPLICATION_CREDENTIALS")
+  CRED_OPTS="-v $GOOGLE_APPLICATION_CREDENTIALS:/etc/secrets/$CRED_FILENAME:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/$CRED_FILENAME"
+  echo "▶ Mounting Google Cloud credentials from $GOOGLE_APPLICATION_CREDENTIALS"
+elif [ -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
+  # Fallback: mount local Application Default Credentials (ADC)
+  ADC_PATH="$HOME/.config/gcloud/application_default_credentials.json"
+  CRED_OPTS="-v $ADC_PATH:/etc/secrets/adc.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/adc.json"
+  echo "▶ Mounting local Application Default Credentials (ADC)"
+fi
+
 # run the container
 echo "▶ launching container ${CONTAINER_NAME} on port ${HOST_PORT}..."
 docker run -d \
   --name "$CONTAINER_NAME" \
   -p "${HOST_PORT}:${CONTAINER_PORT}" \
+  $CRED_OPTS \
   -e "AI_KEY=${AI_KEY}" \
   -e "AI_PROVIDER=${AI_PROVIDER}" \
   -e "AI_BASE_URL=${AI_BASE_URL}" \
