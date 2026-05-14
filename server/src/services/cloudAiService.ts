@@ -161,7 +161,10 @@ export class ServerCloudAIService implements ServerAIService {
           body: JSON.stringify({ model: this.config.models.image, input: { messages: [{ role: 'user', content: [{ text: description }] }] }, parameters: { n: 1, size: '1024*1024' } }),
         });
         const data: any = await resp.json();
-        if (!resp.ok) return null;
+        if (!resp.ok) {
+            console.error('[DashScope] Failed to submit image generation:', data);
+            throw new Error(`DashScope Error: ${data.message || data.code || 'Unknown error'}`);
+        }
         const taskId = data.output?.task_id;
         if (!taskId) return null;
         for (let i = 0; i < 20; i++) {
@@ -171,15 +174,17 @@ export class ServerCloudAIService implements ServerAIService {
           const status = pollData.output?.task_status;
           if (status === 'SUCCEEDED') {
             const imageUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
-            if (!imageUrl) return null;
+            if (!imageUrl) throw new Error('DashScope returned SUCCEEDED but no image URL was found');
             const imgResp = await fetch(imageUrl);
-            if (!imgResp.ok) return null;
+            if (!imgResp.ok) throw new Error('Failed to download generated image from DashScope');
             const buf = Buffer.from(await imgResp.arrayBuffer());
             return `data:image/png;base64,${buf.toString('base64')}`;
           }
-          if (status === 'FAILED' || status === 'CANCELED') return null;
+          if (status === 'FAILED' || status === 'CANCELED') {
+              throw new Error(`DashScope image generation task ${status}: ${JSON.stringify(pollData)}`);
+          }
         }
-        return null;
+        throw new Error('DashScope image generation polling timed out');
       }
       const ai = this.getClient();
       const parts: any[] = [{ text: `Product design concept sketch: ${description}` }];
@@ -191,7 +196,7 @@ export class ServerCloudAIService implements ServerAIService {
       const candidateParts = response.candidates?.[0]?.content?.parts;
       const part = candidateParts?.find(p => p.inlineData);
       return part ? `data:${part.inlineData!.mimeType || 'image/png'};base64,${part.inlineData!.data}` : null;
-    } catch { return null; }
+    } catch (e) { throw e; }
   }
 
   async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
