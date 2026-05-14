@@ -10,6 +10,7 @@ import { sourcingRouter } from './routes/sourcing.js';
 import { generationRouter } from './routes/generation.js';
 import { projectsRouter } from './routes/projects.js';
 import { sharesRouter, sharePageRouter } from './routes/shares.js';
+import aiRouter from './routes/ai.js';
 import { createAiService } from './services/aiServiceFactory.js';
 import { requestLogger } from './middleware/logger.js';
 
@@ -107,6 +108,7 @@ app.use('/api/v1/sourcing', sourcingRouter);
 app.use('/api/v1/generate', generationRouter);
 app.use('/api/v1/projects', projectsRouter);
 app.use('/api/v1/shares', sharesRouter);
+app.use('/api/v1/ai', aiRouter);
 
 // ---------------------------------------------------------------------------
 // Error Handler

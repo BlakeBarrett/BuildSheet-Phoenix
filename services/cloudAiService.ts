@@ -166,80 +166,7 @@ export class CloudAIService implements AIService {
         return data.choices?.[0]?.message?.content ?? '';
     }
 
-    /**
-     * DashScope Wan2.6 async text-to-image generation.
-     * Submits a task, polls until SUCCEEDED or timeout, returns a base64 data URL.
-     */
-    private async dashScopeGenerateImage(prompt: string): Promise<string | null> {
-        try {
-            const imageBase = getAiImageBaseUrl();
-            const apiKey = this.getApiKey();
-            const submitUrl = `${imageBase}/services/aigc/image-generation/generation`;
-            const body = {
-                model: MODEL_IMAGE,
-                input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
-                parameters: { n: 1, size: '1024*1024' },
-            };
-            console.log(`[DashScope] POST ${submitUrl} model=${MODEL_IMAGE}`);
-            const resp = await fetch(submitUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                    'X-DashScope-Async': 'enable',
-                },
-                body: JSON.stringify(body),
-            });
-            const data = await resp.json();
-            console.log(`[DashScope] Submit response ${resp.status}:`, JSON.stringify(data));
-            if (!resp.ok) return null;
 
-            const taskId = data.output?.task_id;
-            if (!taskId) {
-                console.error('[DashScope] No task_id in response');
-                return null;
-            }
-
-            for (let i = 0; i < 20; i++) {
-                await new Promise(r => setTimeout(r, 3000));
-                const pollUrl = `${imageBase}/tasks/${taskId}`;
-                const pollResp = await fetch(pollUrl, { headers: { 'Authorization': `Bearer ${apiKey}` } });
-                const pollData = await pollResp.json();
-                const status = pollData.output?.task_status;
-                console.log(`[DashScope] Poll ${i + 1}: status=${status}`);
-                if (!pollResp.ok) return null;
-                if (status === 'SUCCEEDED') {
-                    const imageUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
-                    if (!imageUrl) {
-                        console.error('[DashScope] SUCCEEDED but no URL:', JSON.stringify(pollData));
-                        return null;
-                    }
-                    return await this.fetchImageAsDataUrl(imageUrl);
-                }
-                if (status === 'FAILED' || status === 'CANCELED') {
-                    console.error('[DashScope] Task failed/canceled:', JSON.stringify(pollData));
-                    return null;
-                }
-            }
-            console.error('[DashScope] Timed out waiting for task', taskId);
-            return null;
-        } catch (e) {
-            console.error('[DashScope] dashScopeGenerateImage threw:', e);
-            return null;
-        }
-    }
-
-    private async fetchImageAsDataUrl(url: string): Promise<string | null> {
-        const imgResp = await fetch(url);
-        if (!imgResp.ok) return null;
-        const blob = await imgResp.blob();
-        return new Promise<string | null>(resolve => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(blob);
-        });
-    }
 
 
 
@@ -356,22 +283,13 @@ export class CloudAIService implements AIService {
 
     async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
         try {
-            if (getAiProvider() === 'on-prem') {
-                return await this.dashScopeGenerateImage(description);
-            }
-            const ai = this.getClient();
-            const parts: any[] = [{ text: `Product design concept sketch: ${description}` }];
-            if (referenceImage) {
-                const imageData = this.cleanBase64(referenceImage);
-                if (imageData) parts.unshift({ inlineData: { mimeType: imageData.mimeType, data: imageData.data } });
-            }
-            const response: GenerateContentResponse = await ai.models.generateContent({
-                model: MODEL_IMAGE,
-                contents: { parts }
-            });
-            const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-            return part ? `data:${part.inlineData!.mimeType || 'image/png'};base64,${part.inlineData!.data}` : null;
-        } catch (e) { return null; }
+            const { generationApi } = await import('./apiClient.ts');
+            const resp = await generationApi.image(description, referenceImage);
+            return resp?.url || null;
+        } catch (e) {
+            console.error('[CloudAIService] generateProductImage failed:', e);
+            return null;
+        }
     }
 
     // NOTE: findPartSources, hydratePartDetails, and findLocalSuppliers have been
@@ -472,64 +390,24 @@ export class CloudAIService implements AIService {
 
     async generateFabricationBrief(partName: string, context: string): Promise<string> {
         try {
-            const system = 'You are a senior manufacturing engineer. Provide detailed fabrication specifications including materials, tolerances, surface finishes, and manufacturing processes.';
-            const contents = `Manufacturing specs for: ${partName}. Context: ${context}.`;
-            let text: string;
-            if (getAiProvider() === 'on-prem') {
-                text = await this.openAiChat({ model: MODEL_SMART, system, userContent: contents, maxTokens: 4096 });
-            } else {
-                const ai = this.getClient();
-                const response = await ai.models.generateContent({
-                    model: MODEL_SMART,
-                    contents,
-                    config: { systemInstruction: system, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 2048 } }
-                });
-                text = response.text || '';
-            }
-            const img = await this.generateProductImage(`Engineering blueprint diagram of ${partName}. Orthographic projections.`);
-            return (img ? `![Technical Blueprint](${img})\n\n` : '') + (text || '');
-        } catch (e: any) { return `Generation failed: ${e.message}`; }
+            const { generationApi } = await import('./apiClient.ts');
+            const resp = await generationApi.fabrication(partName, context);
+            return resp?.brief || `Fabrication brief could not be generated for ${partName}.`;
+        } catch (e) {
+            console.error('[CloudAIService] generateFabricationBrief failed:', e);
+            return `Error generating brief: ${e}`;
+        }
     }
 
     async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
         try {
-            const system = 'You are a quality assurance engineer. Generate inspection protocols as structured JSON with keys: recommendedSensors (string[]), inspectionStrategy (string), defects (array of {name, severity, description}).';
-            const contents = `QA protocol for: ${partName} (category: ${category}).`;
-            if (getAiProvider() === 'on-prem') {
-                const text = await this.openAiChat({ model: MODEL_FAST, system, userContent: contents, jsonMode: true, maxTokens: 2048 });
-                return JSON.parse(text || 'null');
-            }
-            const ai = this.getClient();
-            const response = await ai.models.generateContent({
-                model: MODEL_FAST,
-                contents,
-                config: {
-                    systemInstruction: 'You are a quality assurance engineer. Generate inspection protocols as structured JSON.',
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            recommendedSensors: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            inspectionStrategy: { type: Type.STRING },
-                            defects: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        name: { type: Type.STRING },
-                                        severity: { type: Type.STRING },
-                                        description: { type: Type.STRING }
-                                    },
-                                    required: ['name', 'severity', 'description']
-                                }
-                            }
-                        },
-                        required: ['recommendedSensors', 'inspectionStrategy', 'defects']
-                    }
-                }
-            });
-            return JSON.parse(response.text || "null");
-        } catch (e) { return null; }
+            const { generationApi } = await import('./apiClient.ts');
+            const resp = await generationApi.qaProtocol(partName, category);
+            return resp || null;
+        } catch (e) {
+            console.error('[CloudAIService] generateQAProtocol failed:', e);
+            return null;
+        }
     }
 
     async generateAssemblyPlan(bom: any[], previousPlan?: AssemblyPlan): Promise<AssemblyPlan | null> {
@@ -597,41 +475,13 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
 
     async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {
         try {
-            const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
-            const enclosureContents = `Generate a 3D printable enclosure or custom adapter specification for this project. Context: ${context}. Components: ${bomDigest}`;
-            const enclosureSystem = 'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. You MUST output raw OpenSCAD code for transparency and manufacturing. Return JSON with keys: material, dimensions, openSCAD, description.';
-
-            let spec: any;
-            if (getAiProvider() === 'on-prem') {
-                const text = await this.openAiChat({ model: MODEL_SMART, system: enclosureSystem, userContent: enclosureContents, jsonMode: true, maxTokens: 8192 });
-                spec = JSON.parse(text || '{}');
-            } else {
-                const ai = this.getClient();
-                const response = await ai.models.generateContent({
-                    model: MODEL_SMART,
-                    contents: enclosureContents,
-                    config: {
-                        systemInstruction: 'You are an expert mechanical engineer and OpenSCAD programmer. Generate parametric, manufacturable enclosure designs. You MUST output raw OpenSCAD code for transparency and manufacturing.',
-                        maxOutputTokens: 8192,
-                        thinkingConfig: { thinkingBudget: 4096 },
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: Type.OBJECT,
-                            properties: {
-                                material: { type: Type.STRING },
-                                dimensions: { type: Type.STRING },
-                                openSCAD: { type: Type.STRING },
-                                description: { type: Type.STRING }
-                            },
-                            required: ['material', 'dimensions', 'description', 'openSCAD']
-                        }
-                    }
-                });
-                spec = JSON.parse(response.text || '{}');
-            }
-            const img = await this.generateProductImage(`3D CAD render of enclosure: ${spec.description}. Minimalist industrial design.`);
-            return { ...spec, renderUrl: img };
-        } catch (e) { return null; }
+            const { generationApi } = await import('./apiClient.ts');
+            const resp = await generationApi.enclosure(context, bom);
+            return resp || null;
+        } catch (e) {
+            console.error('[CloudAIService] generateEnclosure failed:', e);
+            return null;
+        }
     }
 
     async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
@@ -728,83 +578,9 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
 
     async identifyComponent(image: string): Promise<ComponentIdentification | null> {
         try {
-            const imageData = this.cleanBase64(image);
-            if (!imageData) return null;
-            const identifySystem = `You are a hardware component identification specialist. Identify components from photos and return structured data.
-Determine: 1) name, category, brand if visible, 2) physical condition (Excellent/Good/Fair/Poor), 3) visible defects or wear, 4) estimated retail price in USD, 5) a suggested kebab-case part ID, 6) technical description and specifications, 7) physical/electrical ports and connectors visible.
-Be specific and accurate. If you can identify the exact manufacturer and model, do so.
-Return JSON with keys: name, category, brand, condition, conditionNotes, defects (string[]), estimatedPrice (number), suggestedPartId, description, ports (array of {name,type,gender,spec}).`;
-
-            let data: any;
-
-            if (getAiProvider() === 'on-prem') {
-                const text = await this.openAiChat({
-                    model: MODEL_FAST,
-                    system: identifySystem,
-                    userContent: [
-                        { type: 'image_url', image_url: { url: image } },
-                        { type: 'text', text: 'Identify this hardware component from the photo.' },
-                    ],
-                    jsonMode: true,
-                    maxTokens: 2048,
-                });
-                data = JSON.parse(text || 'null');
-            } else {
-                const ai = this.getClient();
-                const response = await ai.models.generateContent({
-                    model: MODEL_FAST,
-                    contents: {
-                        parts: [
-                            { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
-                            { text: `Identify this hardware component from the photo.` }
-                        ]
-                    },
-                    config: {
-                        systemInstruction: identifySystem,
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: Type.OBJECT,
-                            properties: {
-                                name: { type: Type.STRING },
-                                category: { type: Type.STRING },
-                                brand: { type: Type.STRING },
-                                condition: { type: Type.STRING },
-                                conditionNotes: { type: Type.STRING },
-                                defects: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                estimatedPrice: { type: Type.NUMBER },
-                                suggestedPartId: { type: Type.STRING },
-                                description: { type: Type.STRING },
-                                ports: {
-                                    type: Type.ARRAY,
-                                    items: {
-                                        type: Type.OBJECT,
-                                        properties: {
-                                            name: { type: Type.STRING },
-                                            type: { type: Type.STRING },
-                                            gender: { type: Type.STRING },
-                                            spec: { type: Type.STRING }
-                                        },
-                                        required: ['name', 'type', 'gender', 'spec']
-                                    }
-                                }
-                            },
-                            required: ['name', 'category', 'brand', 'condition', 'conditionNotes', 'defects', 'estimatedPrice', 'suggestedPartId', 'description', 'ports']
-                        }
-                    }
-                });
-                data = JSON.parse(response.text || "null");
-            }
-
-            if (!data) return null;
-            // Normalize port enums
-            if (data.ports) {
-                data.ports = data.ports.map((p: any) => ({
-                    ...p,
-                    type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL'),
-                    gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL')
-                }));
-            }
-            return data as ComponentIdentification;
+            const { generationApi } = await import('./apiClient.ts');
+            const resp = await generationApi.identify(image);
+            return resp || null;
         } catch (e) {
             console.error('[CloudAIService] identifyComponent failed:', e);
             return null;
