@@ -2280,37 +2280,6 @@ const AppContent: React.FC = () => {
             const designReqs = draftingEngine.getSession().designRequirements;
             const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
 
-            // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
-            if (aiService.procureVerifiedSources) {
-                const procResult = await aiService.procureVerifiedSources(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
-
-                // If the pipeline succeeded (not ERROR), use verified results
-                if (procResult.status !== 'ERROR') {
-                    const localResp = await sourcingApi.local(entry.part.name);
-                    const local = localResp?.results || [];
-
-                    // Store procurement metadata alongside legacy shopping options
-                    const bomEntry = draftingEngine.getSession().bom.find(b => b.instanceId === entry.instanceId);
-                    if (bomEntry) {
-                        if (!bomEntry.sourcing) bomEntry.sourcing = {};
-                        bomEntry.sourcing.procurement = {
-                            status: procResult.status,
-                            confidence_score: procResult.confidence_score,
-                            verified_sources_count: procResult.verified_sources_count,
-                            risk_flags: procResult.risk_flags,
-                            logistics_delay_days: procResult.logistics_delay_estimate_days,
-                            price_anomaly_detected: procResult.price_anomaly?.detected ?? false,
-                            pipeline_duration_ms: procResult.pipeline_duration_ms,
-                        };
-                    }
-
-                    draftingEngine.updatePartSourcing(entry.instanceId, procResult.shopping_options, local);
-                    refreshState();
-                    return;
-                }
-                // Pipeline failed — fall through to server-side search
-            }
-
             // Server-side Google Search grounding via backend API
             const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
             const localResp = await sourcingApi.local(entry.part.name);

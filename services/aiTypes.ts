@@ -45,11 +45,7 @@ export interface AIService {
   generateProductImage(description: string, referenceImage?: string): Promise<string | null>;
 
 
-  /**
-   * Verified Procurement Engine: multi-stage pipeline with price anomaly detection
-   * and geopolitical logistics risk assessment.
-   */
-  procureVerifiedSources?(query: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ProcurementResult>;
+
 
 
   verifyDesign?(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: AuditAction[] }>;

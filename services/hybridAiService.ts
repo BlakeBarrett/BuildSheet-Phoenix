@@ -2,8 +2,7 @@ import { AIService, ArchitectResponse, AskArchitectResult } from "./aiTypes.ts";
 import { CloudAIService } from "./cloudAiService.ts";
 import { LocalArchitectService, LocalModelProvider, getLocalProvider } from "./localAiService.ts";
 import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
-import { VerifiedProcurementEngine } from "./procurementEngine.ts";
-import { ProcurementResult } from "./procurementTypes.ts";
+import { ShoppingOption, LocalSupplier, Part, InspectionProtocol, AssemblyPlan, EnclosureSpec } from "../types.ts";
 
 /**
  * HybridAIService delegates between local models and the cloud AI service.
@@ -23,11 +22,9 @@ export class HybridAIService implements AIService {
     private localPlanService: LocalArchitectService | null = null;
     private localCadService: LocalArchitectService | null = null;
     private localUtilityService: LocalArchitectService | null = null;
-    private procurementEngine: VerifiedProcurementEngine;
 
     constructor(apiKey: string) {
         this.cloudAiService = new CloudAIService(apiKey);
-        this.procurementEngine = new VerifiedProcurementEngine(undefined, this.cloudAiService);
         this.reloadLocalProviders();
     }
 
@@ -157,7 +154,4 @@ export class HybridAIService implements AIService {
     // NOTE: findPartSources, hydratePartDetails, and findLocalSuppliers have been
     // moved to the server-side SearchService. Use sourcingApi from apiClient.ts.
 
-    async procureVerifiedSources(query: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ProcurementResult> {
-        return this.procurementEngine.procure(query, category, designContext, localeContext, preferredVendors);
-    }
 }
