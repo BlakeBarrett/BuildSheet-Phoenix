@@ -76,13 +76,13 @@ A comprehensive analysis of every external dependency that would need to be addr
 ---
 
 #### 4. Google Search Grounding & Procurement Pipeline
-**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts` and `server/src/services/procurementEngine.ts`. The pipeline uses SearXNG (discovery), Firecrawl (extraction), and LLM verification — all from the server, eliminating CORS issues.
+**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts`. The pipeline exclusively uses Gemini's native Google Grounding Search API.
 
-**On-prem impact**: The Gemini Search Grounding functions still require `generativelanguage.googleapis.com`. However, the SearXNG + Firecrawl pipeline is **fully self-hostable** and works in air-gapped environments.
+**On-prem impact**: The Gemini Search Grounding functions require `generativelanguage.googleapis.com`. This functionality is **not available** in strictly air-gapped environments.
 
 **Recommended approach**:
-- SearXNG and Firecrawl are already configured via env vars (`SEARXNG_BASE_URL`, `FIRECRAWL_BASE_URL`) ✅
-- For air-gapped: point `SEARXNG_BASE_URL` to an internal SearXNG instance connected to an intranet search engine
+- If internet access is available, use the default `SearchService` which leverages Gemini Google Grounding.
+- For strictly air-gapped deployments, sourcing features will fallback to returning empty results unless a custom local search provider is integrated into `server/src/services/searchService.ts`.
 - For internal parts catalog: implement a `SearchProvider` interface:
   ```ts
   interface SearchProvider {

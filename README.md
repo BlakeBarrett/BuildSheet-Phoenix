@@ -151,7 +151,7 @@ server/                     # Express.js API server (backend)
 │   │   └── projects.ts     # CRUD: list, get, save, delete, archive, duplicate
 │   └── services/
 │       ├── cloudAiService.ts    # Server-side Gemini/OpenAI orchestration
-│       ├── procurementEngine.ts # SearXNG → Firecrawl → LLM verification
+│       ├── procurementEngine.ts # (Deprecated) Verified Procurement Pipeline
 │       ├── aiServiceFactory.ts  # AI service creation from env vars
 │       └── types.ts             # Server-side type definitions
 services/                   # Frontend services (thin client)
