@@ -196,7 +196,7 @@ export class ServerCloudAIService implements ServerAIService {
       const candidateParts = response.candidates?.[0]?.content?.parts;
       const part = candidateParts?.find(p => p.inlineData);
       return part ? `data:${part.inlineData!.mimeType || 'image/png'};base64,${part.inlineData!.data}` : null;
-    } catch (e) { throw e; }
+    } catch (e: any) { throw new Error(e.cause ? `DashScope request failed: ${e.cause.message}` : e.message); }
   }
 
   async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
