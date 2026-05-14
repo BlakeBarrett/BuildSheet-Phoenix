@@ -25,7 +25,7 @@ function getEnv(key: string): string {
  */
 router.post('/chat', async (req: Request, res: Response) => {
     try {
-        const { messages, model, max_tokens } = req.body;
+        const { messages, model, max_tokens, temperature } = req.body;
 
         if (!messages || !Array.isArray(messages)) {
             return res.status(400).json({ error: 'Invalid request: messages must be an array' });
@@ -41,11 +41,8 @@ router.post('/chat', async (req: Request, res: Response) => {
         // Build the request payload
         const payload: any = {
             model: model || getEnv('AI_MODEL_FAST') || 'gpt-3.5-turbo',
-            messages: messages.map((m: any) => ({
-                role: m.role,
-                content: m.content
-            })),
-            temperature: 0.7,
+            messages,
+            temperature: temperature ?? 0.7,
             max_tokens: max_tokens || 4096,
         };
 

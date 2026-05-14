@@ -213,3 +213,47 @@ npm run dev
 ```bash
 ./deploy.sh           # Build, push, deploy
 ```
+
+## 🧪 Running Tests
+
+BuildSheet has two test suites: server-side unit tests (Vitest) and end-to-end browser tests (Playwright).
+
+### Server Unit Tests (Vitest)
+
+Tests in `server/src/__tests__/` cover API routes, AI orchestration, and service logic.
+
+```bash
+cd server
+
+# Run all unit tests once
+npm test
+
+# Run in watch mode (re-runs on file changes)
+npm run test:watch
+
+# Run with coverage report
+npm run test:coverage
+```
+
+### End-to-End Tests (Playwright)
+
+Tests in `tests/` cover the marketing site, SPA flows, settings modal, and local model routing. Playwright automatically starts the Vite dev server and a marketing site server before running.
+
+```bash
+# Install Playwright browsers (first time only)
+npx playwright install --with-deps chromium
+
+# Run all E2E tests
+npx playwright test
+
+# Run a specific test file
+npx playwright test tests/settingsModal.spec.ts
+
+# Run with the interactive UI
+npx playwright test --ui
+
+# Show the last HTML report
+npx playwright show-report
+```
+
+> The E2E suite expects the backend to be running on port 8081. Start it first with `cd server && npm run dev`.
