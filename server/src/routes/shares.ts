@@ -489,7 +489,7 @@ sharesRouter.get('/:slug', optionalAuth, async (req: Request, res: Response) => 
  * POST /api/v1/shares — Create a new share (immutable snapshot).
  * Body: { projectId, name, description, assemblyUrl?, slug?, bom }
  */
-sharesRouter.post('/', requireAuth, apiRateLimit, async (req: Request, res: Response) => {
+sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
   try {
     const { projectId, name, description, assemblyUrl, slug: requestedSlug, bom } = req.body;
 
