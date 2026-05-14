@@ -154,24 +154,10 @@ export class HybridAIService implements AIService {
         return this.cloudAiService.generateProductImage(description, referenceImage);
     }
 
-    // =====================
-    // SEARCH / RETRIEVAL — ALWAYS Gemini (future: VertexAI Products API)
-    // These intentionally NEVER route to local models.
-    // =====================
-
-    async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
-        return this.cloudAiService.findPartSources(query, designContext, localeContext, preferredVendors);
-    }
-
-    async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
-        return this.cloudAiService.findLocalSuppliers(query);
-    }
+    // NOTE: findPartSources, hydratePartDetails, and findLocalSuppliers have been
+    // moved to the server-side SearchService. Use sourcingApi from apiClient.ts.
 
     async procureVerifiedSources(query: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ProcurementResult> {
         return this.procurementEngine.procure(query, category, designContext, localeContext, preferredVendors);
-    }
-
-    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null> {
-        return this.cloudAiService.hydratePartDetails(name, category, designContext, localeContext, preferredVendors);
     }
 }

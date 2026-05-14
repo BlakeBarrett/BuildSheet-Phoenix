@@ -3,7 +3,7 @@ import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { getDraftingEngine, DraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
-import { sharesApi } from './services/apiClient.ts';
+import { sharesApi, sourcingApi } from './services/apiClient.ts';
 import { UserService } from './services/userService.ts';
 import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
@@ -2286,7 +2286,8 @@ const AppContent: React.FC = () => {
 
                 // If the pipeline succeeded (not ERROR), use verified results
                 if (procResult.status !== 'ERROR') {
-                    const local = await aiService.findLocalSuppliers?.(entry.part.name);
+                    const localResp = await sourcingApi.local(entry.part.name);
+                    const local = localResp?.results || [];
 
                     // Store procurement metadata alongside legacy shopping options
                     const bomEntry = draftingEngine.getSession().bom.find(b => b.instanceId === entry.instanceId);
@@ -2303,17 +2304,17 @@ const AppContent: React.FC = () => {
                         };
                     }
 
-                    draftingEngine.updatePartSourcing(entry.instanceId, procResult.shopping_options, local || []);
+                    draftingEngine.updatePartSourcing(entry.instanceId, procResult.shopping_options, local);
                     refreshState();
                     return;
                 }
-                // Pipeline failed — fall through to legacy Gemini search
+                // Pipeline failed — fall through to server-side search
             }
 
-            // Fallback to legacy Google Search grounding
-            const result = await aiService.findPartSources?.(entry.part.name, designReqs, getUserLocale(), vendorUrls);
-            const local = await aiService.findLocalSuppliers?.(entry.part.name);
-            draftingEngine.updatePartSourcing(entry.instanceId, result || [], local || []);
+            // Server-side Google Search grounding via backend API
+            const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
+            const localResp = await sourcingApi.local(entry.part.name);
+            draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], localResp?.results || []);
             refreshState();
         } catch (e) {
             console.error(e);
@@ -2323,12 +2324,13 @@ const AppContent: React.FC = () => {
     };
 
     const handleHydratePart = async (entry: BOMEntry) => {
-        if (!aiService.hydratePartDetails || isHydrating) return;
+        if (isHydrating) return;
         setIsHydrating(true);
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
             const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
-            const details = await aiService.hydratePartDetails(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
+            const hydrateResp = await sourcingApi.hydrate(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
+            const details = hydrateResp?.result;
             if (details) {
                 draftingEngine.updatePartDetails(entry.instanceId, details);
                 refreshState();
@@ -2349,19 +2351,19 @@ const AppContent: React.FC = () => {
     };
 
     const hydrateAllVirtualParts = async () => {
-        if (!aiService.hydratePartDetails) return;
         const latestSession = draftingEngine.getSession();
         const virtualParts = latestSession.bom.filter(b => b.part.brand === 'TBD');
         if (virtualParts.length === 0) return;
         const designReqs = latestSession.designRequirements;
         const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
 
-        // Process in batches of 3 for speed
+        // Process in batches of 3 for speed — server handles jitter internally
         for (let i = 0; i < virtualParts.length; i += 3) {
             const batch = virtualParts.slice(i, i + 3);
             await Promise.all(batch.map(async (entry) => {
                 try {
-                    const details = await aiService.hydratePartDetails!(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
+                    const hydrateResp = await sourcingApi.hydrate(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
+                    const details = hydrateResp?.result;
                     if (details) {
                         draftingEngine.updatePartDetails(entry.instanceId, details);
                     }

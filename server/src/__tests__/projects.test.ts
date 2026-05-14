@@ -128,7 +128,7 @@ describe('Projects API', () => {
 
     it('get response should have { project: Object }', () => {
       const mockResponse = {
-        project: { id: 'test-1', ...mockDoc.data() },
+        project: { ...mockDoc.data(), id: 'test-1' },
       };
       expect(mockResponse).toHaveProperty('project');
       expect(mockResponse.project).toHaveProperty('id');

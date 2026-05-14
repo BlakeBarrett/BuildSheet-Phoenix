@@ -1,55 +1,10 @@
-import { GoogleGenAI, GenerateContentResponse, Type, Modality, GroundingSupport } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type, Modality } from "@google/genai";
 import { AIService, ArchitectResponse, AskArchitectResult, ComponentIdentification } from "./aiTypes.ts";
 import { parseArchitectResponse } from "./parseUtils.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
 import { getAiTemperature } from "./localAiService.ts";
 import { MODEL_FAST, MODEL_SMART, MODEL_STRUCTURED, MODEL_IMAGE, MODEL_AUDIO, getCloudAiDisplayName, getAiProvider, getAiBaseUrl, getAiImageBaseUrl } from "./aiConfig.ts";
-
-// --- Sourcing quality filters ---
-
-/** Domains that produce noisy / hallucinated pricing data. */
-const NOISY_DOMAINS = ['reddit.com', 'ebay.com', 'forums.'];
-
-/** URL patterns for non-retail content that clutters sourcing results. */
-const NOISY_URL_PATTERNS = [
-    /\.pdf(\?|$)/i,                  // PDF documents (newspapers, manuals, archives)
-    /newspaper/i,                     // Newspaper archive sites
-    /archive\.org/i,                  // Internet Archive
-    /patents\.google/i,               // Patent listings
-    /scholar\.google/i,               // Academic papers
-    /\.gov\//i,                       // Government sites
-    /\.edu\//i,                       // Academic / university sites
-    /\.mil\//i,                       // Military sites
-    /wiki(pedia|media)\.org/i,        // Wikipedia / Wikimedia
-    /youtube\.com|youtu\.be/i,        // Video sites
-    /facebook\.com|instagram\.com/i,  // Social media
-    /pinterest\./i,                   // Pinterest
-    /blogspot\.|wordpress\.com/i,     // Blog platforms
-    /news\.|nytimes|washingtonpost|cnn\.com/i, // News sites
-    /stackoverflow\.com|stackexchange\.com/i, // Q&A forums
-    /github\.com|gitlab\.com/i,       // Code repositories
-    /quora\.com/i,                    // Q&A sites
-    /medium\.com/i,                   // Blog platform
-];
-
-
-/**
- * Builds a chunkIndex → max-confidence map from the groundingSupports array.
- * confidenceScores[i] corresponds to groundingChunkIndices[i] within each support.
- */
-function buildChunkConfidenceMap(supports: GroundingSupport[]): Map<number, number> {
-  const map = new Map<number, number>();
-  for (const support of supports) {
-    const indices = support.groundingChunkIndices ?? [];
-    const scores  = support.confidenceScores ?? [];
-    indices.forEach((idx, i) => {
-      const score = scores[i] ?? 1.0;
-      map.set(idx, Math.max(map.get(idx) ?? 0, score));
-    });
-  }
-  return map;
-}
 
 const SYSTEM_INSTRUCTION = `
 ROLE: You are BuildSheet AI, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
@@ -151,13 +106,7 @@ export class CloudAIService implements AIService {
         });
     }
 
-    /**
-     * Returns the API key for search/grounding operations.
-     * Falls back to the main API key if no separate search key is configured.
-     */
-    private getSearchApiKey(): string {
-        return AIManager.getSearchApiKey() || this.getApiKey();
-    }
+
 
     // ---------------------------------------------------------------------------
     // On-prem (OpenAI-compatible) helpers (used when AI_PROVIDER=on-prem)
@@ -178,8 +127,6 @@ export class CloudAIService implements AIService {
         maxTokens?: number;
         jsonMode?: boolean;
     }): Promise<string> {
-        const baseUrl = getAiBaseUrl();
-        const apiKey = this.getApiKey();
         const messages: any[] = [];
 
         if (options.system) {
@@ -196,27 +143,24 @@ export class CloudAIService implements AIService {
         }
         messages.push({ role: 'user', content: options.userContent });
 
+        // Route through the server proxy so the API key and base URL stay server-side.
+        // In dev, Vite proxies /api → localhost:8081; in prod, nginx does the same.
+        const endpoint = options.jsonMode ? '/api/v1/ai/generate-structured' : '/api/v1/ai/chat';
         const body: any = {
             model: options.model,
             messages,
             temperature: options.temperature ?? 0.7,
             max_tokens: options.maxTokens ?? 4096,
         };
-        if (options.jsonMode) {
-            body.response_format = { type: 'json_object' };
-        }
 
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
+        const resp = await fetch(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
         if (!resp.ok) {
             const errText = await resp.text();
-            throw new Error(`OpenAI API ${resp.status}: ${errText.substring(0, 300)}`);
+            throw new Error(`AI Service Error (${resp.status}): ${errText.substring(0, 300)}`);
         }
         const data = await resp.json();
         return data.choices?.[0]?.message?.content ?? '';
@@ -297,20 +241,7 @@ export class CloudAIService implements AIService {
         });
     }
 
-    /**
-     * Creates a fresh SDK instance for search/grounding operations.
-     * Uses a potentially separate API key so Enterprise customers can
-     * bring their own credentials for data retrieval.
-     */
-    private getSearchClient(): GoogleGenAI {
-        const key = this.getSearchApiKey();
-        if (!key) {
-            throw new Error("Invalid Search API Key configuration.");
-        }
-        return new GoogleGenAI({
-            apiKey: key,
-        });
-    }
+
 
     public getApiKeyStatus(): string {
         const key = this.getApiKey();
@@ -443,220 +374,8 @@ export class CloudAIService implements AIService {
         } catch (e) { return null; }
     }
 
-    async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
-        try {
-            if (getAiProvider() === 'on-prem') {
-                // No live search grounding — ask LLM for known vendor options from training data
-                const contextClause = designContext ? ` Compatible with: ${designContext}.` : '';
-                const vendorClause = preferredVendors?.length ? ` Prefer vendors: ${preferredVendors.join(', ')}.` : '';
-                const text = await this.openAiChat({
-                    model: MODEL_FAST,
-                    system: 'You are a hardware sourcing specialist. List up to 5 well-known retailers that carry this part, with estimated typical price if known. Return valid JSON array: [{"title","url","source","price","isEstimated"}]',
-                    userContent: `Find purchase options for: ${query}.${contextClause}${vendorClause} Return JSON array only.`,
-                    jsonMode: true,
-                    maxTokens: 1024,
-                });
-                try {
-                    const parsed = JSON.parse(text);
-                    const arr: ShoppingOption[] = (Array.isArray(parsed) ? parsed : parsed.results ?? []).map((r: any) => ({ ...r, isEstimated: true }));
-                    return arr.length ? arr : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
-                } catch { return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }]; }
-            }
-
-            const ai = this.getSearchClient();
-            const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
-            const localeClause = localeContext ? ` Target Locale: ${localeContext}. Prioritize authorized retailers that are local to or confidently ship to this region.` : '';
-            const vendorClause = preferredVendors && preferredVendors.length > 0
-                ? ` PREFERRED VENDORS: ${preferredVendors.join(', ')}. Prioritize these vendors ONLY IF they carry the exact part. Do not substitute the requested part just to match a preferred vendor.`
-                : '';
-            const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-
-            const prompt = `The current date is ${today}. Prioritize results from the last 30 days.
-When searching, wrap all SKUs and model numbers in double quotes.
-Find real-world purchase options and actual prices for: ${query}.${contextClause}${localeClause}${vendorClause}`;
-
-            const vendorSystemHint = preferredVendors && preferredVendors.length > 0
-                ? ` Prefer sourcing from these authorized vendors: ${preferredVendors.join(', ')} ONLY IF they carry the exact part requested. Never substitute parts.`
-                : '';
-
-            const response = await ai.models.generateContent({
-                model: MODEL_FAST,
-                contents: prompt,
-                config: {
-                    systemInstruction: `You are a hardware sourcing specialist. Search for real-world purchase options from retail and e-commerce websites such as Amazon, Home Depot, McMaster-Carr, Mouser, Digi-Key, Grainger, Rockler, Woodcraft, Etsy, and Wayfair. For each result, clearly state the product name, retailer, and current price. Focus on in-stock items from authorized retailers. Never cite academic (.edu), government (.gov), Wikipedia, forum, or blog sources.${vendorSystemHint}`,
-                    tools: [{ googleSearch: {} }]
-                }
-            });
-
-            const candidate = response.candidates?.[0];
-            const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
-            const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
-
-            if (chunks.length === 0) {
-                return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
-            }
-
-            // Build confidence map from groundingSupports
-            const confidenceMap = buildChunkConfidenceMap(supports);
-
-            // Extract price hints from the prose text keyed by chunk index.
-            // groundingSupports map text segments → chunk indices, so we can
-            // scan each segment for a dollar amount and attribute it.
-            const chunkPriceMap = new Map<number, string>();
-            const responseText = response.text || '';
-            for (const support of supports) {
-                const seg = support.segment;
-                if (!seg || seg.startIndex === undefined || seg.endIndex === undefined) continue;
-                const slice = responseText.substring(seg.startIndex, seg.endIndex);
-                const priceMatch = slice.match(/\$\s?([\d,]+\.?\d{0,2})/);
-                if (priceMatch) {
-                    const priceVal = priceMatch[1].replace(/,/g, '');
-                    for (const idx of (support.groundingChunkIndices ?? [])) {
-                        if (!chunkPriceMap.has(idx)) chunkPriceMap.set(idx, priceVal);
-                    }
-                }
-            }
-
-            // Build ShoppingOptions directly from grounding chunks
-            const options: ShoppingOption[] = chunks.map((chunk, idx) => {
-                const uri = chunk.web?.uri || '';
-                const title = chunk.web?.title || 'Unknown Retailer';
-                const confidence = confidenceMap.get(idx) ?? 1.0;
-                const price = chunkPriceMap.get(idx);
-
-                return {
-                    title,
-                    url: uri,
-                    source: title,
-                    price: price,
-                    isEstimated: confidence < 0.5
-                } as ShoppingOption;
-            });
-
-            // Filter noisy domains and non-retail URLs
-            const clean = options.filter(opt => {
-                const url = opt.url || '';
-                if (!url) return false;
-                if (NOISY_DOMAINS.some(d => url.includes(d))) return false;
-                if (NOISY_URL_PATTERNS.some(p => p.test(url))) return false;
-                return true;
-            });
-
-            if (clean.length === 0) {
-                return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
-            }
-
-            return clean.slice(0, 5);
-        } catch (e: any) {
-            console.error("findPartSources error:", e);
-            return null;
-        }
-    }
-
-    async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<Part> | null> {
-        try {
-            if (getAiProvider() === 'on-prem') {
-                const contextClause = designContext ? ` For: ${designContext}.` : '';
-                const text = await this.openAiChat({
-                    model: MODEL_STRUCTURED,
-                    system: 'You are a hardware research specialist. Return JSON with keys: brand (string), description (string), price (number, USD), sku (string), ports (array of {id,name,type,gender,spec}).',
-                    userContent: `Look up hardware component: "${name}" (category: ${category}).${contextClause} Return JSON only.`,
-                    jsonMode: true,
-                    maxTokens: 1024,
-                });
-                const data = JSON.parse(text || 'null');
-                if (!data) return null;
-                if (data.ports) {
-                    data.ports = data.ports.map((p: any) => ({
-                        ...p,
-                        type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL') as PortType,
-                        gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL') as Gender
-                    }));
-                }
-                return data;
-            }
-
-            const ai = this.getSearchClient();
-            const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
-            const localeClause = localeContext ? ` Provide pricing and shipping context suitable for a user in locale: ${localeContext}.` : '';
-            const vendorClause = preferredVendors && preferredVendors.length > 0
-                ? ` Prefer pricing and availability data from these vendors: ${preferredVendors.join(', ')}, but only if they carry this exact part.`
-                : '';
-            const vendorSystemHint = preferredVendors && preferredVendors.length > 0
-                ? ` When available, prefer data from these authorized vendors: ${preferredVendors.join(', ')}. Do not substitute parts.`
-                : '';
-            const response = await ai.models.generateContent({
-                model: MODEL_FAST,
-                contents: `The current date is ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}. Prioritize results from the last 30 days.
-When searching, wrap all SKUs and model numbers in double quotes (e.g., "${name}").
-Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause}${localeClause}${vendorClause}`,
-                config: {
-                    systemInstruction: `You are a hardware research specialist. Search for current retail pricing and technical specifications of hardware components from authorized retailers. Return manufacturer/brand, a brief technical description, current in-stock retail price (in USD or local equivalent as a number), and physical/electrical connectors (ports).${vendorSystemHint}`,
-                    tools: [{ googleSearch: {} }],
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            brand: { type: Type.STRING },
-                            description: { type: Type.STRING },
-                            price: { type: Type.NUMBER },
-                            sku: { type: Type.STRING },
-                            ports: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        id: { type: Type.STRING },
-                                        name: { type: Type.STRING },
-                                        type: { type: Type.STRING },
-                                        gender: { type: Type.STRING },
-                                        spec: { type: Type.STRING }
-                                    },
-                                    required: ['id', 'name', 'type', 'gender', 'spec']
-                                }
-                            }
-                        },
-                        required: ['brand', 'description', 'price', 'ports']
-                    }
-                }
-            });
-            const data = JSON.parse(response.text || "null");
-            if (!data) return null;
-            // Normalize port type/gender enums
-            if (data.ports) {
-                data.ports = data.ports.map((p: any) => ({
-                    ...p,
-                    type: (['MECHANICAL', 'ELECTRICAL', 'DATA', 'FLUID'].includes(p.type?.toUpperCase()) ? p.type.toUpperCase() : 'ELECTRICAL') as PortType,
-                    gender: (['MALE', 'FEMALE', 'NEUTRAL'].includes(p.gender?.toUpperCase()) ? p.gender.toUpperCase() : 'NEUTRAL') as Gender
-                }));
-            }
-            return data;
-        } catch (e) {
-            console.error('[CloudAIService] hydratePartDetails failed:', e);
-            return null;
-        }
-    }
-
-    async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
-        try {
-            if (getAiProvider() === 'on-prem') {
-                // Maps grounding not available — return null gracefully
-                return null;
-            }
-            const ai = this.getSearchClient();
-            const response = await ai.models.generateContent({
-                model: MODEL_STRUCTURED,
-                contents: `Find local hardware stores or specialized retailers for: ${query}.`,
-                config: { tools: [{ googleMaps: {} }] }
-            });
-            const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-            return chunks.map(chunk => ({
-                name: chunk.maps?.title || chunk.web?.title || "Local Supplier",
-                address: "Check Maps Link",
-                url: chunk.maps?.uri || chunk.web?.uri
-            })).slice(0, 5);
-        } catch (e) { return null; }
-    }
+    // NOTE: findPartSources, hydratePartDetails, and findLocalSuppliers have been
+    // moved to the server-side SearchService. Use sourcingApi from apiClient.ts.
 
     async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: import('../types.ts').AdvancedValidationOption[]): Promise<ArchitectResponse & { auditActions?: import('./aiTypes.ts').AuditAction[] }> {
         try {

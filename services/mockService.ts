@@ -74,23 +74,7 @@ export class MockService implements AIService {
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
   }
 
-  async findPartSources(query: string, designContext?: string, localeContext?: string): Promise<ShoppingOption[]> {
-    await new Promise(r => setTimeout(r, 1000));
-    return [
-      { title: "Mouser Electronics - Fast Ship", url: "https://www.mouser.com", source: "Mouser", price: "$12.99" },
-      { title: "DigiKey - In Stock", url: "https://www.digikey.com", source: "DigiKey", price: "$11.50" },
-      { title: "Adafruit Industries", url: "https://www.adafruit.com", source: "Adafruit", price: "$14.00" }
-    ];
-  }
 
-  async findLocalSuppliers(query: string, location?: any): Promise<LocalSupplier[]> {
-    await new Promise(r => setTimeout(r, 1000));
-    return [
-      { name: "Micro Center", address: "Local Tech Hub", openNow: true },
-      { name: "Best Buy", address: "City Center", openNow: true },
-      { name: "Al's Electronics Repair", address: "Main St", openNow: false }
-    ];
-  }
 
   async verifyDesign(bom: any[], requirements: string, previousAudit?: string, advancedChecks?: AdvancedValidationOption[]): Promise<ArchitectResponse> {
     await new Promise(r => setTimeout(r, 2000));
@@ -198,19 +182,7 @@ export class MockService implements AIService {
     };
   }
 
-  async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string): Promise<Partial<Part> | null> {
-    await new Promise(r => setTimeout(r, 1500));
-    return {
-      brand: 'Simulated Brand',
-      description: `High-quality ${category.toLowerCase()} component. ${name} — verified specification from simulation engine. Locale: ${localeContext || 'default'}`,
-      price: 24.99,
-      sku: `SIM-${name.replace(/\s+/g, '-').toUpperCase().slice(0, 12)}`,
-      ports: [
-        { id: 'p1', name: 'Primary Interface', type: PortType.ELECTRICAL, gender: Gender.MALE, spec: 'standard-pin' },
-        { id: 'p2', name: 'Mounting Point', type: PortType.MECHANICAL, gender: Gender.FEMALE, spec: 'm3-thread' }
-      ]
-    };
-  }
+
   async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: import('./aiTypes.ts').AuditAction[], summary: string }> {
     await new Promise(r => setTimeout(r, 1000));
     // Simulate one recommendation based on audit content
