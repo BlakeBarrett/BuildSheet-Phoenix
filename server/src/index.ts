@@ -24,30 +24,30 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 // ---------------------------------------------------------------------------
 // Firebase Admin — initialize with proper credentials handling
-// ------
-const firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+// ---------------------------------------------------------------------------
+const firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
 const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-if (firebaseProjectId) {
+if (!firebaseProjectId) {
+  console.error('[Server] CRITICAL: No Firebase project ID found (check VITE_FIREBASE_PROJECT_ID or .env). Firebase features will fail.');
+} else {
   try {
     let appConfig: any = { projectId: firebaseProjectId };
     
     if (credentialsPath) {
       // Production: load from mounted secrets file (Cloud Run / K8s)
-      appConfig = cert(credentialsPath);
-      console.log('[Server] Firebase Admin initialized from credentials file');
+      appConfig.credential = cert(credentialsPath);
+      console.log(`[Server] Firebase Admin: Using credentials file at ${credentialsPath}`);
     } else {
       // Dev: use Application Default Credentials (ADC) — gcloud CLI or GCP metadata server
-      console.log('[Server] Firebase Admin using Application Default Credentials (ADC)');
+      console.log('[Server] Firebase Admin: Using Application Default Credentials (ADC)');
     }
     
     initializeApp(appConfig);
     console.log(`[Server] Firebase Admin initialized (project: ${firebaseProjectId})`);
   } catch (err) {
-    console.warn('[Server] Firebase Admin init failed — auth middleware will skip token verification:', err);
+    console.error('[Server] Firebase Admin initialization failed:', err);
   }
-} else {
-  console.warn('[Server] No Firebase project ID found — auth middleware will run in permissive mode');
 }
 
 // ---------------------------------------------------------------------------

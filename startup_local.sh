@@ -52,9 +52,13 @@ LOCAL_ARCHITECT_URL="${LOCAL_ARCHITECT_URL:-}"
 LOCAL_ARCHITECT_MODEL="${LOCAL_ARCHITECT_MODEL:-}"
 SEARCH_API_KEY="${SEARCH_API_KEY:-}"
 
+# Require critical variables
+if [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
+  echo "⚠️  WARNING: VITE_FIREBASE_PROJECT_ID is not set. Firestore sync will fail."
+fi
+
 # Require AI_KEY only for local startup
-EFFECTIVE_KEY="${AI_KEY:-}"
-if [ -z "$EFFECTIVE_KEY" ]; then
+if [ -z "$AI_KEY" ]; then
   cat <<'USAGE' >&2
 Usage: AI_KEY=yourkey ./startup_local.sh
 
@@ -93,16 +97,28 @@ docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
 # Handle Google Cloud Credentials for Firestore/Vertex access
 CRED_OPTS=""
+# Check for explicit service account key first
 if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-  # Mount the explicit credential file into the container
   CRED_FILENAME=$(basename "$GOOGLE_APPLICATION_CREDENTIALS")
-  CRED_OPTS="-v $GOOGLE_APPLICATION_CREDENTIALS:/etc/secrets/$CRED_FILENAME:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/$CRED_FILENAME"
-  echo "▶ Mounting Google Cloud credentials from $GOOGLE_APPLICATION_CREDENTIALS"
-elif [ -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
-  # Fallback: mount local Application Default Credentials (ADC)
-  ADC_PATH="$HOME/.config/gcloud/application_default_credentials.json"
-  CRED_OPTS="-v $ADC_PATH:/etc/secrets/adc.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/adc.json"
-  echo "▶ Mounting local Application Default Credentials (ADC)"
+  ABS_CRED_PATH=$(realpath "$GOOGLE_APPLICATION_CREDENTIALS")
+  CRED_OPTS="-v $ABS_CRED_PATH:/etc/secrets/$CRED_FILENAME:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/$CRED_FILENAME"
+  echo "▶ Mounting Google Cloud credentials from $ABS_CRED_PATH"
+else
+  # Fallback to Application Default Credentials (ADC)
+  # Try common locations across Linux and macOS
+  ADC_PATHS=(
+    "$HOME/.config/gcloud/application_default_credentials.json"
+    "$HOME/Library/Application Support/gcloud/application_default_credentials.json"
+  )
+  
+  for p in "${ADC_PATHS[@]}"; do
+    if [ -f "$p" ]; then
+      ABS_ADC_PATH=$(realpath "$p")
+      CRED_OPTS="-v $ABS_ADC_PATH:/etc/secrets/adc.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/adc.json"
+      echo "▶ Mounting local Application Default Credentials (ADC) from $ABS_ADC_PATH"
+      break
+    fi
+  done
 fi
 
 # run the container
