@@ -1,74 +1,40 @@
 /**
- * Tests for the Shares routes — validates slug validation, HTML rendering,
- * and API response contracts.
+ * Tests for the Shares routes — validates HTML rendering and API response contracts.
  *
  * These are pure logic tests that don't require Firestore.
  */
 import { describe, it, expect } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Slug validation (extracted logic — mirrors shares.ts)
+// Slug selection logic (mirrors shares.ts)
 // ---------------------------------------------------------------------------
 
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
-const RESERVED_SLUGS = new Set([
-  'new', 'mine', 'api', 'admin', 'share', 'app', 'health',
-  'login', 'signup', 'settings', 'pricing', 'about', 'terms',
-  'privacy', 'support', 'help', 'docs', 'blog',
-]);
-
-function isValidSlug(slug: string): boolean {
-  return SLUG_PATTERN.test(slug) && !RESERVED_SLUGS.has(slug);
+function selectSlug(requestedSlug: string | undefined, isTaken: boolean): { isNanoid: boolean; value: string } {
+  const normalized = requestedSlug ? String(requestedSlug).toLowerCase().trim() : '';
+  const useRequested = !isTaken && !!normalized;
+  return { isNanoid: !useRequested, value: useRequested ? normalized : 'GENERATED' };
 }
 
-describe('Share Slug Validation', () => {
-  describe('valid slugs', () => {
-    const validSlugs = [
-      'my-cool-build',
-      'futuristic-furniture-sofa',
-      'abc',
-      'a1b2c3',
-      'this-is-a-valid-slug-with-numbers-123',
-      'x-y',
-    ];
-
-    for (const slug of validSlugs) {
-      it(`accepts "${slug}"`, () => {
-        expect(isValidSlug(slug)).toBe(true);
-      });
-    }
+describe('Share Slug Selection', () => {
+  it('uses the requested slug when it is not taken', () => {
+    const result = selectSlug('my-cool-build', false);
+    expect(result.isNanoid).toBe(false);
+    expect(result.value).toBe('my-cool-build');
   });
 
-  describe('invalid slugs', () => {
-    const invalidSlugs = [
-      { slug: 'ab', reason: 'too short (< 3 chars)' },
-      { slug: '-starts-with-hyphen', reason: 'starts with hyphen' },
-      { slug: 'ends-with-hyphen-', reason: 'ends with hyphen' },
-      { slug: 'HAS-UPPERCASE', reason: 'contains uppercase' },
-      { slug: 'has spaces', reason: 'contains spaces' },
-      { slug: 'has_underscores', reason: 'contains underscores' },
-      { slug: 'has.dots', reason: 'contains dots' },
-      { slug: 'has@special', reason: 'contains special chars' },
-      { slug: '', reason: 'empty string' },
-    ];
-
-    for (const { slug, reason } of invalidSlugs) {
-      it(`rejects "${slug}" (${reason})`, () => {
-        expect(isValidSlug(slug)).toBe(false);
-      });
-    }
+  it('falls back to a generated slug when the requested one is taken', () => {
+    const result = selectSlug('my-cool-build', true);
+    expect(result.isNanoid).toBe(true);
   });
 
-  describe('reserved slugs', () => {
-    const reserved = ['new', 'mine', 'api', 'admin', 'share', 'app', 'health',
-      'login', 'signup', 'settings', 'pricing', 'about', 'terms',
-      'privacy', 'support', 'help', 'docs', 'blog'];
+  it('generates a slug when no slug is requested', () => {
+    const result = selectSlug(undefined, false);
+    expect(result.isNanoid).toBe(true);
+  });
 
-    for (const slug of reserved) {
-      it(`rejects reserved word "${slug}"`, () => {
-        expect(isValidSlug(slug)).toBe(false);
-      });
-    }
+  it('normalises the requested slug to lowercase', () => {
+    const result = selectSlug('My-Build', false);
+    expect(result.value).toBe('my-build');
   });
 });
 
