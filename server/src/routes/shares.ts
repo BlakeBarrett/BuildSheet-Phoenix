@@ -15,18 +15,6 @@ import { getFirestore } from 'firebase-admin/firestore';
 // Slug validation
 // ---------------------------------------------------------------------------
 
-/** Lowercase alphanumeric + hyphens, 3–64 chars, no leading/trailing hyphen. */
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/;
-const RESERVED_SLUGS = new Set([
-  'new', 'mine', 'api', 'admin', 'share', 'app', 'health',
-  'login', 'signup', 'settings', 'pricing', 'about', 'terms',
-  'privacy', 'support', 'help', 'docs', 'blog',
-]);
-
-function isValidSlug(slug: string): boolean {
-  return SLUG_PATTERN.test(slug) && !RESERVED_SLUGS.has(slug);
-}
-
 function getSharesCollection() {
   return getFirestore().collection('shares');
 }
@@ -219,6 +207,8 @@ function renderSharePage(share: any, host: string): string {
       line-height: 1.7;
       margin-bottom: 1.5rem;
       white-space: pre-wrap;
+      max-height: 20rem;
+      overflow-y: auto;
     }
 
     .assembly-url {
@@ -587,26 +577,10 @@ sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Res
 
     const col = getSharesCollection();
 
-    // Determine slug
-    let slug: string;
-    if (requestedSlug) {
-      const normalized = requestedSlug.toLowerCase().trim();
-      if (!isValidSlug(normalized)) {
-        res.status(400).json({
-          error: 'Invalid slug. Use 3-64 lowercase alphanumeric characters and hyphens only.',
-        });
-        return;
-      }
-      // Check uniqueness
-      const isTaken = await isSlugTakenLocallyOrRemote(normalized);
-      if (isTaken) {
-        res.status(409).json({ error: 'That vanity URL is already taken. Try another.' });
-        return;
-      }
-      slug = normalized;
-    } else {
-      slug = nanoid(10);
-    }
+    // Determine slug: use the requested one if it's available, otherwise generate a short one.
+    const normalized = requestedSlug ? String(requestedSlug).toLowerCase().trim() : '';
+    const isTaken = normalized ? await isSlugTakenLocallyOrRemote(normalized) : true;
+    const slug = (!isTaken && normalized) ? normalized : nanoid(10);
 
     // Strip BOM to minimal data (name, category, quantity only)
     const minimalBom = bom.map((entry: any) => ({
@@ -618,12 +592,18 @@ sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Res
     const shareId = nanoid(10);
     const now = new Date().toISOString();
 
+    // Reject data URLs — only real http/https URLs are accepted
+    if (assemblyUrl && String(assemblyUrl).startsWith('data:')) {
+      res.status(400).json({ error: 'assemblyUrl must be an http/https URL, not a data URL.' });
+      return;
+    }
+
     const shareDoc = {
       shareId,
       slug,
       name: String(name).substring(0, 200),
-      description: String(description || '').substring(0, 5000),
-      assemblyUrl: assemblyUrl ? String(assemblyUrl).substring(0, 2000000) : null,
+      description: String(description || '').substring(0, 2000),
+      assemblyUrl: assemblyUrl ? String(assemblyUrl).substring(0, 2048) : null,
       bom: minimalBom,
       ownerUid: req.user!.uid,
       projectId: projectId || null,

@@ -19,6 +19,9 @@ import { requestLogger } from './middleware/logger.js';
 // ---------------------------------------------------------------------------
 dotenv.config({ path: '../.env' });
 
+// PORT is forced to 8081 by env.sh at startup.
+// Cloud Run injects PORT=8080 for nginx (the public port); env.sh overrides it
+// to 8081 before spawning this process so there is never a conflict.
 const PORT = parseInt(process.env.PORT || '8081', 10);
 const isDev = process.env.NODE_ENV !== 'production';
 

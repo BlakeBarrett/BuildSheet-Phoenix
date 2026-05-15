@@ -105,7 +105,7 @@ export interface AdvancedValidationOption {
 }
 
 export interface AiConfig {
-  provider: 'hosted' | 'on-prem';
+  provider: 'hosted' | 'openai-compat';
   baseUrl: string;
   imageBaseUrl: string;
   displayName: string;
@@ -141,5 +141,6 @@ export interface ServerAIService {
   generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null>;
   identifyComponent(image: string): Promise<ComponentIdentification | null>;
   applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: AuditAction[]; summary: string }>;
+  getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string>;
   generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any>;
 }

@@ -18,7 +18,8 @@ function env(key: string): string {
 
 export function getAiConfig() {
   return {
-    provider: (env('AI_PROVIDER') || 'on-prem') as 'hosted' | 'on-prem',
+    // Accept legacy 'on-prem' value as an alias for 'openai-compat'
+    provider: (env('AI_PROVIDER') === 'hosted' ? 'hosted' : 'openai-compat') as 'hosted' | 'openai-compat',
     baseUrl: env('AI_BASE_URL') || 'https://api.openai.com/v1',
     imageBaseUrl: env('AI_IMAGE_BASE_URL') || 'https://dashscope-intl.aliyuncs.com/api/v1',
     displayName: env('AI_DISPLAY_NAME') || 'BuildSheet AI',

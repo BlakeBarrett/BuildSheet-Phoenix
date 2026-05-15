@@ -1,7 +1,7 @@
 import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
-import { HybridAIService } from './hybridAiService.ts';
-import { LocalModelProvider } from './localAiService.ts';
+import { ServerAiService } from './serverAiService.ts';
+import { healthApi } from './apiClient.ts';
 
 const INVALID_PLACEHOLDER = 'UNUSED_PLACEHOLDER_FOR_API_KEY';
 
@@ -98,7 +98,8 @@ export class AIManager {
   }
 
   static hasApiKey(): boolean {
-    return !!this.getApiKey();
+    // API keys are managed server-side; the browser always considers AI available.
+    return true;
   }
 
   /**
@@ -144,58 +145,18 @@ export class AIManager {
 
   /**
    * Initializes the AI Service.
-   * Uses HybridAIService (cloud AI + optional local) if API key is valid, otherwise falls back to MockService.
+   * All AI calls are routed through the BuildSheet backend API — no keys in the browser.
+   * Falls back to MockService if the server health check fails.
    */
   static async createService(): Promise<{ service: AIService, error?: string }> {
-    const apiKey = this.getApiKey();
-
-    if (!apiKey) {
-      console.warn("AIManager: No valid API Key found. Using Mock Service.");
-      return {
-        service: new MockService(),
-        error: "Missing API Key. Using Offline Simulation."
-      };
-    }
-
     try {
-      const service = new HybridAIService(apiKey);
-      
-      // 1. Env vars take precedence as default if local storage doesn't override it
-      // @ts-ignore
-      let envUrl = (typeof window !== 'undefined' && window._env_ && window._env_.LOCAL_ARCHITECT_URL) || (typeof process !== 'undefined' && process.env && process.env.LOCAL_ARCHITECT_URL);
-      // @ts-ignore
-      let envModel = (typeof window !== 'undefined' && window._env_ && window._env_.LOCAL_ARCHITECT_MODEL) || (typeof process !== 'undefined' && process.env && process.env.LOCAL_ARCHITECT_MODEL);
-      
-      let localProvider: LocalModelProvider | undefined = undefined;
-
-      try {
-        const savedProviderHtml = localStorage.getItem('localArchitectProvider');
-        if (savedProviderHtml) {
-          localProvider = JSON.parse(savedProviderHtml);
-        }
-      } catch (e) {
-        console.warn("Could not load local provider from localStorage", e);
-      }
-      
-      if (!localProvider && envUrl && envModel) {
-          localProvider = {
-              id: envModel as string,
-              name: `[Env Config] ${envModel}`,
-              endpointUrl: envUrl as string,
-              type: 'openai'
-          } as LocalModelProvider;
-      }
-
-      if (localProvider) {
-          service.setLocalArchitect(localProvider);
-      }
-
-      return { service };
-    } catch (error: any) {
-      console.error("AIManager: Failed to instantiate HybridAIService.", error);
+      const health = await healthApi.check();
+      return { service: new ServerAiService(health.service ?? 'BuildSheet AI', health.offline) };
+    } catch (err: any) {
+      console.warn('AIManager: Server not reachable. Using Mock Service.', err);
       return {
         service: new MockService(),
-        error: `Service Initialization Failed: ${error.message}`
+        error: 'Server not reachable. Using Offline Simulation.',
       };
     }
   }

@@ -37,13 +37,6 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /api/v1/health
-              port: 8081
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            failureThreshold: 3
           env:
             # ── AI provider ──────────────────────────────────────────────────
             - name: AI_KEY
@@ -99,12 +92,14 @@ spec:
             - name: FIRECRAWL_API_KEY
               value: "${FIRECRAWL_API_KEY}"
             # ── Server config ────────────────────────────────────────────
-            - name: PORT
-              value: "8080"
+            # NOTE: Do NOT set PORT here. nginx binds 8080 (the Cloud Run
+            # container port). The Node API server uses its own default of 8081,
+            # which is what the health probes below check.
             - name: NODE_ENV
               value: "production"
-            - name: GOOGLE_APPLICATION_CREDENTIALS
-              value: "/etc/secrets/firebase-admin.json"
+            # GOOGLE_APPLICATION_CREDENTIALS is intentionally absent.
+            # Cloud Run uses Application Default Credentials (ADC) via the
+            # attached service account — no file mounting needed.
             # ── Startup probe (wait for server to be ready) ───────────────
             # Note: startup probe is configured via the container lifecycle below
   traffic:

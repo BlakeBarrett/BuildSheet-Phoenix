@@ -2647,8 +2647,8 @@ const AppContent: React.FC = () => {
                 category: entry.part.category,
                 quantity: entry.quantity,
             }));
-            const latestImage = session.generatedImages.length > 0 
-                ? session.generatedImages[session.generatedImages.length - 1].url 
+            const latestImage = session.generatedImages.length > 0
+                ? session.generatedImages[session.generatedImages.length - 1].url
                 : undefined;
             const result = await sharesApi.create({
                 projectId: session.id,

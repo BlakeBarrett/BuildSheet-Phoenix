@@ -5,8 +5,8 @@ FROM node:22-slim
 WORKDIR /app
 
 # ── Build the React frontend ─────────────────────────────────────────────────
-COPY package*.json ./
-RUN npm install
+COPY package*.json package-lock.json* ./
+RUN npm ci --no-audit --no-fund --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --fetch-retries=5
 
 COPY . .
 
@@ -14,7 +14,7 @@ RUN npm run build
 
 # ── Build the API server ─────────────────────────────────────────────────────
 WORKDIR /app/server
-RUN npm install
+RUN npm ci --no-audit --no-fund --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 --fetch-retries=5
 RUN npm run build
 
 # ── Runtime setup ────────────────────────────────────────────────────────────

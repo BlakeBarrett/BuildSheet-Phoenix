@@ -35,6 +35,7 @@ class MockAI implements ServerAIService {
   identifyComponent = vi.fn();
   applyAuditRecommendations = vi.fn();
   generateStructuredJson = vi.fn();
+  getARGuidance = vi.fn();
 }
 
 describe('SearchService', () => {

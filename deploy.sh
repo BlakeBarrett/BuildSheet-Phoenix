@@ -56,6 +56,7 @@ LOCAL_ARCHITECT_URL="${LOCAL_ARCHITECT_URL:-}"
 LOCAL_ARCHITECT_MODEL="${LOCAL_ARCHITECT_MODEL:-}"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
+SKIP_TESTS=false
 while [[ $# -gt 0 ]]; do
   case $1 in
     --project)    PROJECT_ID="$2"; shift 2 ;;
@@ -63,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --ai-key)     AI_KEY="$2"; shift 2 ;;
     --api-key)    API_KEY="$2"; shift 2 ;;   # legacy alias
     --gemini-key) GEMINI_API_KEY="$2"; shift 2 ;;  # legacy alias
+    --skip-tests) SKIP_TESTS=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -100,16 +102,24 @@ AI_KEY="${AI_KEY:-$EFFECTIVE_KEY}"
 API_KEY="${API_KEY:-$EFFECTIVE_KEY}"
 GEMINI_API_KEY="${GEMINI_API_KEY:-$EFFECTIVE_KEY}"
 
-IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest"
+# Use a unique tag per deploy so Cloud Run always creates a new revision.
+# :latest alone causes Cloud Run to skip revision creation if config is unchanged.
+IMAGE_TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)"
+IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+LATEST_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:latest"
 
 # ── Step 0: Run Tests ────────────────────────────────────────────────────────
-echo "🔧 Step 0: Running tests..."
-if [ -f "./run_all_tests.sh" ]; then
-  ./run_all_tests.sh
+if [ "$SKIP_TESTS" = true ]; then
+  echo "⏭️  Step 0: Skipping tests (--skip-tests)."
 else
-  npx playwright test
+  echo "🔧 Step 0: Running tests..."
+  if [ -f "./run_all_tests.sh" ]; then
+    ./run_all_tests.sh
+  else
+    npx playwright test
+  fi
+  echo "   ✅ Tests passed."
 fi
-echo "   ✅ Tests passed."
 echo ""
 
 # ── Step 1: Detect Container Engine ──────────────────────────────────────────
@@ -143,15 +153,16 @@ echo "   ✅ Auth configured."
 echo ""
 
 # ── Step 4: Build the Docker image ──────────────────────────────────────────
-echo "🔧 Step 4: Building image..."
-$DOCKER_BIN build -t "$IMAGE_URI" .
+echo "🔧 Step 4: Building image (tag: ${IMAGE_TAG})..."
+$DOCKER_BIN build --network=host -t "$IMAGE_URI" -t "$LATEST_URI" .
 echo "   ✅ Image built: $IMAGE_URI"
 echo ""
 
 # ── Step 5: Push to Artifact Registry ────────────────────────────────────────
 echo "🔧 Step 5: Pushing image to Artifact Registry..."
 $DOCKER_BIN push "$IMAGE_URI"
-echo "   ✅ Image pushed."
+$DOCKER_BIN push "$LATEST_URI"
+echo "   ✅ Image pushed: $IMAGE_URI"
 echo ""
 
 # ── Step 6: Deploy to Cloud Run via service.yaml ───────────────────────────

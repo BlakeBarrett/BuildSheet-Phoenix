@@ -9,8 +9,10 @@ import { getAnalytics, Analytics } from 'firebase/analytics';
  * Uses || (not ??) so that empty strings from Vite also fall through.
  */
 function env(key: string): string {
-  return (import.meta.env[key] as string)
-    || (window as any)._env_?.[key]
+  // import.meta.env is Vite-only; guard against Node.js / Playwright test runner
+  const metaEnv = (import.meta as any).env;
+  return (metaEnv?.[key] as string)
+    || (typeof window !== 'undefined' ? (window as any)._env_?.[key] : undefined)
     || '';
 }
 

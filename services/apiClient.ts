@@ -214,6 +214,9 @@ export const generationApi = {
 
   identify: (image: string) =>
     post('/generate/identify', { image }),
+
+  arGuidance: (image: string, currentStep: number, plan: any) =>
+    post<string>('/generate/ar-guidance', { image, currentStep, plan }),
 };
 
 // ---------------------------------------------------------------------------

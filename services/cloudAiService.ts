@@ -181,7 +181,7 @@ export class CloudAIService implements AIService {
      * Used by the procurement engine's verification stage.
      */
     async generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any> {
-        if (getAiProvider() === 'on-prem') {
+        if (getAiProvider() === 'openai-compat') {
             const text = await this.openAiChat({
                 model: MODEL_STRUCTURED,
                 userContent: prompt,
@@ -212,7 +212,7 @@ export class CloudAIService implements AIService {
 
     async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
-            if (getAiProvider() === 'on-prem') {
+            if (getAiProvider() === 'openai-compat') {
                 let userContent: string | Array<{ type: string; [k: string]: any }>;
                 if (image) {
                     const imageData = this.cleanBase64(image);
@@ -327,7 +327,7 @@ export class CloudAIService implements AIService {
 
             let fullText: string;
 
-            if (getAiProvider() === 'on-prem') {
+            if (getAiProvider() === 'openai-compat') {
                 fullText = await this.openAiChat({
                     model: MODEL_SMART,
                     system: AUDIT_SYSTEM_INSTRUCTION,
@@ -427,7 +427,7 @@ For automationFeasibility (0-100), score how practical it is to assemble with st
 Most consumer-electronics and maker-project assemblies should score 70+.
 Return JSON with keys: steps (array of {stepNumber,description,requiredTool,estimatedTime}), totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.`;
 
-            if (getAiProvider() === 'on-prem') {
+            if (getAiProvider() === 'openai-compat') {
                 const text = await this.openAiChat({ model: MODEL_SMART, system: assemblySystem, userContent: prompt, jsonMode: true, maxTokens: 4096 });
                 const plan = JSON.parse(text || 'null');
                 if (plan) plan.generatedAt = new Date();
@@ -492,7 +492,7 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
             const arSystem = 'You are an AR assembly guidance system. Analyze the camera frame and provide concise, actionable assembly instructions for the current step.';
             const stepText = `Current Step ${currentStep}: ${step?.description}. Analyze this frame and guide the user.`;
 
-            if (getAiProvider() === 'on-prem') {
+            if (getAiProvider() === 'openai-compat') {
                 const text = await this.openAiChat({
                     model: MODEL_FAST,
                     system: arSystem,
@@ -529,7 +529,7 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
             const auditPrompt = `DESIGN REQUIREMENTS: ${requirements}\n\nCURRENT BOM:\n${digest}\n\nAUDIT RESULT:\n${auditResult}\n\nBased ONLY on what the audit explicitly recommends, produce the list of actions. For addPart actions, use descriptive kebab-case IDs and real component names. For removePart actions, use the exact instanceId from the BOM above. Only include changes that directly address audit findings. If no changes are needed, return an empty actions array.`;
             const auditSystem = 'You are a hardware engineering audit assistant. Extract concrete BOM changes from audit results. Only include changes that directly address audit findings. Return JSON with keys: actions (array of {type,partId,name,category,quantity,instanceId,reason}), summary.';
 
-            if (getAiProvider() === 'on-prem') {
+            if (getAiProvider() === 'openai-compat') {
                 const text = await this.openAiChat({ model: MODEL_FAST, system: auditSystem, userContent: auditPrompt, jsonMode: true, maxTokens: 2048 });
                 const data = JSON.parse(text || '{"actions":[],"summary":"No changes recommended."}');
                 return data;

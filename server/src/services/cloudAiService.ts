@@ -112,7 +112,7 @@ export class ServerCloudAIService implements ServerAIService {
   // --- Core methods ---
 
   async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
-    if (this.config.provider === 'on-prem') {
+    if (this.config.provider === 'openai-compat') {
       let userContent: any = prompt;
       if (image) {
         userContent = [{ type: 'text', text: prompt }];
@@ -141,7 +141,7 @@ export class ServerCloudAIService implements ServerAIService {
   }
 
   async generateStructuredJson(prompt: string, schema: Record<string, any>): Promise<any> {
-    if (this.config.provider === 'on-prem') {
+    if (this.config.provider === 'openai-compat') {
       const text = await this.openAiChat({ model: this.config.models.structured, userContent: prompt, jsonMode: true, maxTokens: 4096 });
       return JSON.parse(text || 'null');
     }
@@ -152,7 +152,7 @@ export class ServerCloudAIService implements ServerAIService {
 
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     try {
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         // DashScope async generation
         const submitUrl = `${this.config.imageBaseUrl}/services/aigc/image-generation/generation`;
         const resp = await fetch(submitUrl, {
@@ -175,10 +175,7 @@ export class ServerCloudAIService implements ServerAIService {
           if (status === 'SUCCEEDED') {
             const imageUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
             if (!imageUrl) throw new Error('DashScope returned SUCCEEDED but no image URL was found');
-            const imgResp = await fetch(imageUrl);
-            if (!imgResp.ok) throw new Error('Failed to download generated image from DashScope');
-            const buf = Buffer.from(await imgResp.arrayBuffer());
-            return `data:image/png;base64,${buf.toString('base64')}`;
+            return imageUrl;
           }
           if (status === 'FAILED' || status === 'CANCELED') {
               throw new Error(`DashScope image generation task ${status}: ${JSON.stringify(pollData)}`);
@@ -194,14 +191,16 @@ export class ServerCloudAIService implements ServerAIService {
       }
       const response = await ai.models.generateContent({ model: this.config.models.image, contents: { parts } });
       const candidateParts = response.candidates?.[0]?.content?.parts;
-      const part = candidateParts?.find(p => p.inlineData);
-      return part ? `data:${part.inlineData!.mimeType || 'image/png'};base64,${part.inlineData!.data}` : null;
+      // Gemini returns inline base64 data — we have no CDN URL, so return null.
+      // Use DashScope (openai-compat) for image generation.
+      void candidateParts;
+      return null;
     } catch (e: any) { throw new Error(e.cause ? `DashScope request failed: ${e.cause.message}` : e.message); }
   }
 
   async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
     try {
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({
           model: this.config.models.fast,
           system: 'You are a hardware sourcing specialist. Return valid JSON array: [{"title","url","source","price","isEstimated"}]',
@@ -237,7 +236,7 @@ export class ServerCloudAIService implements ServerAIService {
 
   async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
     try {
-      if (this.config.provider === 'on-prem') return null;
+      if (this.config.provider === 'openai-compat') return null;
       const ai = this.getSearchClient();
       const response = await ai.models.generateContent({
         model: this.config.models.structured, contents: `Find local hardware stores for: ${query}.`,
@@ -250,7 +249,7 @@ export class ServerCloudAIService implements ServerAIService {
 
   async hydratePartDetails(name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<Partial<any> | null> {
     try {
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({
           model: this.config.models.structured,
           system: 'You are a hardware research specialist. Return JSON with keys: brand, description, price (number, USD), sku, ports.',
@@ -278,7 +277,7 @@ export class ServerCloudAIService implements ServerAIService {
       let prompt = `DESIGN CONTEXT/REQUIREMENTS: ${requirements}\n\nCURRENT BILL OF MATERIALS:\n${digest}\n`;
       if (previousAudit) prompt += `\nPREVIOUS AUDIT RESULT:\n${previousAudit}\n`;
       let fullText: string;
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         fullText = await this.openAiChat({ model: this.config.models.smart, system: AUDIT_SYSTEM_INSTRUCTION, userContent: prompt, maxTokens: 8192 });
       } else {
         const ai = this.getClient();
@@ -304,7 +303,7 @@ export class ServerCloudAIService implements ServerAIService {
     try {
       const system = 'You are a senior manufacturing engineer. Provide detailed fabrication specifications.';
       let text: string;
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         text = await this.openAiChat({ model: this.config.models.smart, system, userContent: `Manufacturing specs for: ${partName}. Context: ${context}.`, maxTokens: 4096 });
       } else {
         const ai = this.getClient();
@@ -318,7 +317,7 @@ export class ServerCloudAIService implements ServerAIService {
   async generateQAProtocol(partName: string, category: string): Promise<InspectionProtocol | null> {
     try {
       const system = 'You are a quality assurance engineer. Return JSON with: recommendedSensors, inspectionStrategy, defects.';
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({ model: this.config.models.fast, system, userContent: `QA protocol for: ${partName} (${category}).`, jsonMode: true, maxTokens: 2048 });
         return JSON.parse(text || 'null');
       }
@@ -333,7 +332,7 @@ export class ServerCloudAIService implements ServerAIService {
       const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
       const prompt = `Generate a robotic assembly plan for:\n${bomDigest}`;
       const system = 'You are a robotics assembly planner. Return JSON with: steps, totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.';
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, jsonMode: true, maxTokens: 4096 });
         const plan = JSON.parse(text || 'null');
         if (plan) plan.generatedAt = new Date();
@@ -353,7 +352,7 @@ export class ServerCloudAIService implements ServerAIService {
       const system = 'You are an expert mechanical engineer and OpenSCAD programmer. Return JSON with: material, dimensions, openSCAD, description.';
       const prompt = `Generate a 3D printable enclosure for: ${context}. Components: ${bomDigest}`;
       let spec: any;
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, jsonMode: true, maxTokens: 8192 });
         spec = JSON.parse(text || '{}');
       } else {
@@ -371,7 +370,7 @@ export class ServerCloudAIService implements ServerAIService {
       const imageData = this.cleanBase64(image);
       if (!imageData) return null;
       const system = 'You are a hardware component identification specialist. Return JSON with: name, category, brand, condition, conditionNotes, defects, estimatedPrice, suggestedPartId, description, ports.';
-      if (this.config.provider === 'on-prem') {
+      if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({ model: this.config.models.fast, system, userContent: [{ type: 'image_url', image_url: { url: image } }, { type: 'text', text: 'Identify this component.' }], jsonMode: true, maxTokens: 2048 });
         return JSON.parse(text || 'null');
       }
@@ -385,12 +384,43 @@ export class ServerCloudAIService implements ServerAIService {
     const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category})`).join('\n');
     const prompt = `DESIGN REQUIREMENTS: ${requirements}\n\nCURRENT BOM:\n${digest}\n\nAUDIT RESULT:\n${auditResult}\n\nExtract concrete BOM changes.`;
     const system = 'You are a hardware engineering audit assistant. Return JSON with: actions [{type,partId,name,category,quantity,instanceId,reason}], summary.';
-    if (this.config.provider === 'on-prem') {
+    if (this.config.provider === 'openai-compat') {
       const text = await this.openAiChat({ model: this.config.models.fast, system, userContent: prompt, jsonMode: true, maxTokens: 2048 });
       return JSON.parse(text || '{"actions":[],"summary":"No changes."}');
     }
     const ai = this.getClient();
     const response = await ai.models.generateContent({ model: this.config.models.fast, contents: prompt, config: { systemInstruction: system, responseMimeType: "application/json" } });
     return JSON.parse(response.text || '{"actions":[],"summary":"No changes."}');
+  }
+
+  async getARGuidance(image: string, currentStep: number, plan: AssemblyPlan): Promise<string> {
+    try {
+      const step = plan.steps?.find((s: any) => s.stepNumber === currentStep);
+      const imageData = this.cleanBase64(image);
+      if (!imageData) return 'Unable to process camera frame.';
+      const system = 'You are an AR assembly guidance system. Analyze the camera frame and provide concise, actionable assembly instructions for the current step.';
+      const stepText = `Current Step ${currentStep}: ${step?.description ?? ''}. Analyze this frame and guide the user.`;
+      if (this.config.provider === 'openai-compat') {
+        const text = await this.openAiChat({
+          model: this.config.models.fast, system,
+          userContent: [
+            { type: 'image_url', image_url: { url: image } },
+            { type: 'text', text: stepText },
+          ],
+          maxTokens: 512,
+        });
+        return text || 'Continue with the assembly step.';
+      }
+      const ai = this.getClient();
+      const response = await ai.models.generateContent({
+        model: this.config.models.audio,
+        contents: { parts: [
+          { inlineData: { mimeType: imageData.mimeType, data: imageData.data } },
+          { text: stepText },
+        ]},
+        config: { systemInstruction: system },
+      });
+      return response.text || 'Continue with the assembly step.';
+    } catch { return 'Guidance temporarily unavailable.'; }
   }
 }

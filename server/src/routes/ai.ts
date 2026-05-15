@@ -132,7 +132,7 @@ router.post('/generate-structured', async (req: Request, res: Response) => {
  */
 router.get('/config', (req: Request, res: Response) => {
     res.json({
-        provider: getEnv('AI_PROVIDER') || 'on-prem',
+        provider: getEnv('AI_PROVIDER') === 'hosted' ? 'hosted' : 'openai-compat',
         displayName: getEnv('AI_DISPLAY_NAME') || 'BuildSheet AI',
         modelFast: getEnv('AI_MODEL_FAST') || '',
         modelSmart: getEnv('AI_MODEL_SMART') || '',

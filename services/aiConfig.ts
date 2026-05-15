@@ -8,7 +8,7 @@
  *   - 'on-prem' — Any OpenAI-compatible REST endpoint (self-hosted or third-party)
  */
 
-export type AiProvider = 'hosted' | 'on-prem';
+export type AiProvider = 'hosted' | 'openai-compat';
 
 function readEnv(key: string): string | undefined {
     // 1. Runtime injection via env-config.js (Cloud Run)
@@ -29,11 +29,11 @@ function readEnv(key: string): string | undefined {
     return undefined;
 }
 
-/** The active LLM provider. Defaults to 'on-prem' for OpenAI-compatible endpoints. */
+/** The active LLM provider. Defaults to 'openai-compat' for OpenAI-compatible endpoints (e.g. Alibaba Cloud, OpenAI, Mistral). */
 export function getAiProvider(): AiProvider {
     const val = readEnv('AI_PROVIDER');
     if (val === 'hosted') return 'hosted';
-    return 'on-prem';
+    return 'openai-compat'; // also accepts legacy 'on-prem' value
 }
 
 /** Base URL for OpenAI-compatible providers (e.g. https://api.openai.com/v1). */

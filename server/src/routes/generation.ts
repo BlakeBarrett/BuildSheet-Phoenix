@@ -61,3 +61,15 @@ generationRouter.post('/identify', optionalAuth, generationRateLimit, async (req
     res.json(result);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
+
+/** POST /api/v1/generate/ar-guidance — Body: { image, currentStep, plan } */
+generationRouter.post('/ar-guidance', optionalAuth, generationRateLimit, async (req: Request, res: Response) => {
+  const { image, currentStep, plan } = req.body;
+  if (!image || currentStep === undefined || !plan) {
+    res.status(400).json({ error: 'image, currentStep, and plan are required' }); return;
+  }
+  try {
+    const guidance = await getAI(req).getARGuidance(image, currentStep, plan);
+    res.json(guidance);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
