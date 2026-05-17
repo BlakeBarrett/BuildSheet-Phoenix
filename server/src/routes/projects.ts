@@ -25,6 +25,25 @@ function getProjectsCollection(uid: string) {
 }
 
 /**
+ * Sanitize image array for Firestore storage.
+ * Keeps only images that have been uploaded to Firebase Storage (have a storageUrl).
+ * Strips base64 data URLs — they are too large for Firestore and device-local anyway.
+ */
+function sanitizeImages(images: any[]): any[] {
+  if (!Array.isArray(images)) return [];
+  return images
+    .filter((img: any) => img && typeof img.storageUrl === 'string' && img.storageUrl)
+    .map((img: any) => ({
+      id: img.id || '',
+      url: img.storageUrl, // HTTPS URL only — never base64
+      storageUrl: img.storageUrl,
+      storagePath: img.storagePath || null,
+      prompt: img.prompt || '',
+      timestamp: img.timestamp || new Date().toISOString(),
+    }));
+}
+
+/**
  * GET /api/v1/projects — List all projects for the authenticated user.
  */
 projectsRouter.get('/', async (req: Request, res: Response) => {
@@ -76,8 +95,8 @@ projectsRouter.put('/:id', async (req: Request, res: Response) => {
     // Ensure the project belongs to this user
     session.ownerId = req.user!.uid;
     session.lastModified = new Date().toISOString();
-    // Strip large blobs — images stay in client IDB
-    session.generatedImages = [];
+    // Keep only Firebase Storage-backed images (strip base64 blobs)
+    session.generatedImages = sanitizeImages(session.generatedImages);
     await col.doc(param(req, "id")).set(session, { merge: true });
     res.json({ ok: true, id: param(req, "id") });
   } catch (err: any) {
@@ -133,7 +152,7 @@ projectsRouter.post('/:id/duplicate', async (req: Request, res: Response) => {
       createdAt: now,
       lastModified: now,
       ownerId: req.user!.uid,
-      generatedImages: [],
+      generatedImages: sanitizeImages(data.generatedImages),
     };
     await col.doc(newId).set(newProject);
     res.json({ ok: true, id: newId });
@@ -155,7 +174,7 @@ projectsRouter.post('/migrate', async (req: Request, res: Response) => {
     let migrated = 0;
     for (const session of projects) {
       session.ownerId = req.user!.uid;
-      session.generatedImages = [];
+      session.generatedImages = sanitizeImages(session.generatedImages);
       await col.doc(session.id).set(session, { merge: true });
       migrated++;
     }

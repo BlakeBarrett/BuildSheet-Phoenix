@@ -147,7 +147,9 @@ export interface BOMEntry {
 
 export interface GeneratedImage {
   id: string;
-  url: string; // Base64 data URL
+  url: string; // Base64 data URL (local) or Firebase Storage HTTPS URL (cross-device)
+  storageUrl?: string; // Firebase Storage download URL — persisted to Firestore
+  storagePath?: string; // Firebase Storage object path (used for deletion)
   prompt: string;
   timestamp: Date;
 }

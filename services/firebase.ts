@@ -1,6 +1,7 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, Analytics } from 'firebase/analytics';
 
 /**
@@ -29,6 +30,7 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 let analytics: Analytics | null = null;
 
 /** True when a valid Firebase config is present (non-empty projectId). */
@@ -41,6 +43,7 @@ function ensureInitialized() {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
     if (firebaseConfig.measurementId && typeof window !== 'undefined') {
       analytics = getAnalytics(app);
     }
@@ -60,6 +63,11 @@ export function getFirebaseAuth(): Auth | null {
 export function getFirebaseDb(): Firestore | null {
   ensureInitialized();
   return db;
+}
+
+export function getFirebaseStorage(): FirebaseStorage | null {
+  ensureInitialized();
+  return storage;
 }
 
 export function getFirebaseAnalytics(): Analytics | null {

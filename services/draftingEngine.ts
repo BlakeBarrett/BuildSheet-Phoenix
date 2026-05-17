@@ -3,6 +3,7 @@ import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 import { projectsApi } from './apiClient.ts';
 import { get, set, del } from 'idb-keyval';
+import { uploadImageToStorage, deleteImageFromStorage } from './imageStorageService.ts';
 
 export interface ProjectIndexEntry {
   id: string;
@@ -78,11 +79,15 @@ export class DraftingEngine {
 
   private loadImagesAsync() {
     get(this.SESSION_PREFIX + this.session.id + '_images').then((images: any) => {
-        if (images && Array.isArray(images)) {
+        if (images && Array.isArray(images) && images.length > 0) {
             this.session.generatedImages = images.map(img => ({
                 ...img,
                 timestamp: new Date(img.timestamp)
             }));
+            if (this.onImagesLoaded) this.onImagesLoaded();
+        } else if (this.session.generatedImages.length > 0) {
+            // IDB is empty on this device but Firestore already returned image metadata
+            // (storageUrl). Images display via their HTTPS URLs — trigger UI refresh.
             if (this.onImagesLoaded) this.onImagesLoaded();
         }
     }).catch(e => console.error("IDB load failed", e));
@@ -194,7 +199,17 @@ export class DraftingEngine {
         ...session,
         createdAt: session.createdAt.toISOString(),
         lastModified: session.lastModified.toISOString(),
-        generatedImages: [], // large blobs stay in IDB
+        // Only include images that have been uploaded to Firebase Storage (strip base64 blobs)
+        generatedImages: session.generatedImages
+          .filter(img => img.storageUrl)
+          .map(img => ({
+            id: img.id,
+            url: img.storageUrl!, // HTTPS URL — safe for Firestore, loads cross-device
+            storageUrl: img.storageUrl,
+            storagePath: img.storagePath || null,
+            prompt: img.prompt,
+            timestamp: img.timestamp instanceof Date ? img.timestamp.toISOString() : img.timestamp,
+          })),
         thumbnail: session.thumbnail || '',
         cachedAssemblyPlan: session.cachedAssemblyPlan
           ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
@@ -208,7 +223,7 @@ export class DraftingEngine {
         })),
       };
       await projectsApi.save(session.id, plain);
-      console.log(`[Sync] ✓ Saved "${session.name}" (${session.id}) via API – ${session.bom.length} parts`);
+      console.log(`[Sync] ✓ Saved "${session.name}" (${session.id}) via API – ${session.bom.length} parts, ${plain.generatedImages.length} image(s)`);
     } catch (e: any) {
       console.error(`[Sync] ✗ Server save FAILED for "${session.name}" (${session.id}):`, e?.message || e);
     }
@@ -328,6 +343,14 @@ export class DraftingEngine {
 
   public deleteProject(id: string) {
     localStorage.removeItem(this.SESSION_PREFIX + id);
+    // Delete IDB images and clean up Firebase Storage paths
+    get(this.SESSION_PREFIX + id + '_images').then((images: any) => {
+      if (images && Array.isArray(images)) {
+        for (const img of images) {
+          if (img.storagePath) deleteImageFromStorage(img.storagePath);
+        }
+      }
+    }).catch(() => {});
     del(this.SESSION_PREFIX + id + '_images').catch(console.error);
     const indexRaw = localStorage.getItem(this.INDEX_KEY);
     if (indexRaw) {
@@ -436,8 +459,10 @@ export class DraftingEngine {
             const sessionNoImages = { ...session, generatedImages: [] };
             try { localStorage.setItem(key, JSON.stringify(sessionNoImages)); } catch { /* quota */ }
             if (session.id === this.session.id) {
-              const images = this.session.generatedImages;
-              this.session = { ...session, generatedImages: images };
+              // Prefer base64 images already in IDB on this device; fall back to
+              // Firestore image metadata (storageUrl) so other devices can display them.
+              const localImages = this.session.generatedImages;
+              this.session = { ...session, generatedImages: localImages.length > 0 ? localImages : session.generatedImages };
             }
           }
           this.updateProjectIndex(session);
@@ -919,6 +944,23 @@ export class DraftingEngine {
     });
 
     this.saveSession();
+
+    // Upload to Firebase Storage for cross-device access.
+    // Once done, update the entry with storageUrl and re-save to Firestore.
+    if (UserService.isAuthenticated()) {
+      const sessionId = this.session.id;
+      const imgId = img.id;
+      uploadImageToStorage(sessionId, imgId, url).then((result) => {
+        if (result) {
+          const target = this.session.generatedImages.find(i => i.id === imgId);
+          if (target) {
+            target.storageUrl = result.storageUrl;
+            target.storagePath = result.storagePath;
+            this.saveSession();
+          }
+        }
+      });
+    }
   }
 
   public updateOwner(ownerId: string) {
