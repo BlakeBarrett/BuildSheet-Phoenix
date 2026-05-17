@@ -2331,24 +2331,52 @@ const AppContent: React.FC = () => {
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
             const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
-            const hydrateResp = await sourcingApi.hydrate(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
-            const details = hydrateResp?.result;
-            if (details) {
-                draftingEngine.updatePartDetails(entry.instanceId, details);
-                refreshState();
-                // Re-select the part to show updated data in the modal
-                const updatedSession = draftingEngine.getSession();
-                const updatedEntry = updatedSession.bom.find(b => b.instanceId === entry.instanceId);
-                if (updatedEntry) {
-                    setSelectedPart(updatedEntry);
-                    // Auto-source after hydration so the user gets vendor links in one click
-                    handleSourcePart(updatedEntry);
-                }
+            await hydrateVirtualEntry(entry, designReqs, vendorUrls);
+            refreshState();
+            // Re-select the part to show updated data in the modal
+            const updatedSession = draftingEngine.getSession();
+            const updatedEntry = updatedSession.bom.find(b => b.instanceId === entry.instanceId);
+            if (updatedEntry) {
+                setSelectedPart(updatedEntry);
+                // Auto-source after hydration so the user gets vendor links in one click
+                handleSourcePart(updatedEntry);
             }
         } catch (e) {
             console.error('Hydration failed:', e);
         } finally {
             setIsHydrating(false);
+        }
+    };
+
+    /**
+     * Hydrates a single virtual BOM entry. Checks the global catalog first to avoid
+     * redundant API calls — if another user already hydrated the same part the cached
+     * specs are applied immediately. On a cache miss the hydration API is called and
+     * the result is written back to the catalog so future users benefit.
+     */
+    const hydrateVirtualEntry = async (entry: BOMEntry, designReqs: string, vendorUrls: string[]): Promise<void> => {
+        try {
+            // 1. Catalog-first: avoid the API call if specs are already known
+            const { partCatalogService } = await import('./services/partCatalogService.ts');
+            const cached = await partCatalogService.findPartByNameOrSku(entry.part.name);
+            if (cached?.part) {
+                draftingEngine.updatePartDetails(entry.instanceId, cached.part);
+                return;
+            }
+
+            // 2. Cache miss — call the hydration API
+            const hydrateResp = await sourcingApi.hydrate(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
+            const details = hydrateResp?.result;
+            if (details) {
+                draftingEngine.updatePartDetails(entry.instanceId, details);
+                // 3. Write specs to catalog immediately so other users skip this API call
+                const fresh = draftingEngine.getSession().bom.find(b => b.instanceId === entry.instanceId);
+                if (fresh) {
+                    partCatalogService.saveHydratedPart(fresh.part).catch(console.warn);
+                }
+            }
+        } catch (e) {
+            console.error(`Hydration failed for ${entry.part.name}:`, e);
         }
     };
 
@@ -2362,17 +2390,7 @@ const AppContent: React.FC = () => {
         // Process in batches of 3 for speed — server handles jitter internally
         for (let i = 0; i < virtualParts.length; i += 3) {
             const batch = virtualParts.slice(i, i + 3);
-            await Promise.all(batch.map(async (entry) => {
-                try {
-                    const hydrateResp = await sourcingApi.hydrate(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
-                    const details = hydrateResp?.result;
-                    if (details) {
-                        draftingEngine.updatePartDetails(entry.instanceId, details);
-                    }
-                } catch (e) {
-                    console.error(`Hydration failed for ${entry.part.name}:`, e);
-                }
-            }));
+            await Promise.all(batch.map(entry => hydrateVirtualEntry(entry, designReqs, vendorUrls)));
         }
         refreshState();
     };
@@ -2560,18 +2578,23 @@ const AppContent: React.FC = () => {
         const actions = currentSession.cachedAuditActions;
         if (!actions || actions.length === 0) return;
 
+        // Snapshot existing instance IDs so we can identify which parts are newly added
+        const existingIds = new Set(currentSession.bom.map(e => e.instanceId));
+
         setIsApplyingAudit(true);
         try {
             let changesApplied = 0;
-            actions.forEach(action => {
+            // Await addPart (async) to avoid a race condition where sourcing starts before
+            // new entries are committed to the BOM.
+            for (const action of actions) {
                 if (action.type === 'addPart' && action.partId && action.name && action.category) {
-                    draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
+                    await draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
                     changesApplied++;
                 } else if (action.type === 'removePart' && action.instanceId) {
                     draftingEngine.removePart(action.instanceId);
                     changesApplied++;
                 }
-            });
+            }
 
             if (changesApplied > 0) {
                 const actionDetails = actions.map(a => `- **${a.type === 'addPart' ? 'Added' : 'Removed'}**: ${a.name || a.instanceId} — ${a.reason}`).join('\n');
@@ -2580,14 +2603,32 @@ const AppContent: React.FC = () => {
                     content: `✅ **Applied ${changesApplied} recommended change${changesApplied > 1 ? 's' : ''}.**\n${actionDetails}`,
                     timestamp: new Date()
                 });
+                // Clear consumed actions so they don't persist across reopens
+                draftingEngine.clearAuditActions();
                 refreshState();
 
-                // Hydrate new parts and source them
-                await hydrateAllVirtualParts();
+                // Only hydrate and source the newly added parts — not the whole BOM
                 const updatedSession = draftingEngine.getSession();
-                for (const entry of updatedSession.bom) {
-                    if (entry.sourcing?.online === undefined) {
-                        await handleSourcePart(entry);
+                const newEntries = updatedSession.bom.filter(e => !existingIds.has(e.instanceId));
+
+                if (newEntries.length > 0) {
+                    // Hydrate virtual (brand === 'TBD') new parts in batches of 3
+                    const virtualNew = newEntries.filter(e => e.part.brand === 'TBD');
+                    if (virtualNew.length > 0) {
+                        const designReqs = updatedSession.designRequirements;
+                        const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
+                        for (let i = 0; i < virtualNew.length; i += 3) {
+                            const batch = virtualNew.slice(i, i + 3);
+                            await Promise.all(batch.map(entry => hydrateVirtualEntry(entry, designReqs, vendorUrls)));
+                        }
+                        refreshState();
+                    }
+
+                    // Source only the new parts that don't yet have online results
+                    for (const entry of newEntries) {
+                        if (entry.sourcing?.online === undefined) {
+                            await handleSourcePart(entry);
+                        }
                     }
                 }
             } else {
@@ -2600,6 +2641,7 @@ const AppContent: React.FC = () => {
 
             refreshState();
             setAuditOpen(false);
+            setSafetyPanelOpen(false);
         } catch (e: any) {
             console.error('Failed to apply audit changes:', e);
             draftingEngine.addMessage({

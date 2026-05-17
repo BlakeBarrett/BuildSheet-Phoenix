@@ -656,6 +656,11 @@ export class DraftingEngine {
     this.saveSession();
   }
 
+  public clearAuditActions(): void {
+    this.session.cachedAuditActions = undefined;
+    this.saveSession();
+  }
+
   public setAdvancedValidations(validations: DraftingSession['advancedValidations']) {
     this.session.advancedValidations = validations;
     this.saveSession();
