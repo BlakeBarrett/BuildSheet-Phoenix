@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { initializeApp, cert, type ServiceAccount } from 'firebase-admin/app';
+import { initializeApp, cert, applicationDefault, type ServiceAccount } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
 import { architectRouter } from './routes/architect.js';
@@ -38,11 +38,18 @@ if (!firebaseProjectId) {
     let appConfig: any = { projectId: firebaseProjectId };
     
     if (credentialsPath) {
-      // Production: load from mounted secrets file (Cloud Run / K8s)
-      appConfig.credential = cert(credentialsPath);
-      console.log(`[Server] Firebase Admin: Using credentials file at ${credentialsPath}`);
+      // Try using applicationDefault() first, which handles both service accounts and authorized users (ADC)
+      try {
+        appConfig.credential = applicationDefault();
+        console.log(`[Server] Firebase Admin: Using applicationDefault() for ${credentialsPath}`);
+      } catch (e) {
+        // Fallback to cert() if it's a legacy or custom service account JSON file that applicationDefault() rejects
+        appConfig.credential = cert(credentialsPath);
+        console.log(`[Server] Firebase Admin: Fallback to cert() for credentials file at ${credentialsPath}`);
+      }
     } else {
       // Dev: use Application Default Credentials (ADC) — gcloud CLI or GCP metadata server
+      appConfig.credential = applicationDefault();
       console.log('[Server] Firebase Admin: Using Application Default Credentials (ADC)');
     }
     
