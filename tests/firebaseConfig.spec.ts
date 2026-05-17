@@ -21,6 +21,17 @@ import { test, expect } from '@playwright/test';
 test.describe('Container Firebase Configuration', () => {
   const BASE_URL = 'http://localhost:8080';
 
+  test.beforeAll(async ({ request }) => {
+    let reachable = false;
+    try {
+      const res = await request.get(`${BASE_URL}/app/`, { timeout: 3000 });
+      reachable = res.ok();
+    } catch {
+      reachable = false;
+    }
+    test.skip(!reachable, `Container not running at ${BASE_URL} — start it with startup_local.sh`);
+  });
+
   test('env-config.js loads and sets window._env_ with real Firebase config', async ({ page }) => {
     // Navigate to the React SPA — this loads env-config.js as a <script> tag
     const response = await page.goto(`${BASE_URL}/app/`);

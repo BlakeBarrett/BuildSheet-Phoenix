@@ -17,6 +17,19 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: 'http://localhost:8081',
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('error', (err: any, _req, res: any) => {
+              if (err.code === 'ECONNREFUSED') {
+                // Backend not running — respond 503 so clients fail fast without log spam
+                if (typeof res.writeHead === 'function' && !res.headersSent) {
+                  res.writeHead(503, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'service_unavailable' }));
+                }
+                return;
+              }
+              console.error('[vite proxy]', err);
+            });
+          },
         },
       },
     },
