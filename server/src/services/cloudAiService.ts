@@ -37,21 +37,33 @@ function buildChunkConfidenceMap(supports: GroundingSupport[]): Map<number, numb
 
 const SYSTEM_INSTRUCTION = `
 ROLE: You are BuildSheet AI, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet.
-CORE DIRECTIVE: You are a FUNCTIONAL AGENT. Your primary job is to Manipulate the State of the drafting board using Tools.
-DO NOT just describe the build in text. You MUST call \`initializeDraft\` and \`addPart\` commands to actually create the BOM.
-CONTEXT: You are an expert hardware architect. When the user describes a project, you select real-world components.
-PART SCHEMA: Each part: id (kebab-case), name (full), category, ports [{name,type,gender,spec}].
-TOOLS:
-- \`initializeDraft(name: string, requirements: string)\`
-- \`addPart(id: string, name: string, category: string, quantity: number)\`
-- \`removePart(instanceId: string)\`
+CORE DIRECTIVE: You are a FUNCTIONAL AGENT. Your primary job is to manipulate the drafting board using tool calls written inline in your response.
+DO NOT describe the build without also calling the tools. You MUST call initializeDraft and addPart to actually create the BOM.
+
+TOOL CALL SYNTAX — write these EXACTLY as shown, inline in your response:
+  initializeDraft("Project Name", "Full requirements description");
+  addPart("kebab-case-id", "Full Part Name", "Category", quantity);
+  removePart("instanceId");
+
+EXAMPLE (follow this format exactly):
+  initializeDraft("LED Blinker", "Simple Arduino-based LED blinker with current limiting.");
+  addPart("arduino-uno-r3", "Arduino Uno R3", "Microcontroller", 1);
+  addPart("resistor-220-ohm", "220Ω 1/4W Through-Hole Resistor", "Component", 2);
+  addPart("led-red-5mm", "5mm Red LED T1-3/4", "Component", 2);
+
+RULES:
+- Always call initializeDraft FIRST, then addPart for every part.
+- Use kebab-case for part IDs.
+- Do NOT use JSON objects or arrays for tool calls — use only the function-call syntax above.
+- After the tool calls, write your reasoning/explanation.
 `;
 
 const AUDIT_SYSTEM_INSTRUCTION = `You are a senior hardware engineering auditor at BuildSheet.
 PRIMARY OBJECTIVE: Verify that a given Bill of Materials (BOM) will produce a functional, buildable system.
 CRITICAL — COMPATIBILITY CROSS-CHECK: Every single part in the BOM MUST be verified against the DESIGN CONTEXT.
-OUTPUT FORMAT: After your audit text, append ===ACTIONS_JSON=== followed by JSON: {"actions":[...],"summary":"..."}
-For removePart actions, use the EXACT instanceId from the BOM. For addPart, use descriptive kebab-case IDs.`;
+OUTPUT FORMAT: After your audit text, append ===ACTIONS_JSON=== followed by this EXACT JSON structure (field names are mandatory):
+{"actions":[{"type":"addPart","partId":"kebab-case-id","name":"Full Part Name","category":"Category","quantity":1,"reason":"why needed"},{"type":"removePart","instanceId":"EXACT_INSTANCE_ID_FROM_BOM","reason":"why removed"}],"summary":"one-line summary"}
+USE EXACTLY: type (not action), reason (not description), partId for new parts, instanceId for removals.`;
 
 export class ServerCloudAIService implements ServerAIService {
   public name: string;
@@ -98,7 +110,12 @@ export class ServerCloudAIService implements ServerAIService {
     }
     messages.push({ role: 'user', content: options.userContent });
     const body: any = { model: options.model, messages, temperature: options.temperature ?? 0.7, max_tokens: options.maxTokens ?? 4096 };
-    if (options.jsonMode) body.response_format = { type: 'json_object' };
+    if (options.jsonMode) {
+      body.response_format = { type: 'json_object' };
+      // Qwen3 thinking models: disable thinking for structured JSON calls to prevent
+      // thinking tokens from appearing in content and breaking JSON.parse.
+      body.enable_thinking = false;
+    }
     const resp = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}` },
@@ -106,7 +123,21 @@ export class ServerCloudAIService implements ServerAIService {
     });
     if (!resp.ok) throw new Error(`OpenAI API ${resp.status}: ${(await resp.text()).substring(0, 300)}`);
     const data: any = await resp.json();
-    return data.choices?.[0]?.message?.content ?? '';
+    let content = data.choices?.[0]?.message?.content ?? '';
+    // Strip <think>...</think> blocks — Qwen3 thinking tokens can leak into content
+    // for free-form (non-JSON-mode) calls depending on the API version.
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    return content;
+  }
+
+  // Robust JSON extraction: strips markdown fences and falls back to regex.
+  private extractJson<T>(text: string): T | null {
+    if (!text) return null;
+    let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    try { return JSON.parse(cleaned); } catch { /* continue */ }
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) { try { return JSON.parse(match[0]); } catch { /* give up */ } }
+    return null;
   }
 
   // --- Core methods ---
@@ -290,10 +321,21 @@ export class ServerCloudAIService implements ServerAIService {
       if (delimiterIndex !== -1) {
         auditText = fullText.substring(0, delimiterIndex).trim();
         let jsonPart = fullText.substring(delimiterIndex + 18).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-        try {
-          const parsed = JSON.parse(jsonPart);
-          if (parsed.actions && Array.isArray(parsed.actions)) auditActions = parsed.actions;
-        } catch { /* fallback */ }
+        const parsed = this.extractJson<{ actions?: any[]; summary?: string }>(jsonPart);
+        if (parsed?.actions && Array.isArray(parsed.actions)) {
+          const isAdd = (a: any) => (a.type ?? a.action ?? '') === 'addPart';
+          auditActions = parsed.actions.map((a: any) => ({
+            type: isAdd(a) ? 'addPart' : 'removePart',
+            // addPart: prefer partId, then id, then instanceId
+            partId: a.partId ?? a.id ?? (isAdd(a) ? a.instanceId : undefined),
+            // name: prefer name, then spec, then description
+            name: a.name ?? a.spec ?? a.description,
+            category: a.category ?? 'Component',
+            quantity: a.quantity ?? 1,
+            instanceId: a.instanceId,
+            reason: a.reason ?? a.description ?? a.spec,
+          } as AuditAction));
+        }
       }
       return { ...this.parseArchitectResponse(auditText), auditActions };
     } catch (e: any) { return { reasoning: `Verification failed: ${e.message}`, toolCalls: [] }; }
@@ -334,7 +376,7 @@ export class ServerCloudAIService implements ServerAIService {
       const system = 'You are a robotics assembly planner. Return JSON with: steps, totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.';
       if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, jsonMode: true, maxTokens: 4096 });
-        const plan = JSON.parse(text || 'null');
+        const plan = this.extractJson<AssemblyPlan>(text);
         if (plan) plan.generatedAt = new Date();
         return plan;
       }
@@ -354,7 +396,7 @@ export class ServerCloudAIService implements ServerAIService {
       let spec: any;
       if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, jsonMode: true, maxTokens: 8192 });
-        spec = JSON.parse(text || '{}');
+        spec = this.extractJson(text) ?? {};
       } else {
         const ai = this.getClient();
         const response = await ai.models.generateContent({ model: this.config.models.smart, contents: prompt, config: { systemInstruction: system, responseMimeType: "application/json", maxOutputTokens: 8192 } });
@@ -383,10 +425,10 @@ export class ServerCloudAIService implements ServerAIService {
   async applyAuditRecommendations(bom: any[], auditResult: string, requirements: string): Promise<{ actions: AuditAction[]; summary: string }> {
     const digest = bom.map(b => `[ID: ${b.instanceId}] ${b.quantity}x ${b.part.name} (${b.part.category})`).join('\n');
     const prompt = `DESIGN REQUIREMENTS: ${requirements}\n\nCURRENT BOM:\n${digest}\n\nAUDIT RESULT:\n${auditResult}\n\nExtract concrete BOM changes.`;
-    const system = 'You are a hardware engineering audit assistant. Return JSON with: actions [{type,partId,name,category,quantity,instanceId,reason}], summary.';
+    const system = 'You are a hardware engineering audit assistant. Return JSON: {"actions":[{"type":"addPart","partId":"kebab-id","name":"Name","category":"Cat","quantity":1,"reason":"why"} or {"type":"removePart","instanceId":"EXACT_ID","reason":"why"}],"summary":"text"}. Use EXACTLY these field names.';
     if (this.config.provider === 'openai-compat') {
       const text = await this.openAiChat({ model: this.config.models.fast, system, userContent: prompt, jsonMode: true, maxTokens: 2048 });
-      return JSON.parse(text || '{"actions":[],"summary":"No changes."}');
+      return this.extractJson<{ actions: AuditAction[]; summary: string }>(text) ?? { actions: [], summary: 'No changes.' };
     }
     const ai = this.getClient();
     const response = await ai.models.generateContent({ model: this.config.models.fast, contents: prompt, config: { systemInstruction: system, responseMimeType: "application/json" } });

@@ -35,6 +35,55 @@ export function parseArchitectResponse(text: string): ArchitectResponse {
         reasoning = reasoning.replace(m[0], '');
     });
 
+    // Handle Qwen-style JSON command format: {"command":"...","parameters":{...}} or [{...}]
+    {
+        let buf = '';
+        let depth = 0;
+        let inJson = false;
+        const lines = reasoning.split('\n');
+        const cleanedLines: string[] = [];
+        const jsonBlocks: string[] = [];
+        for (const line of lines) {
+            const t = line.trim();
+            if (!inJson && (t.startsWith('{') || t.startsWith('['))) { inJson = true; buf = ''; depth = 0; }
+            if (inJson) {
+                buf += line + '\n';
+                for (const ch of line) {
+                    if (ch === '{' || ch === '[') depth++;
+                    else if (ch === '}' || ch === ']') depth--;
+                }
+                if (depth <= 0) {
+                    jsonBlocks.push(buf.trim());
+                    inJson = false; buf = '';
+                }
+            } else {
+                cleanedLines.push(line);
+            }
+        }
+        for (const block of jsonBlocks) {
+            try {
+                const data = JSON.parse(block);
+                const items: any[] = Array.isArray(data) ? data : [data];
+                let matched = false;
+                for (const item of items) {
+                    if (!item?.command || !item?.parameters) continue;
+                    if (item.command === 'initializeDraft') {
+                        toolCalls.push({ type: 'initializeDraft', name: item.parameters.name ?? '', reqs: item.parameters.requirements ?? '' });
+                        matched = true;
+                    } else if (item.command === 'addPart') {
+                        toolCalls.push({ type: 'addPart', partId: item.parameters.id ?? item.parameters.partId ?? '', name: item.parameters.name ?? '', category: item.parameters.category ?? 'Component', qty: item.parameters.quantity ?? 1 });
+                        matched = true;
+                    } else if (item.command === 'removePart') {
+                        toolCalls.push({ type: 'removePart', instanceId: item.parameters.instanceId ?? item.parameters.id ?? '' });
+                        matched = true;
+                    }
+                }
+                if (!matched) cleanedLines.push(block); // not a tool call block — keep it
+            } catch { cleanedLines.push(block); } // invalid JSON — keep it
+        }
+        if (toolCalls.length > 0) reasoning = cleanedLines.join('\n');
+    }
+
     reasoning = reasoning.replace(/(###?\s*(Tool Calls|Corrections|Actions|Functions|Tool\s*Commands|Correction|Correction\s*\(Tool\s*Calls\)).*)/gi, '');
     reasoning = reasoning.replace(/(Task\s*\d+:\s*(Correction|Tool Calls|Actions).*)/gi, '');
     reasoning = reasoning.replace(/```[a-z]*\s*[\s\S]*?(addPart|removePart|initializeDraft|tool|arguments)[\s\S]*?```/gi, '');
@@ -45,4 +94,5 @@ export function parseArchitectResponse(text: string): ArchitectResponse {
     reasoning = reasoning.replace(/\n{3,}/g, '\n\n');
 
     return { reasoning: reasoning.trim(), toolCalls };
+
 }

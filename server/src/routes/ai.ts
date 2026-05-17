@@ -94,7 +94,10 @@ router.post('/generate-structured', async (req: Request, res: Response) => {
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             temperature: 0.7,
             max_tokens: 4096,
-            response_format: { type: 'json_object' }
+            response_format: { type: 'json_object' },
+            // Qwen3: disable thinking for structured JSON calls so thinking tokens
+            // don't appear in content and break JSON.parse downstream.
+            enable_thinking: false,
         };
 
         const response = await fetch(`${baseUrl}/chat/completions`, {

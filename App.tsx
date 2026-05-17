@@ -2235,7 +2235,7 @@ const AppContent: React.FC = () => {
 
             draftingEngine.addMessage({
                 role: 'assistant',
-                content: parsed.reasoning || architectResponse.text,
+                content: parsed.reasoning || 'Re-validation complete.',
                 timestamp: new Date()
             });
         } catch (e: any) {
@@ -2962,9 +2962,20 @@ const AppContent: React.FC = () => {
                 if (fallback) draftingEngine.setVisualManifest(fallback);
             }
 
+            let displayContent = parsed.reasoning;
+            if (!displayContent && parsed.toolCalls.length > 0) {
+                const init = parsed.toolCalls.find((c: any) => c.type === 'initializeDraft') as any;
+                const addCount = parsed.toolCalls.filter((c: any) => c.type === 'addPart').length;
+                const removeCount = parsed.toolCalls.filter((c: any) => c.type === 'removePart').length;
+                const summary: string[] = [];
+                if (init?.name) summary.push(`Initialized **${init.name}**`);
+                if (addCount) summary.push(`added ${addCount} part${addCount !== 1 ? 's' : ''} to the BOM`);
+                if (removeCount) summary.push(`removed ${removeCount} part${removeCount !== 1 ? 's' : ''} from the BOM`);
+                displayContent = summary.length ? summary.join(', ') + '.' : 'BOM updated.';
+            }
             draftingEngine.addMessage({
                 role: 'assistant',
-                content: parsed.reasoning || architectResponse.text,
+                content: displayContent || architectResponse.text,
                 timestamp: new Date(),
                 metadata: {
                     ...architectResponse.metadata,
@@ -3678,9 +3689,9 @@ const AppContent: React.FC = () => {
                                 className={`w-full h-14 text-sm font-bold shadow-lg transition-all ${kitReady ? 'bg-gradient-to-r from-indigo-600 to-violet-600' : ''}`}
                                 onClick={handleOneClickKit}
                                 disabled={isKitting}
-                                icon={isKitting ? "motion_mode" : kitReady ? "shopping_cart_checkout" : "magic_button"}
+                                icon={isKitting ? "motion_mode" : kitReady ? "inventory_2" : "magic_button"}
                             >
-                                {isKitting ? 'Stabilizing Kit...' : kitReady ? 'Checkout Kit' : 'One-Click Kit'}
+                                {isKitting ? 'Stabilizing Kit...' : kitReady ? 'View Kit Summary' : 'One-Click Kit'}
                             </Button>
                             <button
                                 onClick={() => setPreferredVendorsOpen(true)}

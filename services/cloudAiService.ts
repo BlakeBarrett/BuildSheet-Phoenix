@@ -112,6 +112,16 @@ export class CloudAIService implements AIService {
     // On-prem (OpenAI-compatible) helpers (used when AI_PROVIDER=on-prem)
     // ---------------------------------------------------------------------------
 
+    /** Robust JSON extraction: strips markdown fences and falls back to regex. */
+    private extractJsonObject<T>(text: string): T | null {
+        if (!text) return null;
+        let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        try { return JSON.parse(cleaned); } catch { /* continue */ }
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) { try { return JSON.parse(match[0]); } catch { /* give up */ } }
+        return null;
+    }
+
     /**
      * Generic OpenAI-compatible chat completions call.
      * Handles text, vision (base64 images), JSON mode, and conversation history.
@@ -163,12 +173,11 @@ export class CloudAIService implements AIService {
             throw new Error(`AI Service Error (${resp.status}): ${errText.substring(0, 300)}`);
         }
         const data = await resp.json();
-        return data.choices?.[0]?.message?.content ?? '';
+        let content = data.choices?.[0]?.message?.content ?? '';
+        // Strip <think>...</think> blocks — Qwen3 thinking tokens can leak into content.
+        content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        return content;
     }
-
-
-
-
 
     public getApiKeyStatus(): string {
         const key = this.getApiKey();
@@ -429,7 +438,7 @@ Return JSON with keys: steps (array of {stepNumber,description,requiredTool,esti
 
             if (getAiProvider() === 'openai-compat') {
                 const text = await this.openAiChat({ model: MODEL_SMART, system: assemblySystem, userContent: prompt, jsonMode: true, maxTokens: 4096 });
-                const plan = JSON.parse(text || 'null');
+                const plan = this.extractJsonObject<AssemblyPlan>(text);
                 if (plan) plan.generatedAt = new Date();
                 return plan;
             }

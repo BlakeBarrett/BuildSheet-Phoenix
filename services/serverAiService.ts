@@ -34,8 +34,13 @@ export class ServerAiService implements AIService {
   }
 
   async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
-    const result = await architectApi.chat(prompt, history, image) as { text: string; metadata?: any };
-    return { text: result.text, metadata: result.metadata };
+    return new Promise((resolve, reject) => {
+      (architectApi.chat(prompt, history, image, {
+        onChunk: () => {},
+        onDone: (data: any) => resolve({ text: data.text ?? '', metadata: data.metadata }),
+        onError: (err: string) => reject(new Error(err)),
+      }) as Promise<void>).catch(reject);
+    });
   }
 
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {

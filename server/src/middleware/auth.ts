@@ -50,14 +50,17 @@ async function authenticateRequest(
   required: boolean
 ): Promise<void> {
   const authHeader = req.headers.authorization;
+  const isDev = process.env.NODE_ENV !== 'production';
 
   if (!authHeader?.startsWith('Bearer ')) {
-    if (required) {
+    if (required && !isDev) {
       res.status(401).json({ error: 'Missing or invalid Authorization header' });
       return;
     }
-    // Guest mode
-    req.user = { uid: 'guest', isGuest: true };
+    // Dev mode or optional auth — allow through
+    req.user = isDev
+      ? { uid: 'dev-user', email: 'dev@localhost', isGuest: false }
+      : { uid: 'guest', isGuest: true };
     next();
     return;
   }
