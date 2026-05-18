@@ -212,3 +212,35 @@ echo "════════════════════════�
 echo "  ✅ Deployment complete!"
 echo "  URL: $SERVICE_URL"
 echo "══════════════════════════════════════════════════════════════"
+echo ""
+
+# ── Tag the deployed commit with deployment metadata ──────────────────────────
+echo "🏷️  Creating deployment tag..."
+
+DEPLOY_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+FULL_SHA=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+DEPLOY_TAG="deploy-${BRANCH_NAME}-${SHORT_SHA}"
+
+# Create lightweight tag body with deployment info
+DEPLOY_BODY="Branch: ${BRANCH_NAME}
+Commit: ${FULL_SHA}
+Short:  ${SHORT_SHA}
+Image:  ${IMAGE_URI}
+URL:    ${SERVICE_URL}
+Region: ${REGION}
+Project: ${PROJECT_ID}
+Time:   ${DEPLOY_TIMESTAMP}"
+
+# Create or update the annotated tag
+git tag -d "$DEPLOY_TAG" 2>/dev/null || true
+git tag -a "$DEPLOY_TAG" -m "$DEPLOY_BODY"
+echo "   ✅ Tag created: $DEPLOY_TAG"
+
+# Push the tag to origin
+git push origin "$DEPLOY_TAG" --force 2>/dev/null && \
+  echo "   ✅ Tag pushed to origin." || \
+  echo "   ⚠️  Tag not pushed to origin (you can push manually):" && \
+  echo "     git push origin $DEPLOY_TAG --force"
