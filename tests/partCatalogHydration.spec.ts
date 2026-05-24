@@ -458,7 +458,7 @@ test.describe('partCatalogService — Firestore doc ID generation (in-process)',
     });
 
     test('lowercases the entire doc ID', () => {
-        expect(makeDocId({ sku: 'ADAFRUIT-4090' })).toBe('adafruit-4090');
+        expect(makeDocId({ sku: 'ADAFRUIT-4090', name: 'Adafruit Part' })).toBe('adafruit-4090');
     });
 
     test('replaces all non-alphanumeric characters with hyphens', () => {

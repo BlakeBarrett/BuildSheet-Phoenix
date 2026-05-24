@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from './Material3UI.tsx';
 
 /** Check if user has given full (non-essential) consent */
@@ -40,6 +41,7 @@ export const clearAllUserData = async (): Promise<void> => {
 };
 
 export const CookieConsent: React.FC = () => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -70,12 +72,12 @@ export const CookieConsent: React.FC = () => {
             Privacy & Data Control
           </h3>
           <p id="cookie-desc" className="text-sm text-[#C4C7C5] leading-relaxed">
-            We use <strong>Local Storage</strong> to save your projects on-device. Project descriptions, images, and BOM data are sent to our <strong>AI service provider</strong> for AI processing. No personal data is sold to third parties.
+            We use <strong>{t('cookie.localStorage')}</strong> to save your projects on-device. Project descriptions, images, and BOM data are sent to our <strong>{t('cookie.aiProvider')}</strong> for AI processing. No personal data is sold to third parties.
           </p>
         </div>
         <div className="flex gap-3 shrink-0 w-full md:w-auto">
-          <Button onClick={handleDecline} variant="ghost" className="text-[#C4C7C5] hover:text-white hover:bg-white/10 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:outline-none">Essential Only</Button>
-          <Button onClick={handleAccept} variant="tonal" className="bg-indigo-300 text-indigo-900 hover:bg-indigo-200 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none">Accept All</Button>
+          <Button onClick={handleDecline} variant="ghost" className="text-[#C4C7C5] hover:text-white hover:bg-white/10 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:outline-none">{t('cookie.essentialOnly')}</Button>
+          <Button onClick={handleAccept} variant="tonal" className="bg-indigo-300 text-indigo-900 hover:bg-indigo-200 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none">{t('cookie.acceptAll')}</Button>
         </div>
       </div>
     </div>

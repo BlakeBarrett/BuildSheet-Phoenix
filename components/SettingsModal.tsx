@@ -4,6 +4,7 @@ import { useService } from '../contexts/ServiceContext.tsx';
 import { LocalModelProvider } from '../services/localAiService.ts';
 import { clearAllUserData } from './CookieConsent.tsx';
 import { useTier } from '../hooks/useTier.tsx';
+import { useTranslation } from 'react-i18next';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -14,6 +15,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const { updateLocalProvider } = useService();
     const { tier } = useTier();
     const isEnterprise = tier === 'enterprise';
+    const { t } = useTranslation();
     const [models, setModels] = useState<LocalModelProvider[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedModelId, setSelectedModelId] = useState<string>('');
@@ -223,19 +225,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="fixed inset-0 z-[300] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title">
             <div className="bg-white rounded-[32px] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
                 <div className="p-6 pb-2 flex justify-between items-center border-b border-gray-100">
-                    <h3 id="settings-title" className="text-xl font-bold text-slate-800 tracking-tight">AI Settings</h3>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <h3 id="settings-title" className="text-xl font-bold text-slate-800 tracking-tight">{t('settings.title')}</h3>
+                    <IconButton icon="close" onClick={onClose} title={t('modal.close')} />
                 </div>
                 
                 <div className="p-6 space-y-4 overflow-y-auto flex-1">
                     {/* Temperature slider — available to all tiers */}
                     <div>
-                        <label htmlFor="ai-temperature" className="block text-sm font-bold text-slate-700 mb-1">Temperature</label>
+                        <label htmlFor="ai-temperature" className="block text-sm font-bold text-slate-700 mb-1">{t('settings.temperature')}</label>
                         <p className="text-xs text-slate-600 mb-3">
                             Controls AI creativity. Lower values produce more focused, deterministic responses. Higher values are more creative and varied.
                         </p>
                         <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-500 w-14">Precise</span>
+                            <span className="text-xs text-slate-500 w-14">{t('settings.precise')}</span>
                             <input
                                 id="ai-temperature"
                                 type="range"
@@ -246,7 +248,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 onChange={(e) => setTemperature(parseFloat(e.target.value))}
                                 className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600"
                             />
-                            <span className="text-xs text-slate-500 w-14 text-right">Creative</span>
+                            <span className="text-xs text-slate-500 w-14 text-right">{t('settings.creative')}</span>
                             <span className="text-sm font-mono font-bold text-slate-700 w-10 text-center bg-slate-100 rounded-lg py-1">{temperature.toFixed(1)}</span>
                         </div>
                     </div>
@@ -256,10 +258,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         {!isEnterprise && (
                             <div className="flex items-center gap-2 mb-3 p-2.5 bg-amber-50 rounded-xl">
                                 <span className="material-symbols-rounded text-amber-600 text-[18px]" aria-hidden="true">lock</span>
-                                <span className="text-xs font-medium text-amber-700">Custom model selection requires an Enterprise plan.</span>
+                                <span className="text-xs font-medium text-amber-700">{t('settings.enterpriseRequired')}</span>
                             </div>
                         )}
-                        <label htmlFor="server-address" className="block text-sm font-bold text-slate-700 mb-1">Server Address</label>
+                        <label htmlFor="server-address" className="block text-sm font-bold text-slate-700 mb-1">{t('settings.serverAddress')}</label>
                         <p className="text-xs text-slate-600 mb-2">
                             The IP address or hostname of your AI server.
                         </p>
@@ -270,14 +272,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 value={serverAddress}
                                 onChange={(e) => setServerAddress(e.target.value)}
                                 className="flex-1 p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                placeholder="192.168.1.41"
+                                placeholder={t('settings.ipPlaceholder')}
                             />
                             <Button variant="tonal" onClick={() => fetchModels(serverAddress)} disabled={loading}>
-                                Scan
+                                {t('settings.scan')}
                             </Button>
                         </div>
 
-                        <label htmlFor="local-model" className="block text-sm font-bold text-slate-700 mb-2">Local Architect Model</label>
+                        <label htmlFor="local-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.architectModel')}</label>
                         <p className="text-xs text-slate-600 mb-3">
                             Override the default Architect role by pointing to a local model on your network.
                         </p>
@@ -285,7 +287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         {loading ? (
                             <div className="text-center py-4 text-sm text-slate-500 flex items-center justify-center gap-2">
                                 <span className="material-symbols-rounded animate-spin">progress_activity</span>
-                                Scanning local network...
+                                {t('settings.scanning')}
                             </div>
                         ) : (
                             <select 
@@ -294,7 +296,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 onChange={(e) => setSelectedModelId(e.target.value)}
                                 className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                             >
-                                <option value="">Default (Gemini Cloud API)</option>
+                                <option value="">{t('settings.defaultGemini')}</option>
                                 {models.map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
@@ -303,14 +305,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         
                         {!loading && models.length === 0 && (
                             <p className="text-xs text-amber-600 mt-2">
-                                No local models found. Make sure LM Studio or Ollama is running on {serverAddress} and CORS is enabled.
+                                {t('settings.noModelsFound', { address: serverAddress })}
                             </p>
                         )}
 
                         {models.length > 0 && (
                             <>
                                 <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="audit-model" className="block text-sm font-bold text-slate-700 mb-2">Local Validation Audit Model</label>
+                                    <label htmlFor="audit-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.validationModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
                                         Override the default Gemini model for the Validation Audit (design feasibility check).
                                     </p>
@@ -320,7 +322,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedAuditModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">Default (Gemini Cloud API)</option>
+                                        <option value="">{t('settings.defaultGemini')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -328,7 +330,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 </div>
 
                                 <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="plan-model" className="block text-sm font-bold text-slate-700 mb-2">Local Assembly Plan Model</label>
+                                    <label htmlFor="plan-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.planModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
                                         Override the default Gemini model for the Assembly Plan generation.
                                     </p>
@@ -338,7 +340,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedPlanModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">Default (Gemini Cloud API)</option>
+                                        <option value="">{t('settings.defaultGemini')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -346,7 +348,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 </div>
 
                                 <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="cad-model" className="block text-sm font-bold text-slate-700 mb-2">Local CAD / Enclosure Model</label>
+                                    <label htmlFor="cad-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.cadModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
                                         Model used for generating OpenSCAD source code and enclosure specifications. Use a code-focused model like Nemotron for best results.
                                     </p>
@@ -356,7 +358,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedCadModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">Default (Gemini Cloud API)</option>
+                                        <option value="">{t('settings.defaultGemini')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -364,7 +366,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 </div>
 
                                 <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="utility-model" className="block text-sm font-bold text-slate-700 mb-2">General Utility Model</label>
+                                    <label htmlFor="utility-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.utilityModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
                                         Covers fabrication briefs, QA protocols, AR guidance, component identification, and audit recommendations.
                                     </p>
@@ -374,7 +376,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedUtilityModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">Default (Gemini Cloud API)</option>
+                                        <option value="">{t('settings.defaultGemini')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -382,7 +384,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 </div>
 
                                 <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="search-reasoning-model" className="block text-sm font-bold text-slate-700 mb-2">Search Reasoning Model</label>
+                                    <label htmlFor="search-reasoning-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.searchModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
                                         Controls which LLM verifies and extracts pricing data from scraped product pages during procurement search. Defaults to Gemini Cloud API.
                                     </p>
@@ -392,7 +394,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedSearchReasoningId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">Default (Gemini Cloud API)</option>
+                                        <option value="">{t('settings.defaultGemini')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -400,9 +402,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 </div>
 
                                 <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="search-api-key" className="block text-sm font-bold text-slate-700 mb-2">Search / Grounding API Key</label>
+                                    <label htmlFor="search-api-key" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.searchApiKey')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
-                                        Optional. Use your own API key for part search, local suppliers, and data hydration. If blank, the default key is used.
+                                        {t('settings.searchApiKeyDescription')}
                                     </p>
                                     <input
                                         id="search-api-key"
@@ -410,7 +412,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         value={searchApiKey}
                                         onChange={(e) => setSearchApiKey(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono"
-                                        placeholder="Leave blank to use default"
+                                        placeholder={t('settings.blankDefault')}
                                         autoComplete="off"
                                     />
                                 </div>
@@ -421,18 +423,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 <div className="p-6 border-t border-gray-100 flex flex-col gap-3 bg-slate-50">
                     <div className="flex justify-end gap-3">
-                        {isEnterprise && <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>Refresh Models</Button>}
-                        <Button variant="primary" onClick={handleSave}>Save Changes</Button>
+                        {isEnterprise && <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>{t('settings.refreshModels')}</Button>}
+                        <Button variant="primary" onClick={handleSave}>{t('settings.save')}</Button>
                     </div>
                     <div className="border-t border-gray-200 pt-3">
-                        <p className="text-xs text-slate-600 mb-2 font-medium">Privacy & Data (GDPR)</p>
+                        <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.privacy')}</p>
                         <div className="flex gap-2">
                             <Button variant="ghost" className="text-xs text-red-600 hover:bg-red-50 flex-1" icon="delete_forever" onClick={async () => {
-                                if (window.confirm('This will permanently delete all your projects, settings, and stored data. This action cannot be undone.')) {
+                                if (window.confirm(t('settings.deleteDataConfirm'))) {
                                     await clearAllUserData();
                                     window.location.reload();
                                 }
-                            }}>Delete All My Data</Button>
+                            }}>{t('settings.deleteData')}</Button>
                             <Button variant="ghost" className="text-xs text-slate-600 hover:bg-slate-100 flex-1" icon="download" onClick={() => {
                                 const data: Record<string, string | null> = {};
                                 for (let i = 0; i < localStorage.length; i++) {
@@ -446,7 +448,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 link.download = 'buildsheet-data-export.json';
                                 link.click();
                                 URL.revokeObjectURL(url);
-                            }}>Download My Data</Button>
+                            }}>{t('settings.exportData')}</Button>
                         </div>
                     </div>
                 </div>

@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AssemblyPlan, BOMEntry } from '../types.ts';
 import { AIService } from '../services/aiTypes.ts';
 import { Button, IconButton } from './Material3UI.tsx';
@@ -16,6 +17,7 @@ interface VoiceSessionProps {
  * with Gemini processing the transcribed queries against the current BOM/plan.
  */
 export const VoiceSession: React.FC<VoiceSessionProps> = ({ bom, plan, aiService, onClose }) => {
+  const { t } = useTranslation();
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('Tap the mic and ask about your build.');
@@ -129,20 +131,20 @@ USER QUESTION (spoken): ${query}`;
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[150] bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col" role="dialog" aria-modal="true" aria-label="Greasy Hands Voice Mode">
+    <div className="fixed inset-0 z-[150] bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col" role="dialog" aria-modal="true" aria-label={t('voice.title')}>
       {/* Header */}
       <div className="flex justify-between items-center p-6">
         <div>
           <h2 className="text-white text-xl font-bold tracking-tight flex items-center gap-2">
             <span className="material-symbols-rounded text-amber-400" aria-hidden="true">mic</span>
-            Greasy Hands Mode
+            {t('voice.title')}
           </h2>
-          <p className="text-white/50 text-xs mt-0.5">Hands-free voice assistant</p>
+          <p className="text-white/50 text-xs mt-0.5">{t('voice.subtitle')}</p>
         </div>
         <button
           onClick={onClose}
           className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white text-xl hover:bg-white/20 transition-colors"
-          aria-label="Close voice mode"
+          aria-label={t('voice.closeAria')}
         >
           &times;
         </button>

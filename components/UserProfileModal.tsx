@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { User } from '../types.ts';
 import { Button, IconButton, Chip, UserAvatar } from './Material3UI.tsx';
 
@@ -14,6 +15,7 @@ interface UserProfileModalProps {
 }
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, user, onLogout, onDeleteAccount, onExportData, planTier, onUpgrade }) => {
+    const { t } = useTranslation();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteInput, setDeleteInput] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
@@ -45,9 +47,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                 {/* Header */}
                 <div className="relative bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 pb-16 text-white">
                     <div className="absolute top-4 right-4">
-                        <IconButton icon="close" onClick={onClose} className="text-white/80 hover:bg-white/10 hover:text-white" title="Close" />
+                        <IconButton icon="close" onClick={onClose} className="text-white/80 hover:bg-white/10 hover:text-white" title={t('modal.close')} />
                     </div>
-                    <h2 id="profile-title" className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-200 mb-1">Account</h2>
+                    <h2 id="profile-title" className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-200 mb-1">{t('profile.account')}</h2>
                     <p className="text-xl font-bold tracking-tight flex items-center gap-2">
                         {user.name}
                         {planTier && (
@@ -74,7 +76,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
 
                     {/* Account Details */}
                     <section>
-                        <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-3">Contact</h3>
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-3">{t('profile.contact')}</h3>
                         <div className="space-y-2">
                             <div className="flex items-center gap-3 py-2">
                                 <span className="material-symbols-rounded text-[20px] text-slate-400" aria-hidden="true">mail</span>
@@ -91,7 +93,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
 
                     {/* Data & Privacy (GDPR) */}
                     <section>
-                        <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-3">Data &amp; Privacy</h3>
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-3">{t('profile.dataPrivacy')}</h3>
                         <p className="text-xs text-slate-500 leading-relaxed mb-4">
                             Under GDPR, CCPA, LGPD, and other regional data protection regulations you have the right to access, export, and delete your personal data at any time.
                         </p>
@@ -102,7 +104,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                 onClick={onExportData}
                                 className="w-full justify-start bg-slate-50 hover:bg-slate-100 text-slate-700"
                             >
-                                Export My Data
+                                {t('profile.exportData')}
                             </Button>
                             <p className="text-[11px] text-slate-400 leading-relaxed px-1">
                                 Downloads a JSON archive of your projects, build sheets, and activity log. This is your portable copy under the right to data portability.
@@ -122,7 +124,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                     onClick={onUpgrade}
                                     className="w-full"
                                 >
-                                    Upgrade to Pro
+                                    {t('profile.upgradeToPro')}
                                 </Button>
                                 <p className="text-[11px] text-slate-400 leading-relaxed px-1 mt-2">
                                     Unlock unlimited projects, exports, voice mode, AR guide, and more.
@@ -140,7 +142,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                             onClick={onLogout}
                             className="w-full justify-start bg-slate-50 hover:bg-slate-100 text-slate-700"
                         >
-                            Sign Out
+                            {t('profile.signOut')}
                         </Button>
                     </section>
 
@@ -148,7 +150,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
 
                     {/* Danger Zone — Delete Account */}
                     <section>
-                        <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-red-400 mb-3">Danger Zone</h3>
+                        <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-red-400 mb-3">{t('profile.dangerZone')}</h3>
                         {!showDeleteConfirm ? (
                             <Button
                                 variant="ghost"
@@ -156,21 +158,21 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                 onClick={() => setShowDeleteConfirm(true)}
                                 className="w-full justify-start text-red-600 hover:bg-red-50"
                             >
-                                Delete My Account
+                                {t('profile.deleteMyAccount')}
                             </Button>
                         ) : (
                             <div className="p-4 bg-red-50 rounded-[16px] space-y-3 border border-red-100">
                                 <p className="text-sm text-red-900 font-medium leading-relaxed">
-                                    This will <strong>permanently delete</strong> your account and all associated data. This action cannot be undone.
+                                    This will <strong>{t('profile.permanentlyDelete')}</strong> your account and all associated data. This action cannot be undone.
                                 </p>
                                 <p className="text-xs text-red-700">
-                                    Type <strong>DELETE</strong> to confirm:
+                                    Type <strong>{t('profile.deletePlaceholder')}</strong> to confirm:
                                 </p>
                                 <input
                                     type="text"
                                     value={deleteInput}
                                     onChange={e => setDeleteInput(e.target.value)}
-                                    placeholder="DELETE"
+                                    placeholder={t('profile.deletePlaceholder')}
                                     className="w-full px-3 py-2 bg-white rounded-[12px] border border-red-200 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-red-300 placeholder:text-slate-300 font-mono"
                                     autoComplete="off"
                                     spellCheck={false}
@@ -179,14 +181,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                     <p className="text-xs text-red-700 font-medium" role="alert">{deleteError}</p>
                                 )}
                                 <div className="flex gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); setDeleteError(''); }}
-                                        className="flex-1 text-slate-600"
-                                        disabled={isDeleting}
-                                    >
-                                        Cancel
-                                    </Button>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); setDeleteError(''); }}
+                                    className="flex-1 text-slate-600"
+                                    disabled={isDeleting}
+                                >
+                                    {t('modal.cancel')}
+                                </Button>
                                     <Button
                                         variant="primary"
                                         icon={isDeleting ? 'sync' : 'delete_forever'}
@@ -194,7 +196,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onClose, us
                                         disabled={deleteInput !== 'DELETE' || isDeleting}
                                         className={`flex-1 bg-red-600 hover:bg-red-700 border-none ${isDeleting ? 'animate-pulse' : ''}`}
                                     >
-                                        {isDeleting ? 'Deleting…' : 'Delete Forever'}
+                                        {isDeleting ? t('profile.deleting') : t('profile.deleteForever')}
                                     </Button>
                                 </div>
                             </div>

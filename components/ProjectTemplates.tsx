@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, IconButton } from './Material3UI.tsx';
 
 export interface ProjectTemplate {
@@ -54,6 +55,7 @@ interface ProjectTemplatePickerProps {
 }
 
 export const ProjectTemplatePicker: React.FC<ProjectTemplatePickerProps> = ({ isOpen, onClose, onSelect }) => {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
@@ -61,10 +63,10 @@ export const ProjectTemplatePicker: React.FC<ProjectTemplatePickerProps> = ({ is
       <div className="bg-white rounded-[32px] shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         <div className="p-6 pb-3 flex justify-between items-center border-b border-gray-100">
           <div>
-            <h3 id="template-title" className="text-xl font-bold text-slate-800 tracking-tight">Start from Template</h3>
-            <p className="text-xs text-slate-500 mt-1">Choose a starting point for your project.</p>
+            <h3 id="template-title" className="text-xl font-bold text-slate-800 tracking-tight">{t('template.startFromTemplate')}</h3>
+            <p className="text-xs text-slate-500 mt-1">{t('template.chooseStartingPoint')}</p>
           </div>
-          <IconButton icon="close" onClick={onClose} title="Close" />
+          <IconButton icon="close" onClick={onClose} title={t('modal.close')} />
         </div>
 
         <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
@@ -86,7 +88,7 @@ export const ProjectTemplatePicker: React.FC<ProjectTemplatePickerProps> = ({ is
         </div>
 
         <div className="p-4 border-t border-gray-100 bg-slate-50">
-          <Button variant="ghost" onClick={onClose} className="w-full">Start Blank Project Instead</Button>
+          <Button variant="ghost" onClick={onClose} className="w-full">{t('template.startBlank')}</Button>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AssemblyPlan } from '../types.ts';
 import { AIService } from '../services/aiTypes.ts';
 import { Button } from './Material3UI.tsx';
@@ -11,6 +12,7 @@ interface ARGuideViewProps {
 }
 
 export const ARGuideView: React.FC<ARGuideViewProps> = ({ plan, aiService, onClose }) => {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -63,8 +65,8 @@ export const ARGuideView: React.FC<ARGuideViewProps> = ({ plan, aiService, onClo
   const stepInfo = plan.steps.find(s => s.stepNumber === currentStep);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col" role="dialog" aria-modal="true" aria-label="AR Assembly Guide">
-        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-80" aria-label="Camera feed for AR assembly guide" />
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col" role="dialog" aria-modal="true" aria-label={t('ar.assemblyGuide')}>
+        <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover opacity-80" aria-label={t('ar.cameraFeed')} />
         <canvas ref={canvasRef} className="hidden" />
 
         <div className="relative z-10 flex-1 flex flex-col p-6">
@@ -76,14 +78,14 @@ export const ARGuideView: React.FC<ARGuideViewProps> = ({ plan, aiService, onClo
                         <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500 text-white px-2 py-1 rounded">🔧 {stepInfo?.requiredTool}</span>
                     </div>
                 </div>
-                <button onClick={onClose} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white text-2xl" aria-label="Close AR Guide">&times;</button>
+                <button onClick={onClose} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white text-2xl" aria-label={t('ar.closeGuide')}>{`\u00d7`}</button>
             </div>
 
             <div className="mt-auto mb-8">
                 <div className="bg-white rounded-[24px] p-6 shadow-2xl border-t-4 border-indigo-500 animate-in slide-in-from-bottom-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Live AI Guidance</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">{t('ar.liveGuidance')}</span>
                     </div>
                     <p className="text-slate-800 text-lg font-medium leading-tight">
                         {guidance}

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as THREE from 'three';
 import { IconButton } from './Material3UI.tsx';
 
@@ -15,6 +16,7 @@ interface STLPreviewProps {
  * extracting dimension/shape primitives and rendering them as Three.js geometry.
  */
 export const STLPreview: React.FC<STLPreviewProps> = ({ openSCADCode, isOpen, onClose }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const frameRef = useRef<number>(0);
@@ -169,12 +171,12 @@ export const STLPreview: React.FC<STLPreviewProps> = ({ openSCADCode, isOpen, on
             </h3>
             {error && <p className="text-xs text-amber-600 mt-0.5">{error}</p>}
           </div>
-          <IconButton icon="close" onClick={onClose} title="Close" />
+          <IconButton icon="close" onClick={onClose} title={t('modal.close')} />
         </div>
         <div ref={containerRef} className="flex-1 relative" />
         <div className="px-6 py-3 border-t border-gray-100 bg-slate-50 text-xs text-slate-500 flex justify-between items-center">
-          <span>Drag to orbit · Scroll to zoom</span>
-          <span className="font-mono text-slate-400">OpenSCAD → Three.js</span>
+          <span>{t('stl.dragHint')}</span>
+          <span className="font-mono text-slate-400">{t('stl.converter')}</span>
         </div>
       </div>
     </div>

@@ -341,12 +341,12 @@ test.describe('LAUNCH100 Promo Code', () => {
         expect(html).toContain('LAUNCH100');
     });
 
-    test('UpgradeModal source shows promo callout with LAUNCH100', () => {
+    test('UpgradeModal source shows promo callout with LAUNCH100 i18n key', () => {
         const src = fs.readFileSync(
             path.join(__dirname, '../components/UpgradeModal.tsx'),
             'utf-8'
         );
-        expect(src).toContain('LAUNCH100');
+        expect(src).toContain('upgrade.promoCode');
     });
 
     test('upgrade modal shows promo callout in the UI', async ({ page }) => {

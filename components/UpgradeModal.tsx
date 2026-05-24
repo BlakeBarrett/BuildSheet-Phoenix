@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, IconButton } from './Material3UI.tsx';
 import { redirectToCheckout } from '../services/stripeCheckout.ts';
 import { UserService } from '../services/userService.ts';
@@ -39,6 +40,7 @@ const STRIPE_PAYMENT_LINKS: Record<BillingCycle, string> = {
 };
 
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isAuthenticated, onLogin }) => {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [blocked, setBlocked] = useState(false);
@@ -79,23 +81,23 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
         {/* Header */}
         <div className="p-8 pb-4 flex justify-between items-start bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-t-[32px]">
           <div>
-            <h3 id="upgrade-title" className="text-2xl font-bold tracking-tight">Upgrade to Pro</h3>
-            <p className="text-indigo-100 text-sm font-medium mt-1">Unlock your full engineering potential</p>
+            <h3 id="upgrade-title" className="text-2xl font-bold tracking-tight">{t('upgrade.title')}</h3>
+            <p className="text-indigo-100 text-sm font-medium mt-1">{t('upgrade.subtitle')}</p>
           </div>
-          <IconButton icon="close" onClick={onClose} title="Close" className="text-white/70 hover:text-white hover:bg-white/20" />
+          <IconButton icon="close" onClick={onClose} title={t('modal.close')} className="text-white/70 hover:text-white hover:bg-white/20" />
         </div>
 
         {/* Launch promo */}
         <div className="mx-8 mt-4 p-3 rounded-[14px] bg-gradient-to-r from-emerald-50 to-cyan-50 border border-emerald-200 text-center">
-          <p className="text-sm font-bold text-emerald-700">🚀 Free Pro until Summer 2026</p>
+          <p className="text-sm font-bold text-emerald-700">{t('upgrade.promo')}</p>
           <p className="text-xs text-emerald-600 mt-0.5">
-            Code <code className="bg-emerald-100 px-1.5 py-0.5 rounded font-bold text-emerald-800">LAUNCH100</code> auto-applied at checkout
+            Code <code className="bg-emerald-100 px-1.5 py-0.5 rounded font-bold text-emerald-800">{t('upgrade.promoCode')}</code> auto-applied at checkout
           </p>
         </div>
 
         {/* Billing toggle */}
         <div className="px-8 pt-6 pb-2">
-          <div className="flex bg-slate-100 rounded-[16px] p-1" role="radiogroup" aria-label="Billing cycle">
+          <div className="flex bg-slate-100 rounded-[16px] p-1" role="radiogroup" aria-label={t('upgrade.billingCycleAria')}>
             <button
               role="radio"
               aria-checked={billing === 'monthly'}
@@ -111,7 +113,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
               className={`flex-1 py-2.5 text-sm font-bold rounded-[12px] transition-all flex items-center justify-center gap-1.5 ${billing === 'annual' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Annual
-              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Save 20%</span>
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">{t('upgrade.savePercent')}</span>
             </button>
           </div>
         </div>
@@ -146,9 +148,9 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, isA
             className="w-full h-14 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg"
             icon={isLoading ? 'sync' : isAuthenticated ? 'rocket_launch' : 'login'}
           >
-            {isLoading ? 'Redirecting to checkout...' : isAuthenticated ? 'Claim Free Pro' : 'Sign In to Upgrade'}
+            {isLoading ? t('upgrade.redirecting') : isAuthenticated ? t('upgrade.claimFree') : t('upgrade.signInToUpgrade')}
           </Button>
-          <p className="text-[11px] text-slate-400 text-center">Cancel anytime. Powered by Stripe.</p>
+          <p className="text-[11px] text-slate-400 text-center">{t('upgrade.cancelAnytime')}</p>
         </div>
       </div>
     </div>

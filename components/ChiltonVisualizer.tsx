@@ -55,7 +55,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
             newTab.document.body.style.justifyContent = 'center';
             newTab.document.body.style.alignItems = 'center';
             newTab.document.body.style.backgroundColor = '#0f172a';
-            newTab.document.body.innerHTML = `<img src="${activeImage.url}" alt="${activeImage.prompt?.replace(/"/g, '&quot;') || 'Generated Image'}" style="max-width: 100vw; max-height: 100vh; object-fit: contain;">`;
+            newTab.document.body.innerHTML = `<img src="${activeImage.url}" alt="${activeImage.prompt?.replace(/"/g, '&quot;') || t('visual.generatedImageAlt')}" style="max-width: 100vw; max-height: 100vh; object-fit: contain;">`;
         }
     };
 
@@ -99,8 +99,8 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                                                 value={editablePrompt} 
                                                 onChange={(e) => setEditablePrompt(e.target.value)}
                                                 className="bg-transparent border-none text-white outline-none w-full min-w-[250px] font-mono text-xs placeholder:text-white/40"
-                                                placeholder="Enter custom prompt..."
-                                                aria-label="Edit generation prompt"
+                                                placeholder={t('visual.promptPlaceholder')}
+                                                aria-label={t('visual.editPromptAria')}
                                                 autoFocus
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -112,17 +112,17 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                                                     }
                                                 }}
                                             />
-                                            <button onClick={() => { setIsEditingPrompt(false); onGenerate(editablePrompt); }} className="text-white hover:text-indigo-300 ml-1 p-1 flex items-center justify-center bg-white/20 rounded-full transition-colors" title="Regenerate with new prompt" aria-label="Regenerate with new prompt">
+                                            <button onClick={() => { setIsEditingPrompt(false); onGenerate(editablePrompt); }} className="text-white hover:text-indigo-300 ml-1 p-1 flex items-center justify-center bg-white/20 rounded-full transition-colors" title={t('visual.regenerateAria')} aria-label={t('visual.regenerateAria')}>
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">refresh</span>
                                             </button>
-                                            <button onClick={() => { setIsEditingPrompt(false); setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || ''); }} className="text-white/60 hover:text-white p-1" title="Cancel" aria-label="Cancel editing prompt">
+                                            <button onClick={() => { setIsEditingPrompt(false); setEditablePrompt(activeImage.prompt?.replace(/^Design concept for:\s*/, '') || ''); }} className="text-white/60 hover:text-white p-1" title={t('visual.cancelEditTitle')} aria-label={t('visual.cancelEditAria')}>
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">close</span>
                                             </button>
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-2 w-full">
                                             <span className="truncate">{activeImage.prompt}</span>
-                                            <button onClick={() => setIsEditingPrompt(true)} className="text-white/60 hover:text-white ml-2 p-1 flex items-center justify-center" title="Edit Prompt & Regenerate">
+                                            <button onClick={() => setIsEditingPrompt(true)} className="text-white/60 hover:text-white ml-2 p-1 flex items-center justify-center" title={t('visual.editAndRegenerateTitle')}>
                                                 <span className="material-symbols-rounded text-[14px]">edit</span>
                                             </button>
                                         </div>
@@ -135,7 +135,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                             <div className="w-16 h-16 bg-indigo-50 text-indigo-400 rounded-[20px] flex items-center justify-center mx-auto mb-3 border border-indigo-100">
                                 <span className="material-symbols-rounded text-[32px] opacity-80">broken_image</span>
                             </div>
-                            <h3 className="text-sm font-bold text-slate-800 tracking-tight mb-1">Blank Canvas</h3>
+                            <h3 className="text-sm font-bold text-slate-800 tracking-tight mb-1">{t('visual.blankCanvas')}</h3>
                             <p className="text-xs text-slate-500 leading-relaxed">
                                 Draft your BOM to generate a concept using Gemini.
                             </p>
@@ -155,7 +155,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                     <div className={`w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${isGenerating ? 'animate-spin' : ''}`}>
                         <span className="material-symbols-rounded text-indigo-500 text-[20px]">{isGenerating ? 'refresh' : 'add_photo_alternate'}</span>
                     </div>
-                    <span className="text-[9px] font-bold uppercase tracking-wide text-indigo-800">New</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-indigo-800">{t('visual.new')}</span>
                 </button>
 
                 {images.slice().reverse().map((img) => (

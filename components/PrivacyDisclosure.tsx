@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type DisclosureType = 'image-upload' | 'ai-analysis';
 
@@ -61,6 +62,7 @@ interface PrivacyDisclosureToastProps {
 }
 
 export const PrivacyDisclosureToast: React.FC<PrivacyDisclosureToastProps> = ({ type }) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -95,7 +97,7 @@ export const PrivacyDisclosureToast: React.FC<PrivacyDisclosureToastProps> = ({ 
         <button
           onClick={handleDismiss}
           className="self-start text-slate-400 hover:text-slate-600 transition-colors shrink-0 ml-1"
-          aria-label="Dismiss"
+          aria-label={t('privacy.dismissAria')}
         >
           <span className="material-symbols-rounded text-lg">close</span>
         </button>

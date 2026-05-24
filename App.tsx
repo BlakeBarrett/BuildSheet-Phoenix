@@ -2,6 +2,7 @@ import React, { Component, useState, useRef, useEffect, useCallback, ErrorInfo }
 import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
+import i18n from './services/i18n.ts';
 import { getDraftingEngine, DraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
 import { sharesApi, sourcingApi } from './services/apiClient.ts';
 import { UserService } from './services/userService.ts';
@@ -44,10 +45,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 <div className="h-screen w-full flex items-center justify-center bg-[#1E1E1E] text-white p-8">
                     <div className="max-w-lg text-center">
                         <span className="material-symbols-rounded text-[64px] text-[#FFB4AB] mb-4" aria-hidden="true">error_med</span>
-                        <h1 className="text-3xl font-bold text-[#FFB4AB] mb-2 tracking-tight">System Critical Failure</h1>
-                        <p className="mb-6 text-[#E2E2E2] text-lg">The application encountered an unrecoverable error.</p>
+                        <h1 className="text-3xl font-bold text-[#FFB4AB] mb-2 tracking-tight">{i18n.t('error.systemCritical')}</h1>
+                        <p className="mb-6 text-[#E2E2E2] text-lg">{i18n.t('error.unrecoverable')}</p>
                         <pre className="bg-black/30 p-6 rounded-[24px] text-xs font-mono overflow-auto border border-[#FFB4AB]/30 text-left leading-relaxed">{this.state.error?.message}</pre>
-                        <Button onClick={() => window.location.reload()} variant="tonal" className="mt-8 w-full" icon="restart_alt">Reboot System</Button>
+                        <Button onClick={() => window.location.reload()} variant="tonal" className="mt-8 w-full" icon="restart_alt">{i18n.t('error.reboot')}</Button>
                     </div>
                 </div>
             );
@@ -164,10 +165,10 @@ const ProjectNavigator: React.FC<{
             <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
                 <header className="p-6 pb-2 flex justify-between items-center">
                     <div>
-                        <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">{t('nav.myBuilds')}</h3>
-                        <p className="text-sm text-slate-600 font-medium">Your Projects</p>
+                        <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">{i18n.t('nav.myBuilds')}</h3>
+                        <p className="text-sm text-slate-600 font-medium">{i18n.t('app.projects')}</p>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close Navigator" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t('nav.closeNavigator')} />
                 </header>
 
                 <div className="px-4 pt-2 pb-1">
@@ -177,8 +178,8 @@ const ProjectNavigator: React.FC<{
                             type="text"
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Search projects..."
-                            aria-label="Search projects"
+                            placeholder={i18n.t("nav.searchPlaceholder")}
+                            aria-label={i18n.t("nav.searchAriaLabel")}
                             className="w-full pl-10 pr-4 py-2.5 bg-white rounded-[16px] border border-gray-200 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 placeholder:text-slate-400"
                         />
                     </div>
@@ -192,7 +193,7 @@ const ProjectNavigator: React.FC<{
                             onClick={onLogin}
                             className="flex-1 justify-start bg-indigo-50 hover:bg-indigo-100 text-indigo-800 shadow-sm"
                         >
-                            {t('nav.loginToSave')}
+                            {i18n.t('nav.loginToSave')}
                         </Button>
                     ) : (
                         <Button
@@ -201,13 +202,13 @@ const ProjectNavigator: React.FC<{
                             onClick={() => { onNewProject(); onClose(); }}
                             className="flex-1 justify-start bg-white hover:bg-white/80 shadow-sm"
                         >
-                            {t('app.newProject')}
+                            {i18n.t('app.newProject')}
                         </Button>
                     )}
                     <button
                         onClick={() => setShowArchived(!showArchived)}
                         className={`px-3 py-2 rounded-[16px] text-xs font-bold transition-colors ${showArchived ? 'bg-amber-100 text-amber-800' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
-                        title={showArchived ? 'Show active projects' : 'Show archived'}
+                        title={showArchived ? i18n.t("nav.showActive") : i18n.t("nav.showArchived")}
                     >
                         <span className="material-symbols-rounded text-[16px]" aria-hidden="true">{showArchived ? 'unarchive' : 'archive'}</span>
                     </button>
@@ -221,7 +222,7 @@ const ProjectNavigator: React.FC<{
                     {/* Folder breadcrumbs */}
                     {hasFolders && currentFolderId && !searchQuery.trim() && (
                         <div className="flex items-center gap-1 px-1 py-1 text-xs">
-                            <button onClick={() => setCurrentFolderId(undefined)} className="text-indigo-600 hover:text-indigo-800 font-bold">All</button>
+                            <button onClick={() => setCurrentFolderId(undefined)} className="text-indigo-600 hover:text-indigo-800 font-bold">{i18n.t("nav.all")}</button>
                             {breadcrumbs.map((bc, i) => (
                                 <span key={bc.id} className="flex items-center gap-1">
                                     <span className="text-slate-400">/</span>
@@ -305,12 +306,12 @@ const ProjectNavigator: React.FC<{
                                         if (e.key === 'Enter') handleCreateFolder();
                                         if (e.key === 'Escape') { setIsCreatingFolder(false); setNewFolderName(''); }
                                     }}
-                                    placeholder="Folder name..."
+                                    placeholder={i18n.t("nav.folderNamePlaceholder")}
                                     autoFocus
                                     className="flex-1 text-sm bg-transparent border-b border-slate-300 outline-none focus:border-indigo-400 placeholder:text-slate-400"
                                 />
-                                <button onClick={handleCreateFolder} className="text-indigo-600 text-xs font-bold">Create</button>
-                                <button onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }} className="text-slate-400 text-xs font-bold">Cancel</button>
+                                <button onClick={handleCreateFolder} className="text-indigo-600 text-xs font-bold">{i18n.t("nav.create")}</button>
+                                <button onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }} className="text-slate-400 text-xs font-bold">{i18n.t("modal.cancel")}</button>
                             </div>
                         ) : (
                             <button
@@ -318,7 +319,7 @@ const ProjectNavigator: React.FC<{
                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-indigo-600 transition-colors rounded-[12px] hover:bg-indigo-50/50"
                             >
                                 <span className="material-symbols-rounded text-[16px]" aria-hidden="true">create_new_folder</span>
-                                New Folder
+                                {i18n.t("nav.newFolder")}
                             </button>
                         )
                     )}
@@ -330,8 +331,8 @@ const ProjectNavigator: React.FC<{
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-indigo-600 transition-colors rounded-[12px] hover:bg-indigo-50/50"
                         >
                             <span className="material-symbols-rounded text-[16px]" aria-hidden="true">create_new_folder</span>
-                            <span>Organize with Folders</span>
-                            <span className="ml-auto text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">PRO</span>
+                            <span>{i18n.t("nav.organizeFolders")}</span>
+                            <span className="ml-auto text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{i18n.t("common.pro")}</span>
                         </button>
                     )}
 
@@ -352,7 +353,7 @@ const ProjectNavigator: React.FC<{
                             </div>
 
                             <div className="flex flex-col flex-1 min-w-0">
-                                <span className="font-bold text-base truncate pr-6">{p.name || 'Untitled Draft'}</span>
+                                <span className="font-bold text-base truncate pr-6">{p.name || t('common.untitledDraft')}</span>
                                 <span className={`text-xs truncate ${p.id === currentId ? 'text-indigo-100' : 'text-slate-500'}`}>{p.preview}{p.archived ? ' · Archived' : ''}</span>
                             </div>
 
@@ -395,7 +396,7 @@ const ProjectNavigator: React.FC<{
                     ))}
                     {filtered.length === 0 && (
                         <div className="text-center py-20 opacity-40">
-                            <p className="text-sm font-medium text-slate-500">{searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : t('nav.emptyProjects')}</p>
+                            <p className="text-sm font-medium text-slate-500">{searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : i18n.t('nav.emptyProjects')}</p>
                         </div>
                     )}
                 </div>
@@ -404,23 +405,23 @@ const ProjectNavigator: React.FC<{
                     {isMigrating && (
                         <div className="flex items-center gap-2 mb-3 p-3 bg-indigo-50 rounded-[16px] text-xs font-medium text-indigo-700" role="status" aria-live="polite">
                             <span className="material-symbols-rounded animate-spin text-[16px]" aria-hidden="true">sync</span>
-                            {t('nav.migrating')}
+                            {i18n.t('nav.migrating')}
                         </div>
                     )}
                     {isGuest && onLogin && (
                         <div className="mb-3 space-y-2">
-                            <GoogleSignInButton onClick={onLogin} label={t('app.signInGoogle')} />
+                            <GoogleSignInButton onClick={onLogin} label={i18n.t('app.signInGoogle')} />
                             {onSendEmailLink && (
                                 emailLinkSent ? (
                                     <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-[16px] text-xs font-medium text-emerald-700" role="status" aria-live="polite">
                                         <span className="material-symbols-rounded text-[16px]" aria-hidden="true">mark_email_read</span>
-                                        {t('auth.emailLinkSent')}
+                                        {i18n.t('auth.emailLinkSent')}
                                     </div>
                                 ) : (
                                     <div className="space-y-1.5">
                                         <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold uppercase tracking-widest px-1">
                                             <span className="flex-1 h-[1px] bg-slate-200"></span>
-                                            {t('auth.orEmail')}
+                                            {i18n.t('auth.orEmail')}
                                             <span className="flex-1 h-[1px] bg-slate-200"></span>
                                         </div>
                                         <div className="flex gap-1.5">
@@ -429,8 +430,8 @@ const ProjectNavigator: React.FC<{
                                                 value={emailInput}
                                                 onChange={e => setEmailInput(e.target.value)}
                                                 onKeyDown={e => e.key === 'Enter' && handleSendLink()}
-                                                placeholder={t('auth.emailPlaceholder')}
-                                                aria-label={t('auth.emailPlaceholder')}
+                                                placeholder={i18n.t('auth.emailPlaceholder')}
+                                                aria-label={i18n.t('auth.emailPlaceholder')}
                                                 autoComplete="email"
                                                 className="flex-1 min-w-0 px-3 py-2 bg-white rounded-[12px] border border-gray-200 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 placeholder:text-slate-400"
                                             />
@@ -441,7 +442,7 @@ const ProjectNavigator: React.FC<{
                                                 disabled={emailLinkSending || !emailInput.trim()}
                                                 className={`shrink-0 px-3 ${emailLinkSending ? 'animate-spin' : ''}`}
                                             >
-                                                {t('auth.sendLink')}
+                                                {i18n.t('auth.sendLink')}
                                             </Button>
                                         </div>
                                         {emailLinkError && (
@@ -452,10 +453,10 @@ const ProjectNavigator: React.FC<{
                             )}
                         </div>
                     )}
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">{t('nav.projectTools')}</p>
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest px-1 mb-2">{i18n.t('nav.projectTools')}</p>
                     <div className="grid grid-cols-2 gap-2">
-                        <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-800 hover:bg-rose-100" icon="health_and_safety">{t('nav.healthCheck')}</Button>
-                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="data_object">{t('app.export')}</Button>
+                        <Button onClick={() => { onValidate(); onClose(); }} variant="tonal" className="text-xs h-10 bg-rose-50 text-rose-800 hover:bg-rose-100" icon="health_and_safety">{i18n.t('nav.healthCheck')}</Button>
+                        <Button onClick={() => { onExport(); onClose(); }} variant="tonal" className="text-xs h-10 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" icon="data_object">{i18n.t('app.export')}</Button>
                     </div>
                 </footer>
             </div>
@@ -471,6 +472,7 @@ const PreferredVendorsModal: React.FC<{
     onAdd: (name: string, url: string) => void;
     onRemove: (id: string) => void;
 }> = ({ isOpen, onClose, vendors, onAdd, onRemove }) => {
+    const { t } = useTranslation();
     const [newName, setNewName] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [error, setError] = useState('');
@@ -504,11 +506,11 @@ const PreferredVendorsModal: React.FC<{
                             <span className="material-symbols-rounded text-[24px]">storefront</span>
                         </div>
                         <div>
-                            <h3 id="vendors-title" className="text-lg font-bold text-slate-800 tracking-tight">Preferred Vendors</h3>
-                            <p className="text-xs text-slate-500 font-medium">Prioritize sourcing from your trusted suppliers</p>
+                            <h3 id="vendors-title" className="text-lg font-bold text-slate-800 tracking-tight">{i18n.t("vendors.title")}</h3>
+                            <p className="text-xs text-slate-500 font-medium">{i18n.t("vendors.description")}</p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} />
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
@@ -516,7 +518,7 @@ const PreferredVendorsModal: React.FC<{
                     <div className="p-4 bg-amber-50 rounded-[16px] border border-amber-100 flex items-start gap-3">
                         <span className="material-symbols-rounded text-amber-500 text-[18px] mt-0.5 shrink-0" aria-hidden="true">lightbulb</span>
                         <div>
-                            <p className="text-sm text-amber-900 font-medium">How it works</p>
+                            <p className="text-sm text-amber-900 font-medium">{i18n.t("vendors.howItWorks")}</p>
                             <p className="text-xs text-amber-700 mt-1 leading-relaxed">
                                 Added vendors are searched <strong>first</strong> during part sourcing. Results from these suppliers appear at the top of your shopping options. You can also mention preferred vendors in your design chat for ad-hoc sourcing.
                             </p>
@@ -551,8 +553,8 @@ const PreferredVendorsModal: React.FC<{
                             <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
                                 <span className="material-symbols-rounded text-slate-400 text-[28px]" aria-hidden="true">add_business</span>
                             </div>
-                            <p className="text-sm text-slate-500 font-medium">No preferred vendors configured</p>
-                            <p className="text-xs text-slate-400 mt-1">Add vendors below to prioritize them during sourcing</p>
+                            <p className="text-sm text-slate-500 font-medium">{i18n.t("vendors.empty")}</p>
+                            <p className="text-xs text-slate-400 mt-1">{i18n.t("vendors.addHint")}</p>
                         </div>
                     )}
 
@@ -567,10 +569,10 @@ const PreferredVendorsModal: React.FC<{
                                 type="text"
                                 value={newName}
                                 onChange={e => { setNewName(e.target.value); setError(''); }}
-                                placeholder="Vendor name"
+                                placeholder={i18n.t("vendors.namePlaceholder")}
                                 className="flex-1 text-sm border border-slate-200 rounded-[12px] px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
-                                aria-label="Vendor name"
+                                aria-label={i18n.t("vendors.namePlaceholder")}
                             />
                         </div>
                         <div className="flex gap-2">
@@ -578,10 +580,10 @@ const PreferredVendorsModal: React.FC<{
                                 type="url"
                                 value={newUrl}
                                 onChange={e => { setNewUrl(e.target.value); setError(''); }}
-                                placeholder="https://store.example.com"
+                                placeholder={i18n.t("aria.buildsheetPlaceholder")}
                                 className="flex-1 text-sm border border-slate-200 rounded-[12px] px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-xs"
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
-                                aria-label="Vendor URL"
+                                aria-label={i18n.t("vendors.urlAriaLabel")}
                             />
                             <Button
                                 variant="tonal"
@@ -603,7 +605,7 @@ const PreferredVendorsModal: React.FC<{
                 </div>
 
                 <div className="p-6 border-t border-gray-100 flex justify-end">
-                    <Button variant="primary" onClick={onClose}>Done</Button>
+                    <Button variant="primary" onClick={onClose}>{i18n.t("modal.done")}</Button>
                 </div>
             </div>
         </div>
@@ -616,6 +618,7 @@ const KitSummaryModal: React.FC<{
     session: DraftingSession;
     onExport: () => void;
 }> = ({ isOpen, onClose, session, onExport }) => {
+    const { t } = useTranslation();
     if (!isOpen) return null;
     const sourcedParts = session.bom.filter(b => b.sourcing?.online?.length);
     const missingParts = session.bom.filter(b => !b.sourcing?.online?.length);
@@ -626,25 +629,25 @@ const KitSummaryModal: React.FC<{
             <div className="bg-[#F0F4F9] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
-                        <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">Your Hardware Kit</h3>
-                        <p className="text-base text-slate-600 font-medium mt-1">Ready for fulfillment & assembly</p>
+                        <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h3>
+                        <p className="text-base text-slate-600 font-medium mt-1">{i18n.t("bom.readyForAssembly")}</p>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} />
                 </div>
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="p-6 bg-slate-900 rounded-[24px] text-white shadow-lg">
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Build Cost</span>
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{i18n.t("bom.totalCost")}</span>
                             <div className="text-4xl font-mono font-medium mt-1 tracking-tight">{formatPrice(totalCost)}</div>
                         </div>
                         <div className="p-6 bg-indigo-100 rounded-[24px] text-indigo-900">
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">Kit Progress</span>
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">{i18n.t("bom.kitProgress")}</span>
                             <div className="text-4xl font-medium mt-1 tracking-tight">{Math.round((sourcedParts.length / session.bom.length) * 100)}%</div>
                         </div>
                     </div>
 
                     <div>
-                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">Verified Items ({sourcedParts.length})</h4>
+                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">{i18n.t('bom.verifyItems') + ' (' + sourcedParts.length + ')'} </h4>
                         <div className="space-y-2">
                             {sourcedParts.map((b, i) => (
                                 <div key={i} className="flex items-center justify-between p-4 bg-white rounded-[20px] shadow-sm">
@@ -669,9 +672,9 @@ const KitSummaryModal: React.FC<{
                         <div className="p-5 bg-amber-50 rounded-[24px] text-amber-900">
                             <p className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <span className="material-symbols-rounded text-[18px]" aria-hidden="true">warning</span>
-                                Action Required
+                                {i18n.t('bom.actionRequired')}
                             </p>
-                            <p className="text-sm leading-relaxed">We couldn't find automatic purchase links for {missingParts.length} components. These items were still included in your technical audit and assembly plan.</p>
+                            <p className="text-sm leading-relaxed">{i18n.t('bom.couldNotFindPurchaseLinks', {count: missingParts.length})}</p>
                             <div className="mt-4 space-y-2">
                                 {missingParts.map((b, i) => (
                                     <div key={i} className="text-xs font-medium border-l-4 border-amber-200 pl-3 py-1 opacity-80">{b.part.name} (Custom/Inferred)</div>
@@ -681,7 +684,7 @@ const KitSummaryModal: React.FC<{
                     )}
                 </div>
                 <div className="p-6 pt-2 flex gap-3">
-                    <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">Export Data</Button>
+                    <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">{i18n.t("bom.exportData")}</Button>
                     <Button variant="primary" onClick={onClose} className="flex-1" icon="check">Done</Button>
                 </div>
             </div>
@@ -697,6 +700,7 @@ const ValidationReportModal: React.FC<{
     onRunAgain: () => void;
     onFixAll?: () => Promise<void>;
 }> = ({ isOpen, onClose, results, isRunning, onRunAgain, onFixAll }) => {
+    const { t } = useTranslation();
     const [isFixing, setIsFixing] = useState(false);
     if (!isOpen) return null;
 
@@ -716,19 +720,19 @@ const ValidationReportModal: React.FC<{
             <div className="bg-[#1E1E1E] text-white rounded-[32px] shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/10">
                 <div className="p-6 border-b border-white/10 flex justify-between items-center">
                     <div className="flex flex-col">
-                        <h3 id="validation-title" className="text-xl font-bold tracking-tight">System Integrity Suite</h3>
+                        <h3 id="validation-title" className="text-xl font-bold tracking-tight">{i18n.t("bom.systemIntegritySuite")}</h3>
                         <p className="text-xs text-indigo-300 font-mono mt-1">BUILD: BS-STABLE-V2</p>
                     </div>
-                    <IconButton icon="close" onClick={onClose} className="text-white hover:bg-white/10" disabled={isFixing || isRunning} title="Close" />
+                    <IconButton icon="close" onClick={onClose} className="text-white hover:bg-white/10" disabled={isFixing || isRunning} title={i18n.t('modal.close')} />
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 font-mono text-sm leading-relaxed text-indigo-100">
                     {(isRunning || isFixing) ? (
                         <div className="space-y-4" aria-live="polite">
                             <div className="flex items-center gap-3 text-indigo-400">
                                 <span className="material-symbols-rounded animate-spin" aria-hidden="true">settings</span>
-                                <p className="animate-pulse">{'>>'} {isFixing ? 'REPAIRING ROLES (ARCHITECT, SOURCER)...' : 'INITIALIZING PROBES...'}</p>
+                                <p className="animate-pulse">{'>>'} {isFixing ? i18n.t("bom.repairingRoles") : i18n.t("bom.initializingProbes")}</p>
                             </div>
-                            <p className="text-indigo-300/50 delay-75 pl-9">{'>>'} ANALYZING BUILD SHEET INTEGRITY...</p>
+                            <p className="text-indigo-300/50 delay-75 pl-9">{'>>'} {i18n.t("bom.analyzingBuild")}</p>
                         </div>
                     ) : (
                         <div className="space-y-8">
@@ -753,10 +757,10 @@ const ValidationReportModal: React.FC<{
                 </div>
                 <div className="p-6 border-t border-white/10 bg-[#252525] flex justify-end gap-3">
                     {results.some(r => r.status !== 'PASS') && !isFixing && !isRunning && (
-                        <Button onClick={handleFix} variant="tonal" className="bg-indigo-500 text-white hover:bg-indigo-400 border-none" icon="build_circle">Auto Fix</Button>
+                        <Button onClick={handleFix} variant="tonal" className="bg-indigo-500 text-white hover:bg-indigo-400 border-none" icon="build_circle">{i18n.t("bom.autoFix")}</Button>
                     )}
-                    <Button onClick={onRunAgain} variant="ghost" disabled={isRunning || isFixing} className="text-indigo-200 hover:bg-white/5" icon="refresh">Rerun</Button>
-                    <Button onClick={onClose} variant="secondary" disabled={isFixing || isRunning} className="bg-white text-black hover:bg-gray-200 border-none">Dismiss</Button>
+                    <Button onClick={onRunAgain} variant="ghost" disabled={isRunning || isFixing} className="text-indigo-200 hover:bg-white/5" icon="refresh">{i18n.t("bom.reRun")}</Button>
+                    <Button onClick={onClose} variant="secondary" disabled={isFixing || isRunning} className="bg-white text-black hover:bg-gray-200 border-none">{i18n.t("bom.dismiss")}</Button>
                 </div>
             </div>
         </div>
@@ -780,6 +784,7 @@ const PartDetailModal: React.FC<{
     onPinSource?: (instanceId: string, index: number) => void;
     onUnpinSource?: (instanceId: string) => void;
 }> = ({ entry, onClose, onSource, onHydrate, isHydrating, onUpdateQuantity, onUpdateName, onRemove, allEntries, onSetParent, onGenerateEnclosure, onExportSCAD, onPreview3D, onPinSource, onUnpinSource }) => {
+    const { t } = useTranslation();
     const [editName, setEditName] = useState(entry?.part.name || '');
     const [editQty, setEditQty] = useState(entry?.quantity || 1);
 
@@ -809,7 +814,7 @@ const PartDetailModal: React.FC<{
                                     onChange={e => setEditName(e.target.value)}
                                     onBlur={() => onUpdateName(entry.instanceId, editName)}
                                     className="text-xl font-bold w-full text-slate-800 tracking-tight bg-transparent border-b border-gray-200 outline-none focus:border-indigo-400"
-                                    aria-label="Part Name"
+                                    aria-label={i18n.t("aria.partName")}
                                 />
                             ) : (
                                 <h3 id="part-title" className="text-xl font-bold text-slate-800 tracking-tight">{entry.part.name}</h3>
@@ -821,7 +826,7 @@ const PartDetailModal: React.FC<{
                             </p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" className="self-start" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} className="self-start" />
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     <div className="space-y-6">
@@ -840,7 +845,7 @@ const PartDetailModal: React.FC<{
                                         onChange={e => setEditQty(parseInt(e.target.value) || 1)}
                                         onBlur={() => onUpdateQuantity(entry.instanceId, editQty)}
                                         className="w-full text-sm font-bold text-slate-900 mt-1 bg-transparent border-b border-gray-200 outline-none focus:border-indigo-400"
-                                        aria-label="Quantity"
+                                        aria-label={i18n.t("aria.quantity")}
                                     />
                                 ) : (
                                     <p className="text-sm font-bold text-slate-900 mt-1">{entry.quantity}</p>
@@ -990,7 +995,7 @@ const PartDetailModal: React.FC<{
                                     value={entry.parentInstanceId || ''}
                                     onChange={e => onSetParent(entry.instanceId, e.target.value || null)}
                                     className="w-full p-3 bg-teal-50 border border-teal-100 rounded-[12px] text-sm focus:ring-2 focus:ring-teal-400 outline-none"
-                                    aria-label="Parent assembly"
+                                    aria-label={i18n.t("aria.parentAssembly")}
                                 >
                                     <option value="">— Root Level (No Parent) —</option>
                                     {allEntries.filter(e => e.instanceId !== entry.instanceId).map(e => (
@@ -1022,7 +1027,7 @@ const PartDetailModal: React.FC<{
                                     )}
                                     {(entry as any).enclosure.renderUrl && (
                                         <div className="rounded-[16px] overflow-hidden border border-cyan-100">
-                                            <img src={(entry as any).enclosure.renderUrl} alt="Enclosure render" className="w-full object-contain max-h-[240px] bg-[#F4F7FC]" />
+                                            <img src={(entry as any).enclosure.renderUrl} alt={i18n.t("aria.enclosureRender")} className="w-full object-contain max-h-[240px] bg-[#F4F7FC]" />
                                         </div>
                                     )}
                                     <div className="flex gap-2">
@@ -1098,7 +1103,7 @@ const AssemblyModal: React.FC<{
                             </div>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t("modal.close")} />
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-6 font-sans text-sm leading-relaxed text-slate-600">
@@ -1195,6 +1200,7 @@ const AuditModal: React.FC<{
     onRefresh: () => void;
     onApplyChanges?: () => void;
 }> = ({ isOpen, onClose, result, isRunning, isDirty, isApplying, proposedActions, advancedValidations, onAdvancedChange, onRefresh, onApplyChanges }) => {
+    const { t } = useTranslation();
     const [advancedOpen, setAdvancedOpen] = useState(true);
     const [customInput, setCustomInput] = useState('');
     if (!isOpen) return null;
@@ -1238,7 +1244,7 @@ const AuditModal: React.FC<{
                             </div>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t("modal.close")} />
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -1353,7 +1359,7 @@ const AuditModal: React.FC<{
                                         placeholder='e.g. "GDPR Compliant", "UL Listed"...'
                                         className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                         maxLength={120}
-                                        aria-label="Add custom validation check"
+                                        aria-label={i18n.t("aria.addValidationCheck")}
                                     />
                                     <Button variant="tonal" onClick={addCustomCheck} disabled={!customInput.trim()} className="h-9 text-xs shrink-0" icon="add">Add</Button>
                                 </div>
@@ -1381,6 +1387,7 @@ const DeleteConfirmDialog: React.FC<{
     onConfirm: () => void;
     onCancel: () => void;
 }> = ({ isOpen, projectName, onConfirm, onCancel }) => {
+    const { t } = useTranslation();
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
@@ -1391,7 +1398,7 @@ const DeleteConfirmDialog: React.FC<{
                     </div>
                     <h3 id="delete-title" className="text-lg font-bold text-slate-800 mb-2">Delete Project?</h3>
                     <p className="text-sm text-slate-600 leading-relaxed">
-                        <strong className="text-slate-800">{projectName || 'Untitled Draft'}</strong> will be permanently deleted. This action cannot be undone.
+                        <strong className="text-slate-800">{projectName || t('common.untitledDraft')}</strong>{' '}will be permanently deleted. This action cannot be undone.
                     </p>
                 </div>
                 <div className="px-6 pb-6 flex gap-3">
@@ -1461,14 +1468,14 @@ const ScanPartModal: React.FC<{
                             <p className="text-xs text-slate-500 font-medium">AI Component Identification</p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={() => { setPreviewImage(null); onClose(); }} title="Close" />
+                    <IconButton icon="close" onClick={() => { setPreviewImage(null); onClose(); }} title={i18n.t("modal.close")} />
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                     {/* Upload Area */}
                     {!previewImage && !isScanning && !result && (
                         <label className="block cursor-pointer">
-                            <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} aria-label="Upload component photo" />
+                            <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} aria-label={i18n.t("aria.uploadComponentPhoto")} />
                             <div className="border-2 border-dashed border-violet-200 rounded-[24px] p-10 text-center hover:border-violet-400 hover:bg-violet-50/50 transition-all">
                                 <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center mx-auto mb-4">
                                     <span className="material-symbols-rounded text-violet-400 text-[32px]">add_a_photo</span>
@@ -1482,7 +1489,7 @@ const ScanPartModal: React.FC<{
                     {/* Preview + Loading */}
                     {previewImage && (
                         <div className="rounded-[20px] overflow-hidden border border-gray-100">
-                            <img src={previewImage} alt="Component photo" className="w-full max-h-[200px] object-contain bg-[#F4F7FC]" />
+                            <img src={previewImage} alt={i18n.t("aria.componentPhoto")} className="w-full max-h-[200px] object-contain bg-[#F4F7FC]" />
                         </div>
                     )}
 
@@ -1599,7 +1606,7 @@ const PortWarningsPanel: React.FC<{
                             <p className="text-xs text-slate-500 font-medium">{warnings.length} issue{warnings.length !== 1 ? 's' : ''} detected</p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={onClose} title="Close" />
+                    <IconButton icon="close" onClick={onClose} title={i18n.t("modal.close")} />
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
                     {warnings.length === 0 ? (
@@ -1639,6 +1646,7 @@ const BOMImportModal: React.FC<{
     onImportCSV: (csvText: string) => number;
     onImportPaste: (text: string) => number;
 }> = ({ isOpen, onClose, onImportCSV, onImportPaste }) => {
+    const { t } = useTranslation();
     const [mode, setMode] = useState<'csv' | 'paste'>('csv');
     const [pasteText, setPasteText] = useState('');
     const [importResult, setImportResult] = useState<string | null>(null);
@@ -1687,7 +1695,7 @@ const BOMImportModal: React.FC<{
                             <p className="text-xs text-slate-500 font-medium">Add parts from a file or pasted list</p>
                         </div>
                     </div>
-                    <IconButton icon="close" onClick={handleClose} title="Close" />
+                    <IconButton icon="close" onClick={handleClose} title={i18n.t("modal.close")} />
                 </div>
 
                 {/* Mode Tabs */}
@@ -1752,7 +1760,7 @@ const BOMImportModal: React.FC<{
                                 onChange={e => setPasteText(e.target.value)}
                                 placeholder={"Paste a parts list here...\n\nExamples:\n2x Ball Bearing 6004\nTimken 42690 Tapered Roller\nCalifornia Mini Truck CV Axle\n\nCSV and tab-separated data also accepted."}
                                 className="w-full h-48 p-4 bg-slate-50 rounded-[16px] border border-gray-200 text-sm text-slate-800 resize-none outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 placeholder:text-slate-400 font-mono"
-                                aria-label="Paste parts list"
+                                aria-label={i18n.t("aria.pastePartsList")}
                             />
                             <Button
                                 variant="primary"
@@ -1980,9 +1988,9 @@ const AppContent: React.FC = () => {
                 const { share } = await sharesApi.getShare(remixSlug);
                 if (share) {
                     // Create a new project from the shared BOM
-                    draftingEngine.createNewSession(`${share.name} (Remix)`);
+                    draftingEngine.createNewProject();
                     if (share.description) {
-                        draftingEngine.getSession().requirements = share.description;
+                        draftingEngine.getSession().designRequirements = share.description;
                     }
                     // Add each BOM entry from the shared build
                     for (const entry of (share.bom || [])) {
@@ -2721,7 +2729,7 @@ const AppContent: React.FC = () => {
             const result = await sharesApi.create({
                 projectId: session.id,
                 name: session.name || 'Untitled Build',
-                description: session.requirements || '',
+                description: session.designRequirements || '',
                 assemblyUrl: latestImage,
                 bom: bomSnapshot,
             });
@@ -2776,7 +2784,7 @@ const AppContent: React.FC = () => {
                 .total-row td { border-top: 2px solid #1f1f1f; font-weight: bold; padding-top: 12px; }
                 @media print { body { padding: 20px; } }
             </style></head><body>
-            <h1>${session.name || 'Untitled Draft'}</h1>
+            <h1>${session.name || i18n.t('common.untitledDraft')}</h1>
             <p class="meta">${session.bom.length} components · Exported ${new Date().toLocaleDateString()} · BuildSheet</p>
             <p class="disclaimer" style="color:#e67e22; font-size:12px; margin-bottom:16px; padding:8px 12px; background:#fef9f0; border-left:3px solid #e67e22; border-radius:4px;">&#9888; Generated by BuildSheet AI — verify all specifications before procurement or fabrication.</p>
             ${session.designRequirements ? `<p style="color: #444; font-size: 14px; margin-bottom: 20px; padding: 12px; background: #f8fafc; border-radius: 8px;">${session.designRequirements}</p>` : ''}
@@ -3211,7 +3219,7 @@ const AppContent: React.FC = () => {
             <PrivacyDisclosureToast type={privacyDisclosure.active} />
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
-            <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-[60] shrink-0 h-full border border-gray-100 min-h-0" aria-label="Main navigation">
+            <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-[60] shrink-0 h-full border border-gray-100 min-h-0" aria-label={i18n.t("aria.mainNavigation")}>
                 <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md shrink-0">
                     <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
                 </div>
@@ -3220,7 +3228,7 @@ const AppContent: React.FC = () => {
                     <IconButton
                         icon="add_box"
                         onClick={handleNewProject}
-                        title="New Project"
+                        title={i18n.t("aria.newProject")}
                     />
                     <IconButton
                         icon="folder_open"
@@ -3236,7 +3244,7 @@ const AppContent: React.FC = () => {
                             }
                             setIsNavigatorOpen(true);
                         }}
-                        title="Projects"
+                        title={i18n.t("app.projects")}
                     />
 
                     <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
@@ -3246,8 +3254,8 @@ const AppContent: React.FC = () => {
                             <button
                                 onClick={() => setNavOverflowOpen(!navOverflowOpen)}
                                 className={`w-12 h-12 rounded-[16px] flex items-center justify-center transition-colors ${navOverflowOpen ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
-                                title="More Tools"
-                                aria-label="More tools menus"
+                                title={i18n.t("aria.moreTools")}
+                                aria-label={i18n.t("aria.moreToolsMenus")}
                             >
                                 <span className="material-symbols-rounded" aria-hidden="true">more_horiz</span>
                             </button>
@@ -3308,7 +3316,7 @@ const AppContent: React.FC = () => {
                                 icon="file_open"
                                 onClick={() => setImportModalOpen(true)}
                                 className="text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
-                                title="Import BOM"
+                                title={i18n.t("aria.importBom")}
                             />
 
                             <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
@@ -3317,13 +3325,13 @@ const AppContent: React.FC = () => {
                                 icon="photo_camera"
                                 onClick={() => setScanPartOpen(true)}
                                 className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
-                                title="Scan Part"
+                                title={i18n.t("aria.scanPart")}
                             />
                             <IconButton
                                 icon="dashboard_customize"
                                 onClick={() => setTemplatePickerOpen(true)}
                                 className="text-teal-600 hover:bg-teal-50 hover:text-teal-700"
-                                title="Project Templates"
+                                title={i18n.t("aria.projectTemplates")}
                             />
                         </>
                     )}
@@ -3333,25 +3341,25 @@ const AppContent: React.FC = () => {
                     {tierInfo.tier === 'free' && (
                         <IconButton
                             icon="rocket_launch"
-                            title="Upgrade to Pro"
+                            title={i18n.t("aria.upgradeToPro")}
                             onClick={() => setUpgradeOpen(true)}
                             className="text-violet-600 hover:bg-violet-50"
                         />
                     )}
-                    <IconButton icon="tune" title="Settings" onClick={() => setIsSettingsOpen(true)} />
+                    <IconButton icon="tune" title={i18n.t("settings.title")} onClick={() => setIsSettingsOpen(true)} />
                     {currentUser ? (
                         <button
                             onClick={() => setIsProfileOpen(true)}
                             className="rounded-full border-2 border-transparent hover:border-indigo-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                             title={`Profile: ${currentUser.name}`}
-                            aria-label="Open profile"
+                            aria-label={i18n.t("aria.openProfile")}
                         >
                             <UserAvatar avatar={currentUser.avatar} name={currentUser.name} sizeClass="w-10 h-10" />
                         </button>
                     ) : isFirebaseConfigured() ? (
                         <IconButton
                             icon="login"
-                            title="Sign In"
+                            title={i18n.t("app.guest")}
                             className="text-indigo-600 hover:bg-indigo-50"
                             onClick={handleLogin}
                         />
@@ -3377,7 +3385,7 @@ const AppContent: React.FC = () => {
                                     setProjectsList(draftingEngine.getProjectsList());
                                 }
                                 setIsNavigatorOpen(true);
-                            }} className="lg:hidden -ml-2" title="Menu" />
+                            }} className="lg:hidden -ml-2" title={i18n.t("nav.closeNavigator")} />
                         </div>
 
                         <div className="flex flex-col flex-1 min-w-0">
@@ -3403,13 +3411,13 @@ const AppContent: React.FC = () => {
                                         }
                                     }}
                                     className="font-bold text-lg md:text-xl tracking-tight text-slate-800 bg-transparent border-b-2 border-indigo-400 outline-none w-full py-0.5"
-                                    aria-label="Edit project name"
+                                    aria-label={i18n.t("nav.folderNamePlaceholder")}
                                 />
                             ) : (
                                 <h1
                                     className="font-bold text-lg md:text-xl tracking-tight text-slate-800 truncate cursor-pointer hover:text-indigo-600 transition-colors group/title"
                                     onClick={() => { setEditTitleValue(session.name); setIsEditingTitle(true); }}
-                                    title="Click to edit project name"
+                                    title={i18n.t("nav.folderNamePlaceholder")}
                                 >
                                     {session.name || "Untitled Draft"}
                                     <span className="material-symbols-rounded text-[14px] text-slate-300 group-hover/title:text-indigo-400 ml-1.5 align-middle transition-colors" aria-hidden="true">edit</span>
@@ -3437,7 +3445,7 @@ const AppContent: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                            {session.cacheIsDirty && session.bom.length > 0 && <Chip label="Unsaved Changes" color="bg-amber-100 text-amber-900 border-transparent" />}
+                            {session.cacheIsDirty && session.bom.length > 0 && <Chip label={i18n.t("bom.analyzingBuild")} color="bg-amber-100 text-amber-900 border-transparent" />}
 
                             {/* Auth chip — visible on all screen sizes */}
                             {isFirebaseConfigured() && (
@@ -3484,7 +3492,7 @@ const AppContent: React.FC = () => {
                                         <button
                                             onClick={handleLogin}
                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
-                                            aria-label="Sign in"
+                                            aria-label={i18n.t("aria.signin")}
                                         >
                                             <span className="material-symbols-rounded text-[18px]" aria-hidden="true">login</span>
                                             <span className="hidden sm:inline">Sign In</span>
@@ -3519,7 +3527,7 @@ const AppContent: React.FC = () => {
                     </div>
 
                     {/* Conversation Feed */}
-                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label="Conversation Feed" role="log" aria-live="polite" tabIndex={0}>
+                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label={i18n.t("aria.conversationFeed")} role="log" aria-live="polite" tabIndex={0}>
                         {session.messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full opacity-60">
                                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
@@ -3539,7 +3547,7 @@ const AppContent: React.FC = () => {
                                     <div className={`px-6 py-4 prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
                                         {m.attachment && (
                                             <div className="mb-3">
-                                                <img src={m.attachment} alt="Uploaded attachment" className="max-w-full sm:max-w-xs rounded-[12px] border border-white/20 shadow-sm" />
+                                                <img src={m.attachment} alt={i18n.t("aria.uploadedAttachment")} className="max-w-full sm:max-w-xs rounded-[12px] border border-white/20 shadow-sm" />
                                             </div>
                                         )}
                                         <ReactMarkdown>{m.content}</ReactMarkdown>
@@ -3550,7 +3558,7 @@ const AppContent: React.FC = () => {
                                                 draftingEngine.revertToMessage(i - 1);
                                                 setInput(m.content);
                                                 refreshState();
-                                            }} title="Edit message" className="text-indigo-400 hover:text-indigo-600 bg-white/90 backdrop-blur-sm shadow-sm border border-slate-200 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                            }} title={i18n.t("aria.editMessage")} className="text-indigo-400 hover:text-indigo-600 bg-white/90 backdrop-blur-sm shadow-sm border border-slate-200 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">edit</span>
                                             </button>
                                         </div>
@@ -3558,33 +3566,33 @@ const AppContent: React.FC = () => {
                                     {m.role === 'assistant' && (
                                         <div className="absolute top-full left-0 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex gap-2 pl-2 z-10 items-center">
                                             {i < session.messages.length - 1 && (
-                                                <button onClick={() => { draftingEngine.revertToMessage(i); refreshState(); }} title="Revert to here" className="text-slate-400 hover:text-rose-500 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500">
+                                                <button onClick={() => { draftingEngine.revertToMessage(i); refreshState(); }} title={i18n.t("aria.revertToHere")} className="text-slate-400 hover:text-rose-500 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500">
                                                     <span className="material-symbols-rounded text-[14px]" aria-hidden="true">restore</span>
                                                 </button>
                                             )}
                                             <button onClick={() => {
                                                 const newId = draftingEngine.forkFromMessage(i);
                                                 draftingEngine.loadProject(newId).then(refreshState);
-                                            }} title="Fork from here" className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                            }} title={i18n.t("aria.forkFromHere")} className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">call_split</span>
                                             </button>
 
                                             {m.metadata && (
                                                 <div className="flex bg-white/80 backdrop-blur-sm border border-slate-200/50 shadow-sm rounded-full px-3 py-1 items-center gap-3 text-[10px] text-slate-500 font-mono ml-1">
                                                     {m.metadata.model && (
-                                                        <span className="flex items-center gap-1" title="Model Used">
+                                                        <span className="flex items-center gap-1" title={i18n.t("aria.modelUsed")}>
                                                             <span className="material-symbols-rounded text-[12px] text-indigo-400" aria-hidden="true">memory</span>
                                                             {m.metadata.model}
                                                         </span>
                                                     )}
                                                     {m.metadata.tokens !== undefined && (
-                                                        <span className="flex items-center gap-1" title="Tokens Processed">
+                                                        <span className="flex items-center gap-1" title={i18n.t("aria.tokensProcessed")}>
                                                             <span className="material-symbols-rounded text-[12px] text-emerald-400" aria-hidden="true">segment</span>
                                                             {m.metadata.tokens}
                                                         </span>
                                                     )}
                                                     {m.metadata.latencyMs !== undefined && (
-                                                        <span className="flex items-center gap-1" title="Processing Time">
+                                                        <span className="flex items-center gap-1" title={i18n.t("aria.processingTime")}>
                                                             <span className="material-symbols-rounded text-[12px] text-amber-400" aria-hidden="true">timer</span>
                                                             {(m.metadata.latencyMs / 1000).toFixed(1)}s
                                                         </span>
@@ -3611,8 +3619,8 @@ const AppContent: React.FC = () => {
                     <footer className="p-4 bg-white shrink-0 z-20">
                         {selectedImage && (
                             <div className="mb-3 relative inline-block p-1 bg-white border border-gray-200 rounded-xl shadow-sm">
-                                <img src={selectedImage} alt="Upload preview" className="w-16 h-16 object-cover rounded-lg" />
-                                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-700 shadow-sm" title="Remove image" aria-label="Remove attached image">
+                                <img src={selectedImage} alt={i18n.t("aria.uploadPreview")} className="w-16 h-16 object-cover rounded-lg" />
+                                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] hover:bg-slate-700 shadow-sm" title={i18n.t("aria.removeImage")} aria-label={i18n.t("aria.removeAttachedImage")}>
                                     <span className="material-symbols-rounded text-[14px]" aria-hidden="true">close</span>
                                 </button>
                             </div>
@@ -3670,8 +3678,8 @@ const AppContent: React.FC = () => {
                             <label
                                 htmlFor="image-upload"
                                 className="w-12 h-12 ml-1 text-slate-400 hover:text-indigo-600 rounded-full flex items-center justify-center transition-all cursor-pointer hover:bg-white shrink-0"
-                                title="Attach file"
-                                aria-label="Attach file"
+                                title={i18n.t("aria.attachFile")}
+                                aria-label={i18n.t("aria.attachFile")}
                             >
                                 <span className="material-symbols-rounded">attach_file</span>
                             </label>
@@ -3679,8 +3687,8 @@ const AppContent: React.FC = () => {
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                placeholder="What do you want to build?"
-                                aria-label="Describe your build"
+                                placeholder={i18n.t("input.placeholder")}
+                                aria-label={i18n.t("input.placeholder")}
                                 className="w-full pr-24 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500"
                                 rows={1}
                             />
@@ -3695,7 +3703,7 @@ const AppContent: React.FC = () => {
                             <button
                                 onClick={handleSend}
                                 disabled={!input.trim() || isThinking}
-                                aria-label="Send Message"
+                                aria-label={i18n.t("voice.closeAria")}
                                 className="absolute right-2 top-2 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-0 disabled:scale-50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none"
                             >
                                 <span className="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
@@ -3753,13 +3761,13 @@ const AppContent: React.FC = () => {
                         <IconButton
                             icon="undo"
                             onClick={() => { draftingEngine.undo(); refreshState(); }}
-                            title="Undo (Ctrl+Z)"
+                            title={i18n.t("aria.undo")}
                             className={`text-slate-400 ${draftingEngine.canUndo() ? 'hover:text-slate-700 hover:bg-slate-100' : 'opacity-30 cursor-not-allowed'}`}
                         />
                         <IconButton
                             icon="redo"
                             onClick={() => { draftingEngine.redo(); refreshState(); }}
-                            title="Redo (Ctrl+Shift+Z)"
+                            title={i18n.t("aria.redo")}
                             className={`text-slate-400 ${draftingEngine.canRedo() ? 'hover:text-slate-700 hover:bg-slate-100' : 'opacity-30 cursor-not-allowed'}`}
                         />
                         <div className="flex-1" />
@@ -3778,7 +3786,7 @@ const AppContent: React.FC = () => {
                                 <button
                                     onClick={() => setPortWarningsOpen(true)}
                                     className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition-colors"
-                                    title="All ports compatible"
+                                    title={i18n.t("aria.allPortsCompatible")}
                                 >
                                     <span className="material-symbols-rounded text-[14px]" aria-hidden="true">check_circle</span>
                                     Ports OK
@@ -3882,12 +3890,12 @@ const AppContent: React.FC = () => {
                 </div>
 
                 {/* Mobile Bottom Navigation Bar */}
-                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-[80px] z-50 px-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }} role="tablist" aria-label="Mobile navigation">
+                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-[80px] z-50 px-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }} role="tablist" aria-label={i18n.t("aria.mobileNavigation")}>
                     <button
                         onClick={() => setMobileTab('draft')}
                         role="tab"
                         aria-selected={mobileTab === 'draft'}
-                        aria-label="Switch to Draft tab"
+                        aria-label={i18n.t("aria.switchToDraftTab")}
                         className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-600'}`}
                     >
                         <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'draft' ? 'bg-indigo-100' : 'bg-transparent'}`}>
@@ -3899,7 +3907,7 @@ const AppContent: React.FC = () => {
                         onClick={() => setMobileTab('bom')}
                         role="tab"
                         aria-selected={mobileTab === 'bom'}
-                        aria-label="Switch to Parts tab"
+                        aria-label={i18n.t("aria.switchToPartsTab")}
                         className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-600'}`}
                     >
                         <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'bom' ? 'bg-indigo-100' : 'bg-transparent'}`}>

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { VisualManifest, VisualComponent, BOMEntry } from '../types.ts';
 
 interface VisualManifestRendererProps {
@@ -39,6 +40,7 @@ function shapeElement(comp: VisualComponent, x: number, y: number, w: number, h:
 }
 
 export const VisualManifestRenderer: React.FC<VisualManifestRendererProps> = ({ manifest, bom, onComponentClick }) => {
+  const { t } = useTranslation();
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -184,18 +186,18 @@ export const VisualManifestRenderer: React.FC<VisualManifestRendererProps> = ({ 
     >
       {/* Zoom controls */}
       <div className="absolute top-2 right-2 z-10 flex gap-1 bg-white/80 rounded-[12px] p-1 shadow-sm border border-gray-100">
-        <button onClick={() => setZoom(z => Math.min(4, z * 1.2))} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-bold" title="Zoom in">+</button>
-        <button onClick={resetView} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" title="Reset view">
+        <button onClick={() => setZoom(z => Math.min(4, z * 1.2))} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-bold" title={t('manifest.zoomIn')}>+</button>
+        <button onClick={resetView} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400" title={t('manifest.resetView')}>
           <span className="material-symbols-rounded text-[16px]">fit_screen</span>
         </button>
-        <button onClick={() => setZoom(z => Math.max(0.25, z * 0.8))} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-bold" title="Zoom out">&minus;</button>
+        <button onClick={() => setZoom(z => Math.max(0.25, z * 0.8))} className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm font-bold" title={t('manifest.zoomOut')}>{'−'}</button>
       </div>
       <svg
         viewBox={`0 0 ${layout.width} ${layout.height}`}
         className="w-full h-auto pan-bg"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center center', cursor: isPanning.current ? 'grabbing' : 'grab' }}
         role="img"
-        aria-label="Block diagram of hardware components"
+        aria-label={t('manifest.diagramAria')}
       >
         {/* Connection lines */}
         {layout.connections.map((conn, i) => (
