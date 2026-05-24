@@ -97,13 +97,22 @@ docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
 # Handle Google Cloud Credentials for Firestore/Vertex access
 CRED_OPTS=""
+CRED_PATH_VALID=false
 # Check for explicit service account key first
 if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
-  CRED_FILENAME=$(basename "$GOOGLE_APPLICATION_CREDENTIALS")
-  ABS_CRED_PATH=$(realpath "$GOOGLE_APPLICATION_CREDENTIALS")
-  CRED_OPTS="-v $ABS_CRED_PATH:/etc/secrets/$CRED_FILENAME:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/$CRED_FILENAME"
-  echo "▶ Mounting Google Cloud credentials from $ABS_CRED_PATH"
-else
+  # Validate that it's a proper service account JSON with project_id
+  if python3 -c "import json,sys; d=json.load(open('${GOOGLE_APPLICATION_CREDENTIALS}')); assert 'project_id' in d" 2>/dev/null; then
+    CRED_PATH_VALID=true
+    CRED_FILENAME=$(basename "$GOOGLE_APPLICATION_CREDENTIALS")
+    ABS_CRED_PATH=$(realpath "$GOOGLE_APPLICATION_CREDENTIALS")
+    CRED_OPTS="-v $ABS_CRED_PATH:/etc/secrets/$CRED_FILENAME:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/$CRED_FILENAME"
+    echo "▶ Mounting Google Cloud credentials from $ABS_CRED_PATH"
+  else
+    echo "⚠️  WARNING: Credentials file exists but is invalid (missing project_id). Skipping mount — Firebase sync will fall back to local-only mode."
+  fi
+fi
+
+if [ "$CRED_PATH_VALID" != "true" ]; then
   # Fallback to Application Default Credentials (ADC)
   # Try common locations across Linux and macOS
   ADC_PATHS=(
@@ -113,10 +122,15 @@ else
   
   for p in "${ADC_PATHS[@]}"; do
     if [ -f "$p" ]; then
-      ABS_ADC_PATH=$(realpath "$p")
-      CRED_OPTS="-v $ABS_ADC_PATH:/etc/secrets/adc.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/adc.json"
-      echo "▶ Mounting local Application Default Credentials (ADC) from $ABS_ADC_PATH"
-      break
+      # Validate ADC file
+      if python3 -c "import json,sys; d=json.load(open('${p}')); assert 'project_id' in d" 2>/dev/null; then
+        ABS_ADC_PATH=$(realpath "$p")
+        CRED_OPTS="-v $ABS_ADC_PATH:/etc/secrets/adc.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/adc.json"
+        echo "▶ Mounting local Application Default Credentials (ADC) from $ABS_ADC_PATH"
+        break
+      else
+        echo "⚠️  WARNING: ADC file at $p is invalid (missing project_id). Skipping mount."
+      fi
     fi
   done
 fi

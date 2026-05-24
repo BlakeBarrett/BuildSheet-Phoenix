@@ -11,7 +11,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * logic that DraftingEngine uses.
    */
   test('project roundtrip: save → serialize → hydrate → localStorage', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       const INDEX_KEY = 'buildsheet_projects_index';
@@ -187,7 +187,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * and update the active session when it's the currently viewed project.
    */
   test('onSnapshot remote update should merge into active session', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       const PREFIX = 'buildsheet_project_';
@@ -300,7 +300,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * only when the local version is newer than the remote version.
    */
   test('migration should not overwrite newer Firestore data', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       // Simulate: local project is OLDER than Firestore version
@@ -335,7 +335,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * and preserves data through the serialize → deserialize roundtrip.
    */
   test('Date fields survive Firestore roundtrip', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       const originalDate = new Date('2025-06-15T14:30:00.000Z');
@@ -370,7 +370,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * Validates that the project index is correctly maintained across operations.
    */
   test('project index deduplication and ordering', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       const INDEX_KEY = 'buildsheet_projects_index';
@@ -429,7 +429,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * when Browser B logs in and should receive Browser A's projects.
    */
   test('full login flow: migration + load populates project list', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       const INDEX_KEY = 'buildsheet_projects_index';
@@ -613,7 +613,7 @@ test.describe('Firestore Cross-Browser Sync', () => {
    * Without proper auth, saves should be skipped.
    */
   test('unauthenticated saves should not attempt Firestore writes', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const result = await page.evaluate(() => {
       // Simulate the isAuthenticated check

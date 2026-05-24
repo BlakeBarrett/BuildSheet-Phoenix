@@ -38,11 +38,16 @@ export function isFirebaseConfigured(): boolean {
 
 function ensureInitialized() {
   if (!app && isFirebaseConfigured()) {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    if (firebaseConfig.measurementId && typeof window !== 'undefined') {
-      analytics = getAnalytics(app);
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      if (firebaseConfig.measurementId && typeof window !== 'undefined') {
+        analytics = getAnalytics(app);
+      }
+    } catch (e: any) {
+      console.warn('[firebase] Client SDK initialization failed (incomplete config — sync will be unavailable):', e.message);
+      // app stays null — all getFirebase*() callers will get null, which is safe.
     }
   }
 }

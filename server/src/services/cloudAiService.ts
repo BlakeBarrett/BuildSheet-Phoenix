@@ -108,14 +108,23 @@ export class ServerCloudAIService implements ServerAIService {
         messages.push({ role, content });
       }
     }
-    messages.push({ role: 'user', content: options.userContent });
-    const body: any = { model: options.model, messages, temperature: options.temperature ?? 0.7, max_tokens: options.maxTokens ?? 4096 };
+    const body: any = { model: options.model, messages, temperature: options.temperature ?? 0.7 };
+
+    // For JSON-mode calls, disable thinking to prevent thinking tokens from corrupting
+    // the JSON output, and force response_format for strict JSON compliance.
     if (options.jsonMode) {
       body.response_format = { type: 'json_object' };
-      // Qwen3 thinking models: disable thinking for structured JSON calls to prevent
-      // thinking tokens from appearing in content and breaking JSON.parse.
       body.enable_thinking = false;
+      body.max_tokens = options.maxTokens ?? 4096;
+    } else {
+      // Free-form calls keep thinking enabled (better reasoning).
+      // Thinking consumes from the token budget, so bump max_tokens to leave room.
+      // The budget is split roughly: 30-50% for thinking, rest for actual output.
+      const contentLen = Array.isArray(options.userContent) ? options.userContent.reduce((s: number, p: any) => s + (p.text?.length || 0), 0) : (options.userContent as string)?.length || 0;
+      body.max_tokens = options.maxTokens ?? (contentLen > 2000 ? 12288 : 8192);
     }
+
+    messages.push({ role: 'user', content: options.userContent });
     const resp = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}` },
@@ -309,7 +318,9 @@ export class ServerCloudAIService implements ServerAIService {
       if (previousAudit) prompt += `\nPREVIOUS AUDIT RESULT:\n${previousAudit}\n`;
       let fullText: string;
       if (this.config.provider === 'openai-compat') {
-        fullText = await this.openAiChat({ model: this.config.models.smart, system: AUDIT_SYSTEM_INSTRUCTION, userContent: prompt, maxTokens: 8192 });
+        // VerifyDesign is a thinking-heavy task (deep analysis of BOM + requirements).
+        // Bump max_tokens to leave ample room for thinking tokens + full audit output.
+        fullText = await this.openAiChat({ model: this.config.models.smart, system: AUDIT_SYSTEM_INSTRUCTION, userContent: prompt, maxTokens: 16384 });
       } else {
         const ai = this.getClient();
         const response = await ai.models.generateContent({ model: this.config.models.smart, contents: prompt, config: { systemInstruction: AUDIT_SYSTEM_INSTRUCTION, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 2048 } } });
@@ -375,7 +386,10 @@ export class ServerCloudAIService implements ServerAIService {
       const prompt = `Generate a robotic assembly plan for:\n${bomDigest}`;
       const system = 'You are a robotics assembly planner. Return JSON with: steps, totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.';
       if (this.config.provider === 'openai-compat') {
-        const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, jsonMode: true, maxTokens: 4096 });
+        // AssemblyPlan is a thinking-heavy task (multi-step planning with tool/robotics reasoning).
+        // Keep thinking enabled for better planning quality; extractJson + openAiChat's
+        // thinking-block stripping handles the JSON extraction cleanly.
+        const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, maxTokens: 12288 });
         const plan = this.extractJson<AssemblyPlan>(text);
         if (plan) plan.generatedAt = new Date();
         return plan;

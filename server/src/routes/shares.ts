@@ -363,8 +363,6 @@ function renderSharePage(share: any, host: string): string {
 
       ${escapedDesc ? `<div class="description">${escapedDesc}</div>` : ''}
 
-      ${escapedAssemblyUrl ? `<a href="${escapedAssemblyUrl}" class="assembly-url" target="_blank" rel="noopener">↗ ${truncateUrl(share.assemblyUrl)}</a>` : ''}
-
       ${bomRows ? `
       <div class="bom-section">
         <h2>Bill of Materials · ${(share.bom || []).length} parts</h2>

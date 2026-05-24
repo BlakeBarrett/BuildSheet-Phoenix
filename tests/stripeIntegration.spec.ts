@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 test.describe('Stripe Integration & Tier Gating', () => {
 
     test('PLAN_LIMITS should define correct tier capabilities', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             // Access the bundled PLAN_LIMITS via the tierService module.
@@ -91,7 +91,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('TierService should default to anonymous free tier without Firebase', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             // Without Firebase configured (local dev), TierService should operate
@@ -112,7 +112,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('anonymous free user limits should be stricter than authenticated free', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             // Verify the anonymous vs authenticated free tier derivation logic.
@@ -167,7 +167,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
         // Use a tall viewport so the nav rail renders individual icon buttons
         // (isShortScreen is true when height < 900, which collapses exports into an overflow menu)
         await page.setViewportSize({ width: 1280, height: 960 });
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
         await page.reload();
         // Wait for the app to fully render
@@ -184,7 +184,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('upgrade modal should appear when message limit reached', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
         await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
@@ -199,7 +199,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('upgrade rocket icon should be visible for free tier users', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
         await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
@@ -213,7 +213,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('redirectToCheckout should reject when user is not authenticated', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(async () => {
             // Without Firebase auth, redirectToCheckout should throw
@@ -239,7 +239,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('getStripePaymentsInstance should throw when Firebase is not configured', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             // Without Firebase config, getFirebaseApp() returns null.
@@ -258,7 +258,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('Guest badge should appear for unauthenticated users', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
         await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
@@ -270,7 +270,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
     });
 
     test('new project button should work within tier limits', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
         await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
@@ -350,7 +350,7 @@ test.describe('LAUNCH100 Promo Code', () => {
     });
 
     test('upgrade modal shows promo callout in the UI', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
         await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });

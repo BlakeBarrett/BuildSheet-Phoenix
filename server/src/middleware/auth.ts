@@ -85,6 +85,14 @@ async function authenticateRequest(
       return;
     }
 
+    // If credentials are missing/unavailable, allow through as guest (same as dev)
+    if (err.message?.includes('credentials') || err.message?.includes('Could not load the default')) {
+      console.warn('[Auth] Firebase credentials unavailable — allowing as guest:', err.message);
+      req.user = { uid: 'guest', isGuest: true };
+      next();
+      return;
+    }
+
     console.error('[Auth] Token verification failed:', err.message);
     if (required) {
       res.status(401).json({ error: 'Invalid or expired authentication token' });

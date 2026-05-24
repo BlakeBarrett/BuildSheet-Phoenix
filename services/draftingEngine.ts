@@ -186,7 +186,7 @@ export class DraftingEngine {
 
   private async saveSessionToServer(session: DraftingSession) {
     if (!UserService.isAuthenticated()) {
-      console.warn(`[Sync] Server save skipped for "${session.name}" – user not authenticated`);
+      console.debug(`[Sync] Server save skipped for "${session.name}" – user not authenticated`);
       return;
     }
     try {

@@ -41,7 +41,7 @@ test.describe('Link Sharing Behavior', () => {
         });
 
         // 3. Navigate to app
-        await page.goto('/');
+        await page.goto('/app/');
         await page.waitForTimeout(1000);
 
         // Dismiss cookie consent dialog if present
@@ -51,9 +51,9 @@ test.describe('Link Sharing Behavior', () => {
             await page.waitForTimeout(300);
         }
 
-        // 4. Click the Share button
-        const shareButton = page.getByTitle('Share this build');
-        await expect(shareButton).toBeVisible();
+        // 4. Click the Share button (title is "Share this build" when BOM has items)
+        const shareButton = page.locator('button[title="Share this build"]');
+        await expect(shareButton).toBeVisible({ timeout: 10000 });
         await shareButton.click();
 
         // 5. Verify the error toast appears

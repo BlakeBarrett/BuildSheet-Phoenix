@@ -2019,7 +2019,17 @@ const AppContent: React.FC = () => {
             const connTest = await draftingEngine.testFirestoreConnection();
             if (!connTest.ok) {
                 console.error('[Auth] ✗ Firestore connection test FAILED:', connTest.error);
-                setSyncError(connTest.error || 'Firestore connection failed');
+                const msg = connTest.error || 'Firestore connection failed';
+                // Don't show banner for guest users — sync is expected to fail
+                if (msg.toLowerCase().includes('not authenticated')) {
+                    // Silent skip — no banner for guests
+                }
+                // Server 503 (Firebase Admin not configured) → user-friendly message
+                else if (msg.toLowerCase().includes('unavailable')) {
+                    setSyncError('Cloud sync unavailable — server is restarting. Your local data is safe.');
+                } else {
+                    setSyncError(msg);
+                }
             } else {
                 setSyncError(null);
             }
@@ -2191,7 +2201,17 @@ const AppContent: React.FC = () => {
                 const conn = await draftingEngine.testFirestoreConnection();
                 if (!conn.ok) {
                     console.error('[Auth] Firestore broken on auth resolve:', conn.error);
-                    setSyncError(conn.error || 'Firestore connection failed');
+                const msg = conn.error || 'Firestore connection failed';
+                // Don't show banner for guest users — sync is expected to fail
+                if (msg.toLowerCase().includes('not authenticated')) {
+                    // Silent skip — no banner for guests
+                }
+                // Server 503 (Firebase Admin not configured) → user-friendly message
+                else if (msg.toLowerCase().includes('unavailable')) {
+                        setSyncError('Cloud sync unavailable — server is restarting. Your local data is safe.');
+                    } else {
+                        setSyncError(msg);
+                    }
                 } else {
                     setSyncError(null);
                 }
@@ -2444,7 +2464,12 @@ const AppContent: React.FC = () => {
                     console.error('Failed to pre-compute audit actions:', e);
                 }
             }
-        } catch (e) { console.error(e); } finally {
+        } catch (e: any) {
+            // Cache the error message so the audit modal shows a reason
+            // instead of "No audit results available"
+            draftingEngine.cacheAuditResult(`Verification failed: ${e.message}`);
+            console.error(e);
+        } finally {
             // Always refresh state so the modal shows the latest data
             if (!silent) {
                 setValidatorCallCount(prev => prev + 1);
@@ -3072,7 +3097,7 @@ const AppContent: React.FC = () => {
     return (
         <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col lg:flex-row p-0 pb-[90px] lg:p-3 lg:pb-3 gap-3">
 
-            {syncError && (
+            {syncError && currentUser && (
                 <div className="absolute top-0 left-0 right-0 z-[999] bg-red-600 text-white text-xs px-4 py-2 flex items-center gap-2" role="alert">
                     <span className="material-symbols-rounded text-[16px]">cloud_off</span>
                     <span><strong>Sync Error:</strong> {syncError}</span>

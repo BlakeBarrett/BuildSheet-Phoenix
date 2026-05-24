@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('visualizer takes up 40% of viewport height', async ({ page }) => {
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
 
     const visualizerComponent = page.locator('[data-testid="visualizer-root"], .ChiltonVisualizer, div.h-full.w-full.flex').first();
     await expect(visualizerComponent).toBeVisible();
@@ -139,7 +139,7 @@ test('performVisualGeneration builds BOM-rich prompt from session', {
     });
 
     // Wait for the app to fully boot
-    await page.goto('http://localhost:3000');
+    await page.goto('http://localhost:8080/app/');
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.waitForTimeout(3000);
 

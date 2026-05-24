@@ -3,6 +3,11 @@ import { test, expect } from '@playwright/test';
 test.describe('Settings Modal — All Model Selectors', () => {
 
     test.beforeEach(async ({ page }) => {
+        // Pre-set consent to skip Privacy & Data Control modal
+        await page.addInitScript(() => {
+            localStorage.setItem('buildsheet_consent', 'full');
+        });
+
         // Mock LM Studio response
         await page.route('http://192.168.1.41:1234/v1/models', async route => {
             await route.fulfill({
@@ -32,8 +37,8 @@ test.describe('Settings Modal — All Model Selectors', () => {
             });
         });
 
-        await page.goto('/');
-        await page.waitForTimeout(2000);
+        await page.goto('/app/');
+        await page.waitForTimeout(1000);
     });
 
     test('should save all 5 model selectors to localStorage correctly', async ({ page }) => {

@@ -46,7 +46,20 @@ async function post<T = any>(path: string, body: any): Promise<T> {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    throw new Error(err.error || `API error ${resp.status}`);
+    const msg = err.error || `API error ${resp.status}`;
+    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
+    if (resp.status === 503 && err.syncUnavailable) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'credentials' in message: server tried getFirestore() without creds
+    if (resp.status === 500 && (err.error || '').includes('credentials')) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'Firestore' in message: same as above (catch partial error text)
+    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
+      return Promise.reject(new Error(msg));
+    }
+    throw new Error(msg);
   }
   return resp.json();
 }
@@ -58,7 +71,20 @@ async function get<T = any>(path: string): Promise<T> {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    throw new Error(err.error || `API error ${resp.status}`);
+    const msg = err.error || `API error ${resp.status}`;
+    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
+    if (resp.status === 503 && err.syncUnavailable) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'credentials' in message: server tried getFirestore() without creds
+    if (resp.status === 500 && (err.error || '').includes('credentials')) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'Firestore' in message: same as above (catch partial error text)
+    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
+      return Promise.reject(new Error(msg));
+    }
+    throw new Error(msg);
   }
   return resp.json();
 }
@@ -71,7 +97,20 @@ async function put<T = any>(path: string, body: any): Promise<T> {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    throw new Error(err.error || `API error ${resp.status}`);
+    const msg = err.error || `API error ${resp.status}`;
+    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
+    if (resp.status === 503 && err.syncUnavailable) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'credentials' in message: server tried getFirestore() without creds
+    if (resp.status === 500 && (err.error || '').includes('credentials')) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'Firestore' in message: same as above (catch partial error text)
+    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
+      return Promise.reject(new Error(msg));
+    }
+    throw new Error(msg);
   }
   return resp.json();
 }
@@ -83,7 +122,20 @@ async function del<T = any>(path: string): Promise<T> {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    throw new Error(err.error || `API error ${resp.status}`);
+    const msg = err.error || `API error ${resp.status}`;
+    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
+    if (resp.status === 503 && err.syncUnavailable) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'credentials' in message: server tried getFirestore() without creds
+    if (resp.status === 500 && (err.error || '').includes('credentials')) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'Firestore' in message: same as above (catch partial error text)
+    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
+      return Promise.reject(new Error(msg));
+    }
+    throw new Error(msg);
   }
   return resp.json();
 }
@@ -96,7 +148,20 @@ async function patch<T = any>(path: string, body: any): Promise<T> {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    throw new Error(err.error || `API error ${resp.status}`);
+    const msg = err.error || `API error ${resp.status}`;
+    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
+    if (resp.status === 503 && err.syncUnavailable) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'credentials' in message: server tried getFirestore() without creds
+    if (resp.status === 500 && (err.error || '').includes('credentials')) {
+      return Promise.reject(new Error(msg));
+    }
+    // 500 with 'Firestore' in message: same as above (catch partial error text)
+    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
+      return Promise.reject(new Error(msg));
+    }
+    throw new Error(msg);
   }
   return resp.json();
 }

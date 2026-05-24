@@ -172,7 +172,7 @@ test.describe('hydrateVirtualEntry — catalog-first network behaviour', () => {
             localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: s.id, name: s.name, lastModified: s.lastModified, preview: '' }]));
         }, session);
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.setViewportSize({ width: 1400, height: 900 });
         await page.waitForTimeout(1500);
         await dismissCookieConsent(page);
@@ -256,7 +256,7 @@ test.describe('hydrateVirtualEntry — catalog-first network behaviour', () => {
             localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: s.id, name: s.name, lastModified: s.lastModified, preview: '' }]));
         }, session);
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.setViewportSize({ width: 1400, height: 900 });
         await page.waitForTimeout(1500);
         await dismissCookieConsent(page);
@@ -328,7 +328,7 @@ test.describe('clearAuditActions — stale Apply button prevention', () => {
             localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: s.id, name: s.name, lastModified: s.lastModified, preview: '' }]));
         }, session);
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.setViewportSize({ width: 1400, height: 900 });
         await page.waitForTimeout(1500);
         await dismissCookieConsent(page);
@@ -397,7 +397,7 @@ test.describe('clearAuditActions — stale Apply button prevention', () => {
             localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: s.id, name: s.name, lastModified: s.lastModified, preview: '' }]));
         }, session);
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.setViewportSize({ width: 1400, height: 900 });
         await page.waitForTimeout(1500);
         await dismissCookieConsent(page);

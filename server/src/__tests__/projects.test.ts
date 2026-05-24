@@ -52,6 +52,12 @@ vi.mock('firebase-admin/firestore', () => ({
   }),
 }));
 
+// Mock Firebase exports that projects.ts imports from index.ts (breaks circular dep)
+vi.mock('../index.js', () => ({
+  firebaseInitialized: true,
+  firebaseErrorMessage: '',
+}));
+
 // Mock auth middleware to always pass with test user
 vi.mock('../middleware/auth.js', () => ({
   requireAuth: (_req: any, _res: any, next: any) => {
@@ -67,6 +73,7 @@ vi.mock('../middleware/auth.js', () => ({
 // Mock rate limiter to pass through
 vi.mock('../middleware/rateLimit.js', () => ({
   apiRateLimit: (_req: any, _res: any, next: any) => next(),
+  generationRateLimit: (_req: any, _res: any, next: any) => next(),
 }));
 
 import express from 'express';

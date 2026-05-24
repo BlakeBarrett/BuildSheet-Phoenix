@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 // The marketing site is currently served on localhost:8099 during this session
-const SITE_URL = 'http://localhost:8099';
+const SITE_URL = 'http://localhost:8080';
 
 test.describe('Marketing Site — Blue Collar Redesign', () => {
   

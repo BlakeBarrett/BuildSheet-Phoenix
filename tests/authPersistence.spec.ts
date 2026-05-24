@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Firebase Auth & Dual-Layer Persistence', () => {
 
     test('guest project limit should be enforced at 1 project', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulate the guest project limit logic from DraftingEngine
@@ -55,7 +55,7 @@ test.describe('Firebase Auth & Dual-Layer Persistence', () => {
     });
 
     test('firebase.ts should export configuration check function', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         // Verify that isFirebaseConfigured is available and returns false
         // when no env vars are set (test environment)
@@ -76,7 +76,7 @@ test.describe('Firebase Auth & Dual-Layer Persistence', () => {
     });
 
     test('UserService should work in guest mode without Firebase config', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             // The app should load and function without Firebase credentials.
@@ -91,7 +91,7 @@ test.describe('Firebase Auth & Dual-Layer Persistence', () => {
     });
 
     test('session data should survive a save/load cycle with owner migration fields', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const SESSION_PREFIX = 'buildsheet_project_';
@@ -138,7 +138,7 @@ test.describe('Firebase Auth & Dual-Layer Persistence', () => {
     });
 
     test('clearLocalProjects should remove all project data from localStorage', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const SESSION_PREFIX = 'buildsheet_project_';
@@ -181,7 +181,7 @@ test.describe('Firebase Auth & Dual-Layer Persistence', () => {
 test.describe('ProjectNavigator Guest Limit CTA', () => {
 
     test('page should load without errors in guest mode', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         // Ensure no uncaught console errors related to Firebase
         const errors: string[] = [];
@@ -223,7 +223,7 @@ test.describe('Multi-Device Real-time Synchronization', () => {
         // --- Session A: create a new project ---
         const contextA = await browser.newContext();
         const pageA = await contextA.newPage();
-        await pageA.goto('http://localhost:3000');
+        await pageA.goto('http://localhost:8080');
 
         // Directly write a project into Session A's localStorage to simulate
         // DraftingEngine creating and saving a project to Firestore.
@@ -256,7 +256,7 @@ test.describe('Multi-Device Real-time Synchronization', () => {
         // --- Session B: open a new browser context for the same user ---
         const contextB = await browser.newContext();
         const pageB = await contextB.newPage();
-        await pageB.goto('http://localhost:3000');
+        await pageB.goto('http://localhost:8080');
 
         // Simulate the onSnapshot 'added' event arriving in Session B by writing
         // the project directly into Session B's localStorage (as the real-time
@@ -306,7 +306,7 @@ test.describe('Multi-Device Real-time Synchronization', () => {
         // Both sessions start with the project already in the index.
         const contextA = await browser.newContext();
         const pageA = await contextA.newPage();
-        await pageA.goto('http://localhost:3000');
+        await pageA.goto('http://localhost:8080');
         await pageA.evaluate(({ key, prefix, proj }: { key: string; prefix: string; proj: object }) => {
             localStorage.setItem(key, JSON.stringify([proj]));
             localStorage.setItem(prefix + (proj as any).id, JSON.stringify(proj));
@@ -314,7 +314,7 @@ test.describe('Multi-Device Real-time Synchronization', () => {
 
         const contextB = await browser.newContext();
         const pageB = await contextB.newPage();
-        await pageB.goto('http://localhost:3000');
+        await pageB.goto('http://localhost:8080');
         await pageB.evaluate(({ key, prefix, proj }: { key: string; prefix: string; proj: object }) => {
             localStorage.setItem(key, JSON.stringify([proj]));
             localStorage.setItem(prefix + (proj as any).id, JSON.stringify(proj));
@@ -350,7 +350,7 @@ test.describe('Multi-Device Real-time Synchronization', () => {
     });
 
     test('startSync is idempotent: calling twice does not create duplicate listeners', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         // Verify the engine exposes startSync and that the method does not throw
         // when called while no Firestore collection is available (guest mode).
@@ -369,7 +369,7 @@ test.describe('Multi-Device Real-time Synchronization', () => {
     });
 
     test('timestamps are compared correctly: newer local wins over stale remote', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const SESSION_PREFIX = 'buildsheet_project_';

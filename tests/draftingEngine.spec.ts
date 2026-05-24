@@ -4,7 +4,7 @@ test.describe('DraftingEngine Image Persistence', () => {
 
     test('should persist more than 3 generated images without truncation', async ({ page }) => {
         // Navigate to the app to initialize the drafting engine inside the browser environment
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         // We can interact directly with the localStorage to simulate adding multiple images and verifying they persist.
         // Or we can evaluate code in the browser context to use the actual engine.
@@ -44,7 +44,7 @@ test.describe('DraftingEngine Image Persistence', () => {
     });
 
     test('should allow storing and retrieving more than 3 images internally and via IndexedDB', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         
         const passedIdb = await page.evaluate(async () => {
             // We can't easily import the actual module without a bundler inside page.evaluate
@@ -80,7 +80,7 @@ test.describe('DraftingEngine Image Persistence', () => {
 test.describe('DraftingEngine Sourcing & Hydration Persistence', () => {
 
     test('should preserve sourcing and hydrated part data through save/load cycle', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulate a session with hydrated BOM entries including sourcing data
@@ -152,7 +152,7 @@ test.describe('DraftingEngine Sourcing & Hydration Persistence', () => {
     });
 
     test('should generate correct share slug from project name', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Test the slug generation algorithm (mirrors DraftingEngine.generateShareSlug)
@@ -183,7 +183,7 @@ test.describe('DraftingEngine Sourcing & Hydration Persistence', () => {
 test.describe('Audit Changelist Flow', () => {
 
     test('should persist cachedAuditActions through save/load cycle', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const mockActions = [
@@ -268,7 +268,7 @@ test.describe('Audit Changelist Flow', () => {
             localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: session.id, name: session.name, lastModified: session.lastModified, preview: '' }]));
         }, mockSession);
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.setViewportSize({ width: 1400, height: 900 });
         await page.waitForTimeout(1000);
 
@@ -307,7 +307,7 @@ test.describe('Audit Changelist Flow', () => {
 test.describe('Advanced Validation Options', () => {
 
     test('should persist advancedValidations through save/load cycle', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const mockValidations = [
@@ -380,7 +380,7 @@ test.describe('Advanced Validation Options', () => {
             localStorage.setItem('buildsheet_projects_index', JSON.stringify([{ id: session.id, name: session.name, lastModified: session.lastModified, preview: '' }]));
         }, mockSession);
 
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.setViewportSize({ width: 1400, height: 900 });
         await page.waitForTimeout(1000);
 
@@ -422,7 +422,7 @@ test.describe('Advanced Validation Options', () => {
 test.describe('Audit JSON Parsing Robustness', () => {
 
     test('should parse actions JSON wrapped in markdown code fences', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulates the parsing logic from geminiService.ts verifyDesign
@@ -500,7 +500,7 @@ test.describe('Audit JSON Parsing Robustness', () => {
     });
 
     test('should handle actions JSON with multiple add and remove actions', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             function parseAuditActions(fullText: string) {
@@ -553,7 +553,7 @@ test.describe('Audit JSON Parsing Robustness', () => {
 test.describe('Design Context Propagation', () => {
 
     test('should include design context in part sourcing queries', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulate the contextClause logic used in geminiService.findPartSources
@@ -577,7 +577,7 @@ test.describe('Design Context Propagation', () => {
     });
 
     test('should include design context in part hydration prompts', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulate the contextClause logic used in geminiService.hydratePartDetails
@@ -601,7 +601,7 @@ test.describe('Design Context Propagation', () => {
     });
 
     test('should build correct BOM digest with category and brand for audit', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulate the BOM digest generation from verifyDesign
@@ -637,7 +637,7 @@ test.describe('Design Context Propagation', () => {
 test.describe('Audit Compatibility Cross-Check', () => {
 
     test('should enforce cross-platform compatibility checking in audit prompt', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Verify that the prompt template includes the critical compatibility section
@@ -660,7 +660,7 @@ test.describe('Audit Compatibility Cross-Check', () => {
     });
 
     test('should detect cross-platform parts in simulated audit scenario', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Simulate a "Big Block Chevy" build with an incompatible "Small Block Ford" part
@@ -696,7 +696,7 @@ test.describe('Audit Compatibility Cross-Check', () => {
 test.describe('Advanced Validation in Audit', () => {
 
     test('should filter to only enabled advanced validations', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const validations = [
@@ -720,7 +720,7 @@ test.describe('Advanced Validation in Audit', () => {
     });
 
     test('should scale thinking budget based on advanced checks', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             // Mirrors the thinkingBudget logic
@@ -739,7 +739,7 @@ test.describe('Advanced Validation in Audit', () => {
     });
 
     test('should build correct prompt sections for each advanced check type', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
             const enabledAdvanced = [

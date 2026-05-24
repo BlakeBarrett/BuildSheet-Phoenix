@@ -6,6 +6,7 @@ import { Router, type Request, type Response } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimit } from '../middleware/rateLimit.js';
 import { getFirestore } from 'firebase-admin/firestore';
+import { firebaseInitialized, firebaseErrorMessage } from '../index.js';
 
 export const projectsRouter = Router();
 
@@ -24,10 +25,45 @@ function getProjectsCollection(uid: string) {
   return db.collection('users').doc(uid).collection('projects');
 }
 
+/** Check if Firebase Admin is available and return a 503 error if not. */
+function checkFirebaseAvailable(req: Request, res: Response): boolean {
+  if (firebaseInitialized) return true;
+  // Explicitly test getFirestore() since initializeApp() succeeds without credentials.
+  try { getFirestore(); } catch {
+    const status = 503;
+    const message = firebaseErrorMessage
+      ? `Sync service unavailable: ${firebaseErrorMessage}`
+      : 'Sync service unavailable: Server Firebase not configured. Please restart with valid credentials.';
+    console.warn('[projects] Firebase Admin not available — returning 503');
+    res.status(status).json({ error: message, syncUnavailable: true });
+    return false;
+  }
+  return true;
+}
+
+/** Return 503 for Firebase credential errors, 500 for everything else. */
+function handleFirebaseError(res: Response, err: any): void {
+  const isCredError = err.message
+    && (err.message.includes('credentials')
+      || err.message.includes('Could not load the default')
+      || err.message.includes('Failed to connect to Firestore'));
+  if (isCredError) {
+    const msg = firebaseErrorMessage
+      ? `Sync service unavailable: ${firebaseErrorMessage}`
+      : 'Cloud sync unavailable — server is restarting. Your local data is safe.';
+    console.warn('[projects] Firebase credential error — returning 503:', err.message);
+    res.status(503).json({ error: msg, syncUnavailable: true });
+  } else {
+    console.error('[projects] Server error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 /**
  * GET /api/v1/projects — List all projects for the authenticated user.
  */
 projectsRouter.get('/', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     const snapshot = await col.orderBy('lastModified', 'desc').get();
@@ -47,7 +83,7 @@ projectsRouter.get('/', async (req: Request, res: Response) => {
     res.json({ projects });
   } catch (err: any) {
     console.error('[projects] List error:', err.message);
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });
 
@@ -55,13 +91,14 @@ projectsRouter.get('/', async (req: Request, res: Response) => {
  * GET /api/v1/projects/:id — Get a single project by ID.
  */
 projectsRouter.get('/:id', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     const doc = await col.doc(param(req, "id")).get();
     if (!doc.exists) { res.status(404).json({ error: 'Project not found' }); return; }
     res.json({ project: { id: doc.id, ...doc.data() } });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });
 
@@ -70,6 +107,7 @@ projectsRouter.get('/:id', async (req: Request, res: Response) => {
  * Body: full project session object
  */
 projectsRouter.put('/:id', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     const session = req.body;
@@ -82,7 +120,7 @@ projectsRouter.put('/:id', async (req: Request, res: Response) => {
     res.json({ ok: true, id: param(req, "id") });
   } catch (err: any) {
     console.error('[projects] Save error:', err.message);
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });
 
@@ -90,12 +128,13 @@ projectsRouter.put('/:id', async (req: Request, res: Response) => {
  * DELETE /api/v1/projects/:id — Delete a project.
  */
 projectsRouter.delete('/:id', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     await col.doc(param(req, "id")).delete();
     res.json({ ok: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });
 
@@ -104,13 +143,14 @@ projectsRouter.delete('/:id', async (req: Request, res: Response) => {
  * Body: { archived: boolean }
  */
 projectsRouter.patch('/:id/archive', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     const { archived } = req.body;
     await col.doc(param(req, "id")).update({ archived: !!archived, lastModified: new Date().toISOString() });
     res.json({ ok: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });
 
@@ -118,6 +158,7 @@ projectsRouter.patch('/:id/archive', async (req: Request, res: Response) => {
  * POST /api/v1/projects/:id/duplicate — Duplicate a project.
  */
 projectsRouter.post('/:id/duplicate', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     const doc = await col.doc(param(req, "id")).get();
@@ -138,7 +179,7 @@ projectsRouter.post('/:id/duplicate', async (req: Request, res: Response) => {
     await col.doc(newId).set(newProject);
     res.json({ ok: true, id: newId });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });
 
@@ -147,6 +188,7 @@ projectsRouter.post('/:id/duplicate', async (req: Request, res: Response) => {
  * Body: { projects: SessionObject[] }
  */
 projectsRouter.post('/migrate', async (req: Request, res: Response) => {
+  if (!checkFirebaseAvailable(req, res)) return;
   try {
     const col = getProjectsCollection(req.user!.uid);
     const { projects } = req.body;
@@ -161,6 +203,6 @@ projectsRouter.post('/migrate', async (req: Request, res: Response) => {
     }
     res.json({ ok: true, migrated });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    handleFirebaseError(res, err);
   }
 });

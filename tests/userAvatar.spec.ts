@@ -88,7 +88,7 @@ test.describe('UserAvatar – source-code regression guards', () => {
 test.describe('UserAvatar – fallback state-machine logic', () => {
 
     test('shows fallback initial when no avatar URL is provided', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             // Mirrors the UserAvatar component logic exactly
@@ -105,7 +105,7 @@ test.describe('UserAvatar – fallback state-machine logic', () => {
     });
 
     test('shows image when a valid avatar URL is provided and no error', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             const avatar = 'https://example.com/avatar.jpg';
@@ -118,7 +118,7 @@ test.describe('UserAvatar – fallback state-machine logic', () => {
     });
 
     test('transitions to fallback when image fires onError (imgError = true)', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             const avatar = 'https://example.com/avatar.jpg';
@@ -134,7 +134,7 @@ test.describe('UserAvatar – fallback state-machine logic', () => {
     });
 
     test('fallback initial is upper-cased first character of name', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
 
         const result = await page.evaluate(() => {
             const cases = [
@@ -160,7 +160,7 @@ test.describe('UserAvatar – fallback state-machine logic', () => {
 test.describe('UserAvatar – runtime DOM integrity', () => {
 
     test('no avatar img element has been imperatively hidden via style.display', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto('http://localhost:8080/app/');
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
         const found = await page.evaluate(() => {

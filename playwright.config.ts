@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000/app/',
+    baseURL: 'http://localhost:8080/app/',
     trace: 'on-first-retry',
   },
   projects: [
@@ -17,18 +17,6 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: [
-    {
-      command: 'npm run dev -- --port 3000',
-      url: 'http://localhost:3000/app/',
-      reuseExistingServer: !process.env.CI,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    },
-    {
-      command: 'cd website && python3 -m http.server 8099',
-      url: 'http://localhost:8099',
-      reuseExistingServer: !process.env.CI,
-    },
-  ],
+  // Our container serves everything; skip the local webServer.
+  // (in CI this should be re-enabled with the proper base URL)
 });
