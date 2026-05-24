@@ -22,7 +22,7 @@ import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
 import { VoiceSession } from './components/VoiceSession.tsx';
-import { SafetyAuditorPanel } from './components/SafetyAuditorPanel.tsx';
+
 import { ProjectTemplatePicker, ProjectTemplate } from './components/ProjectTemplates.tsx';
 import { PrivacyDisclosureToast, usePrivacyDisclosure } from './components/PrivacyDisclosure.tsx';
 import { STLPreview } from './components/STLPreview.tsx';
@@ -1926,7 +1926,7 @@ const AppContent: React.FC = () => {
 
     // New feature state
     const [voiceOpen, setVoiceOpen] = useState(false);
-    const [safetyPanelOpen, setSafetyPanelOpen] = useState(false);
+
     const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
     const [stlPreviewOpen, setStlPreviewOpen] = useState(false);
     const [stlPreviewCode, setStlPreviewCode] = useState('');
@@ -2666,7 +2666,6 @@ const AppContent: React.FC = () => {
 
             refreshState();
             setAuditOpen(false);
-            setSafetyPanelOpen(false);
         } catch (e: any) {
             console.error('Failed to apply audit changes:', e);
             draftingEngine.addMessage({
@@ -3194,26 +3193,7 @@ const AppContent: React.FC = () => {
             {/* Voice Mode */}
             {voiceOpen && <VoiceSession bom={session.bom} plan={session.cachedAssemblyPlan} aiService={aiService} onClose={() => setVoiceOpen(false)} />}
 
-            {/* Safety Auditor */}
-            <SafetyAuditorPanel
-                isOpen={safetyPanelOpen}
-                onClose={() => setSafetyPanelOpen(false)}
-                auditResult={session.cachedAuditResult || undefined}
-                auditActions={session.cachedAuditActions || undefined}
-                isAuditing={isAuditing}
-                onRunAudit={() => performVerifyAudit()}
-                onApplyActions={handleApplyAuditChanges}
-                isApplyingAudit={isApplyingAudit}
-                bom={session.bom}
-                advancedValidations={advancedValidations}
-                onToggleValidation={(id) => handleAdvancedValidationsChange(advancedValidations.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c))}
-                onAddCustomValidation={(label) => {
-                    const id = label.toLowerCase().replace(/\s+/g, '-');
-                    if (advancedValidations.some(c => c.id === id)) return;
-                    handleAdvancedValidationsChange([...advancedValidations, { id, label, enabled: true, kind: 'custom' as const }]);
-                }}
-                onUpdateValidationMetadata={(id, metadata) => handleAdvancedValidationsChange(advancedValidations.map(c => c.id === id ? { ...c, metadata } : c))}
-            />
+
 
             {/* Project Templates */}
             <ProjectTemplatePicker
@@ -3295,9 +3275,6 @@ const AppContent: React.FC = () => {
                                         <button onClick={() => { setNavOverflowOpen(false); setScanPartOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left" role="menuitem">
                                             <span className="material-symbols-rounded text-[18px]">photo_camera</span>Scan Part
                                         </button>
-                                        <button onClick={() => { setNavOverflowOpen(false); setSafetyPanelOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">health_and_safety</span>Safety Auditor
-                                        </button>
                                         <button onClick={() => { setNavOverflowOpen(false); setTemplatePickerOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 rounded-xl transition-colors text-left" role="menuitem">
                                             <span className="material-symbols-rounded text-[18px]">dashboard_customize</span>Templates
                                         </button>
@@ -3339,12 +3316,6 @@ const AppContent: React.FC = () => {
                                 onClick={() => setScanPartOpen(true)}
                                 className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
                                 title="Scan Part"
-                            />
-                            <IconButton
-                                icon="health_and_safety"
-                                onClick={() => setSafetyPanelOpen(true)}
-                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                title="Safety Auditor"
                             />
                             <IconButton
                                 icon="dashboard_customize"
