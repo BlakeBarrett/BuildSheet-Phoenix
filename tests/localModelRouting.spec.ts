@@ -100,7 +100,7 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
         });
 
         // Load page and configure all local models
-        await page.goto('/');
+        await page.goto('/app/');
         await configureAllLocalModels(page);
 
         // Reload so the AIManager picks up the localStorage config
@@ -153,7 +153,7 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
             await route.abort('failed');
         });
 
-        await page.goto('/');
+        await page.goto('/app/');
 
         // Only set architect model — utility/cad should fall back to it
         await page.evaluate(() => {
@@ -190,7 +190,7 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
     });
 
     test('localStorage model configs are correctly structured', async ({ page }) => {
-        await page.goto('/');
+        await page.goto('/app/');
         await configureAllLocalModels(page);
 
         const configs = await page.evaluate(() => {
