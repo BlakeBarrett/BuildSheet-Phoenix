@@ -117,6 +117,8 @@ const ProjectNavigator: React.FC<{
     const filtered = projects.filter(p => {
         if (!showArchived && p.archived) return false;
         if (showArchived && !p.archived) return false;
+        // Filter out completely empty projects (no BOM, no meaningful content)
+        if (p.preview === 'Empty Draft') return false;
         // When browsing a folder, show only projects in that folder
         if (!searchQuery.trim() && currentFolderId !== undefined) {
             return p.folderId === currentFolderId;
@@ -162,7 +164,7 @@ const ProjectNavigator: React.FC<{
             <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
                 <header className="p-6 pb-2 flex justify-between items-center">
                     <div>
-                        <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">Build History</h3>
+                        <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">{t('nav.myBuilds')}</h3>
                         <p className="text-sm text-slate-600 font-medium">Your Projects</p>
                     </div>
                     <IconButton icon="close" onClick={onClose} title="Close Navigator" />
@@ -393,7 +395,7 @@ const ProjectNavigator: React.FC<{
                     ))}
                     {filtered.length === 0 && (
                         <div className="text-center py-20 opacity-40">
-                            <p className="text-sm font-medium text-slate-500">{searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : 'No project history found.'}</p>
+                            <p className="text-sm font-medium text-slate-500">{searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : t('nav.emptyProjects')}</p>
                         </div>
                     )}
                 </div>
