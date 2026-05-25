@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>BuildSheet - Drafting Mode</title>
+    <title>BuildSheet Phoenix</title>
+    <meta name="description" content="BuildSheet Phoenix - AI-powered hardware assembly design and bill of materials tool">
+    <link rel="icon" type="image/svg+xml" href="/buildsheet-icon.svg">
+    <meta property="og:title" content="BuildSheet Phoenix">
+    <meta property="og:description" content="AI-powered hardware assembly design and bill of materials tool">
+    <meta property="og:type" content="website">
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <!-- Self-hosted fonts (avoids tracker-blocking by DuckDuckGo, Brave, etc.) -->
     <style>
@@ -69,6 +74,36 @@
         }
         .symbol-filled {
           font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        /* Render material icon via ::before pseudo-element to keep icon text out of DOM textContent */
+        .material-symbols-rounded[data-icon]::before {
+          content: attr(data-icon);
+          font-family: 'Material Symbols Rounded';
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+          font-size: inherit;
+          font-weight: normal;
+          font-style: normal;
+          line-height: 1;
+          letter-spacing: normal;
+          text-transform: none;
+          display: inline-block;
+          white-space: nowrap;
+          word-wrap: normal;
+          direction: ltr;
+          -webkit-font-feature-settings: 'liga';
+          font-feature-settings: 'liga';
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
+          -moz-osx-font-smoothing: grayscale;
+          user-select: none;
+        }
+        .material-symbols-rounded[data-icon].symbol-filled::before {
+          font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Hide the original span text to prevent textContent leaks */
+        .material-symbols-rounded[data-icon]::after {
+          content: '\200B'; /* zero-width space to ensure span renders */
         }
         
         /* M3 Scrollbar */

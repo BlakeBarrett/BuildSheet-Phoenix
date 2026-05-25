@@ -165,7 +165,7 @@ export const ChiltonVisualizer: React.FC<ChiltonVisualizerProps> = ({ images, on
                         aria-label={t('visual.new')}
                     >
                         <div className={`w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${isGenerating ? 'animate-spin' : ''}`}>
-                            <span className="material-symbols-rounded text-indigo-500 text-[22px]">{isGenerating ? 'refresh' : 'add_photo_alternate'}</span>
+                            <span className="icon-text-hidden symbol-filled text-indigo-500 text-[22px]" aria-hidden="true" data-icon={isGenerating ? 'refresh' : 'add_photo_alternate'}></span>
                         </div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800">{t('visual.new')}</span>
                     </button>

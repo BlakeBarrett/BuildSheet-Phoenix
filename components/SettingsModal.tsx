@@ -229,31 +229,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <IconButton icon="close" onClick={onClose} title={t('modal.close')} />
                 </div>
                 
-                <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                    {/* Temperature slider — available to all tiers */}
+                <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                    {/* AI Preferences */}
                     <div>
-                        <label htmlFor="ai-temperature" className="block text-sm font-bold text-slate-700 mb-1">{t('settings.temperature')}</label>
-                        <p className="text-xs text-slate-600 mb-3">
-                            Controls AI creativity. Lower values produce more focused, deterministic responses. Higher values are more creative and varied.
-                        </p>
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-500 w-14">{t('settings.precise')}</span>
-                            <input
-                                id="ai-temperature"
-                                type="range"
-                                min="0"
-                                max="2"
-                                step="0.1"
-                                value={temperature}
-                                onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                                className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600"
-                            />
-                            <span className="text-xs text-slate-500 w-14 text-right">{t('settings.creative')}</span>
-                            <span className="text-sm font-mono font-bold text-slate-700 w-10 text-center bg-slate-100 rounded-lg py-1">{temperature.toFixed(1)}</span>
+                        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">{t('settings.aiPreferences', 'AI Preferences')}</h4>
+                        {/* Temperature slider — available to all tiers */}
+                        <div>
+                            <label htmlFor="ai-temperature" className="block text-sm font-bold text-slate-700 mb-1">{t('settings.temperature')}</label>
+                            <p className="text-xs text-slate-600 mb-3">
+                                Controls AI creativity. Lower values produce more focused, deterministic responses. Higher values are more creative and varied.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-slate-500 w-14">{t('settings.precise')}</span>
+                                <input
+                                    id="ai-temperature"
+                                    type="range"
+                                    min="0"
+                                    max="2"
+                                    step="0.1"
+                                    value={temperature}
+                                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                                    className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer accent-indigo-600"
+                                />
+                                <span className="text-xs text-slate-500 w-14 text-right">{t('settings.creative')}</span>
+                                <span className="text-sm font-mono font-bold text-slate-700 w-10 text-center bg-slate-100 rounded-lg py-1">{temperature.toFixed(1)}</span>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Model selection — Enterprise only */}
+                    {/* Server & Model Configuration — Enterprise only */}
                     <div className={!isEnterprise ? 'opacity-50 pointer-events-none' : ''}>
                         {!isEnterprise && (
                             <div className="flex items-center gap-2 mb-3 p-2.5 bg-amber-50 rounded-xl">
@@ -426,29 +430,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         {isEnterprise && <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>{t('settings.refreshModels')}</Button>}
                         <Button variant="primary" onClick={handleSave}>{t('settings.save')}</Button>
                     </div>
-                    <div className="border-t border-gray-200 pt-3">
-                        <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.privacy')}</p>
-                        <div className="flex gap-2">
-                            <Button variant="ghost" className="text-xs text-red-600 hover:bg-red-50 flex-1" icon="delete_forever" onClick={async () => {
-                                if (window.confirm(t('settings.deleteDataConfirm'))) {
-                                    await clearAllUserData();
-                                    window.location.reload();
-                                }
-                            }}>{t('settings.deleteData')}</Button>
-                            <Button variant="ghost" className="text-xs text-slate-600 hover:bg-slate-100 flex-1" icon="download" onClick={() => {
-                                const data: Record<string, string | null> = {};
-                                for (let i = 0; i < localStorage.length; i++) {
-                                    const key = localStorage.key(i);
-                                    if (key) data[key] = localStorage.getItem(key);
-                                }
-                                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = 'buildsheet-data-export.json';
-                                link.click();
-                                URL.revokeObjectURL(url);
-                            }}>{t('settings.exportData')}</Button>
+                    {/* Privacy & Data (GDPR) */}
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">{t('settings.privacy', 'Privacy & Data (GDPR)')}</h4>
+                        <div className="border-t border-gray-200 pt-3">
+                            <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.privacy')}</p>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" className="text-xs text-red-600 hover:bg-red-50 flex-1" icon="delete_forever" onClick={async () => {
+                                    if (window.confirm(t('settings.deleteDataConfirm'))) {
+                                        await clearAllUserData();
+                                        window.location.reload();
+                                    }
+                                }}>{t('settings.deleteData')}</Button>
+                                <Button variant="ghost" className="text-xs text-slate-600 hover:bg-slate-100 flex-1" icon="download" onClick={() => {
+                                    const data: Record<string, string | null> = {};
+                                    for (let i = 0; i < localStorage.length; i++) {
+                                        const key = localStorage.key(i);
+                                        if (key) data[key] = localStorage.getItem(key);
+                                    }
+                                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                                    const url = URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.download = 'buildsheet-data-export.json';
+                                    link.click();
+                                    URL.revokeObjectURL(url);
+                                }}>{t('settings.exportData')}</Button>
+                            </div>
                         </div>
                     </div>
                 </div>

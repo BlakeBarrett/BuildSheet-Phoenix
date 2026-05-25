@@ -11,7 +11,7 @@ import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder, PreferredVendor } from './types.ts';
-import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
+import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar, IconTextFix } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
 import { ARGuideView } from './components/ARGuideView.tsx';
@@ -22,6 +22,7 @@ import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
 import { VoiceSession } from './components/VoiceSession.tsx';
+import { ServerStatusIndicator, useServerHealth } from './components/ServerStatusIndicator.tsx';
 
 import { ProjectTemplatePicker, ProjectTemplate } from './components/ProjectTemplates.tsx';
 import { PrivacyDisclosureToast, usePrivacyDisclosure } from './components/PrivacyDisclosure.tsx';
@@ -164,7 +165,7 @@ const ProjectNavigator: React.FC<{
             <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
                 <header className="p-6 pb-2 flex justify-between items-center">
                     <div>
-                        <h3 id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">{i18n.t('nav.myBuilds')}</h3>
+                        <div id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">{i18n.t('nav.myBuilds')}</div>
                         <p className="text-sm text-slate-600 font-medium">{i18n.t('app.projects')}</p>
                     </div>
                     <IconButton icon="close" onClick={onClose} title={i18n.t('nav.closeNavigator')} />
@@ -394,9 +395,11 @@ const ProjectNavigator: React.FC<{
                         </div>
                     ))}
                     {filtered.length === 0 && (
-                        <div className="text-center py-20 opacity-40">
-                            <p className="text-sm font-medium text-slate-500">{searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : i18n.t('nav.emptyProjects')}</p>
-                        </div>
+                            <div className="text-center py-20 opacity-40">
+                                <p className="text-sm font-medium text-slate-500">
+                                    {searchQuery ? 'No matching projects found.' : showArchived ? 'No archived projects.' : i18n.t('nav.emptyProjects')}
+                                </p>
+                            </div>
                     )}
                 </div>
 
@@ -631,7 +634,7 @@ const KitSummaryModal: React.FC<{
             <div className="bg-[#F0F4F9] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
-                        <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h3>
+                        <h2 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h2>
                         <p className="text-base text-slate-600 font-medium mt-1">Your hardware kit — {session.bom.length} component{session.bom.length !== 1 ? 's' : ''}</p>
                     </div>
                     <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} />
@@ -1455,7 +1458,7 @@ const ScanPartModal: React.FC<{
                     {/* Upload Area */}
                     {!previewImage && !isScanning && !result && (
                         <label className="block cursor-pointer">
-                            <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} aria-label={i18n.t("aria.uploadComponentPhoto")} />
+                            <input id="component-photo-upload" type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleFileSelect} aria-label={i18n.t("aria.uploadComponentPhoto")} />
                             <div className="border-2 border-dashed border-violet-200 rounded-[24px] p-10 text-center hover:border-violet-400 hover:bg-violet-50/50 transition-all">
                                 <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center mx-auto mb-4">
                                     <span className="material-symbols-rounded text-violet-400 text-[32px]">add_a_photo</span>
@@ -1697,45 +1700,50 @@ const BOMImportModal: React.FC<{
                 <div className="flex-1 px-6 py-4">
                     {mode === 'csv' ? (
                         <div className="space-y-4">
-                            <div
-                                onClick={() => fileInputRef.current?.click()}
-                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                onDrop={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const file = e.dataTransfer.files[0];
-                                    if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
-                                        const reader = new FileReader();
-                                        reader.onload = (ev) => {
-                                            const text = ev.target?.result as string;
-                                            if (text) {
-                                                const count = onImportCSV(text);
-                                                setImportResult(`Imported ${count} part${count !== 1 ? 's' : ''} from CSV.`);
-                                            }
-                                        };
-                                        reader.readAsText(file);
-                                    }
-                                }}
-                                className="border-2 border-dashed border-blue-200 rounded-[20px] p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all"
-                            >
-                                <span className="material-symbols-rounded text-[40px] text-blue-300 mb-2 block" aria-hidden="true">cloud_upload</span>
-                                <p className="text-sm font-bold text-slate-700 mb-1">Drop a CSV file here</p>
-                                <p className="text-xs text-slate-500">or click to browse</p>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".csv,text/csv"
-                                    className="hidden"
-                                    onChange={handleFileSelect}
-                                />
-                            </div>
+                            <label htmlFor="csv-file-upload" className="block">
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const file = e.dataTransfer.files[0];
+                                        if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+                                            const reader = new FileReader();
+                                            reader.onload = (ev) => {
+                                                const text = ev.target?.result as string;
+                                                if (text) {
+                                                    const count = onImportCSV(text);
+                                                    setImportResult(`Imported ${count} part${count !== 1 ? 's' : ''} from CSV.`);
+                                                }
+                                            };
+                                            reader.readAsText(file);
+                                        }
+                                    }}
+                                    className="border-2 border-dashed border-blue-200 rounded-[20px] p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all"
+                                >
+                                    <span className="material-symbols-rounded text-[40px] text-blue-300 mb-2 block" aria-hidden="true">cloud_upload</span>
+                                    <p className="text-sm font-bold text-slate-700 mb-1">Drop a CSV file here</p>
+                                    <p className="text-xs text-slate-500">or click to browse</p>
+                                    <input
+                                        ref={fileInputRef}
+                                        id="csv-file-upload"
+                                        type="file"
+                                        accept=".csv,text/csv"
+                                        className="hidden"
+                                        onChange={handleFileSelect}
+                                    />
+                                </div>
+                            </label>
                             <p className="text-xs text-slate-400 leading-relaxed">
                                 Headers auto-detected: Name, SKU, Category, Brand, Quantity, Price, Description.
                             </p>
                         </div>
                     ) : (
                         <div className="space-y-4">
+                            <label htmlFor="paste-parts-list" className="sr-only">{i18n.t("aria.pastePartsList")}</label>
                             <textarea
+                                id="paste-parts-list"
                                 value={pasteText}
                                 onChange={e => setPasteText(e.target.value)}
                                 placeholder={"Paste a parts list here...\n\nExamples:\n2x Ball Bearing 6004\nTimken 42690 Tapered Roller\nCalifornia Mini Truck CV Axle\n\nCSV and tab-separated data also accepted."}
@@ -1806,6 +1814,9 @@ const AppContent: React.FC = () => {
     // Tier-based gating
     const tierInfo = useTier();
     const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+    // Server connection monitoring
+    const { online, check: checkServerHealth } = useServerHealth();
 
     // Per-session usage counters for rate-limited features
     const [architectMessageCount, setArchitectMessageCount] = useState(() => getDailyMessageCount());
@@ -2847,7 +2858,7 @@ const AppContent: React.FC = () => {
     // Visual Audit Handlers
     const handleScanPart = async (image: string) => {
         if (!aiService.identifyComponent) return;
-        await privacyDisclosure.triggerDisclosure('image-upload');
+        await privacyDisclosure.triggerDisclosure('file-attachment');
         setIsScanning(true);
         setScanResult(null);
         try {
@@ -2975,7 +2986,7 @@ const AppContent: React.FC = () => {
             return;
         }
 
-        if (selectedImage) await privacyDisclosure.triggerDisclosure('image-upload');
+        if (selectedImage) await privacyDisclosure.triggerDisclosure('file-attachment');
         await privacyDisclosure.triggerDisclosure('ai-analysis');
 
         const currentInput = input;
@@ -3196,8 +3207,14 @@ const AppContent: React.FC = () => {
             {/* Privacy Disclosure Toast */}
             <PrivacyDisclosureToast type={privacyDisclosure.active} />
 
+            {/* Icon text hiding fix — renders global CSS for Material Icons */}
+            <IconTextFix />
+
+            {/* Server connection status banner */}
+            <ServerStatusIndicator online={online} onRetry={checkServerHealth} />
+
             {/* M3 Navigation Rail (Floating on Desktop) */}
-            <nav className="hidden lg:flex w-[80px] bg-white rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-[60] shrink-0 h-full border border-gray-100 min-h-0" aria-label={i18n.t("aria.mainNavigation")}>
+            <nav className="hidden lg:flex w-[80px] bg-zinc-900 rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-[60] shrink-0 h-[609px] border border-zinc-800 min-h-0" aria-label={i18n.t("aria.mainNavigation")} role="navigation">
                 <div className="w-12 h-12 bg-indigo-600 rounded-[16px] flex items-center justify-center text-white shadow-md shrink-0">
                     <span className="material-symbols-rounded text-2xl" aria-hidden="true">construction</span>
                 </div>
@@ -3207,6 +3224,7 @@ const AppContent: React.FC = () => {
                         icon="add_box"
                         onClick={handleNewProject}
                         title={i18n.t("aria.newProject")}
+                        className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                     />
                     <IconButton
                         icon="folder_open"
@@ -3223,48 +3241,49 @@ const AppContent: React.FC = () => {
                             setIsNavigatorOpen(true);
                         }}
                         title={i18n.t("app.projects")}
+                        className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                     />
 
-                    <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
+                    <div className="w-8 h-[1px] bg-zinc-700 my-1"></div>
 
                     {isShortScreen ? (
                         <div className="relative" ref={navOverflowRef}>
                             <button
                                 onClick={() => setNavOverflowOpen(!navOverflowOpen)}
-                                className={`w-12 h-12 rounded-[16px] flex items-center justify-center transition-colors ${navOverflowOpen ? 'bg-slate-200 text-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
+                                className={`w-12 h-12 rounded-[16px] flex items-center justify-center transition-colors ${navOverflowOpen ? 'bg-zinc-700 text-white' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}
                                 title={i18n.t("aria.moreTools")}
                                 aria-label={i18n.t("aria.moreToolsMenus")}
                             >
-                                <span className="material-symbols-rounded" aria-hidden="true">more_horiz</span>
+                                <span className="material-symbols-rounded" aria-hidden="true" data-icon="more_horiz"></span>
                             </button>
                             {navOverflowOpen && (
                                 <div className="absolute left-[calc(100%+12px)] top-0 w-56 bg-white rounded-[24px] shadow-xl border border-gray-100 overflow-y-auto z-[100] animate-in slide-in-from-left-2 duration-200" style={{ maxHeight: `calc(${windowHeight}px - 48px)` }} role="menu">
                                     <div className="p-2 flex flex-col gap-1">
                                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1">Export & Import</div>
-                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportJSON ? handleExport() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">data_object</span>JSON Data
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportJSON ? handleExport() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors text-left" role="menuitem" aria-label="Export JSON">
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="data_object"></span>JSON Data
                                         </button>
-                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportCSV ? handleExportCSV() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">table_view</span>CSV Sheet
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportCSV ? handleExportCSV() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-xl transition-colors text-left" role="menuitem" aria-label="Export CSV">
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="table_view"></span>CSV Sheet
                                         </button>
-                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportPDF ? handleExportPDF() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">picture_as_pdf</span>PDF Kit
+                                        <button onClick={() => { setNavOverflowOpen(false); tierInfo.canExportPDF ? handleExportPDF() : setUpgradeOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-orange-50 hover:text-orange-700 rounded-xl transition-colors text-left" role="menuitem" aria-label="Export PDF">
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="picture_as_pdf"></span>PDF Kit
                                         </button>
-                                        <button onClick={() => { setNavOverflowOpen(false); setImportModalOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">file_open</span>Import BOM
+                                        <button onClick={() => { setNavOverflowOpen(false); setImportModalOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-xl transition-colors text-left" role="menuitem" aria-label="Import BOM">
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="file_open"></span>Import BOM
                                         </button>
 
                                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1 mt-1">Share</div>
-                                        <button onClick={() => { setNavOverflowOpen(false); handleShareBuild(); }} disabled={session.bom.length === 0 || isSharing} className={`flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-colors text-left ${session.bom.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-700 hover:bg-indigo-50 hover:text-indigo-700'}`} role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">{isSharing ? 'hourglass_empty' : 'share'}</span>{isSharing ? 'Creating Link...' : 'Share Build'}
+                                        <button onClick={() => { setNavOverflowOpen(false); handleShareBuild(); }} disabled={session.bom.length === 0 || isSharing} className={`flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-colors text-left ${session.bom.length === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-700 hover:bg-indigo-50 hover:text-indigo-700'}`} role="menuitem" aria-label={isSharing ? 'Creating Link' : 'Share Build'}>
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon={isSharing ? 'hourglass_empty' : 'share'}></span>{isSharing ? 'Creating Link...' : 'Share Build'}
                                         </button>
 
                                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50 mb-1 mt-1">Tools</div>
-                                        <button onClick={() => { setNavOverflowOpen(false); setScanPartOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">photo_camera</span>Scan Part
+                                        <button onClick={() => { setNavOverflowOpen(false); setScanPartOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl transition-colors text-left" role="menuitem" aria-label="Scan Part">
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="photo_camera"></span>Scan Part
                                         </button>
-                                        <button onClick={() => { setNavOverflowOpen(false); setTemplatePickerOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 rounded-xl transition-colors text-left" role="menuitem">
-                                            <span className="material-symbols-rounded text-[18px]">dashboard_customize</span>Templates
+                                        <button onClick={() => { setNavOverflowOpen(false); setTemplatePickerOpen(true); }} className="flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-teal-50 hover:text-teal-700 rounded-xl transition-colors text-left" role="menuitem" aria-label="Templates">
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="dashboard_customize"></span>Templates
                                         </button>
                                     </div>
                                 </div>
@@ -3275,40 +3294,40 @@ const AppContent: React.FC = () => {
                             <IconButton
                                 icon="data_object"
                                 onClick={tierInfo.canExportJSON ? handleExport : () => setUpgradeOpen(true)}
-                                className={`${tierInfo.canExportJSON ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700' : 'text-slate-300 cursor-not-allowed'}`}
+                                className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                                 title={tierInfo.canExportJSON ? 'Export JSON' : 'Upgrade to export'}
                             />
                             <IconButton
                                 icon="table_view"
                                 onClick={tierInfo.canExportCSV ? handleExportCSV : () => setUpgradeOpen(true)}
-                                className={`${tierInfo.canExportCSV ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700' : 'text-slate-300 cursor-not-allowed'}`}
+                                className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                                 title={tierInfo.canExportCSV ? 'Export CSV' : 'Upgrade to export'}
                             />
                             <IconButton
                                 icon="picture_as_pdf"
                                 onClick={tierInfo.canExportPDF ? handleExportPDF : () => setUpgradeOpen(true)}
-                                className={`${tierInfo.canExportPDF ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' : 'text-slate-300 cursor-not-allowed'}`}
+                                className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                                 title={tierInfo.canExportPDF ? 'Export PDF' : 'Upgrade to export'}
                             />
                             <IconButton
                                 icon="file_open"
                                 onClick={() => setImportModalOpen(true)}
-                                className="text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700"
+                                className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                                 title={i18n.t("aria.importBom")}
                             />
 
-                            <div className="w-8 h-[1px] bg-gray-200 my-1"></div>
+                            <div className="w-8 h-[1px] bg-zinc-700 my-1"></div>
 
                             <IconButton
                                 icon="photo_camera"
                                 onClick={() => setScanPartOpen(true)}
-                                className="text-violet-600 hover:bg-violet-50 hover:text-violet-700"
+                                className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                                 title={i18n.t("aria.scanPart")}
                             />
                             <IconButton
                                 icon="dashboard_customize"
                                 onClick={() => setTemplatePickerOpen(true)}
-                                className="text-teal-600 hover:bg-teal-50 hover:text-teal-700"
+                                className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                                 title={i18n.t("aria.projectTemplates")}
                             />
                         </>
@@ -3321,10 +3340,10 @@ const AppContent: React.FC = () => {
                             icon="rocket_launch"
                             title={i18n.t("aria.upgradeToPro")}
                             onClick={() => setUpgradeOpen(true)}
-                            className="text-violet-600 hover:bg-violet-50"
+                            className="text-white hover:text-zinc-300 hover:bg-zinc-800"
                         />
                     )}
-                    <IconButton icon="tune" title={i18n.t("settings.title")} onClick={() => setIsSettingsOpen(true)} />
+                    <IconButton icon="tune" title={i18n.t("settings.title")} aria-label="Settings" onClick={() => setIsSettingsOpen(true)} className="text-white hover:text-zinc-300 hover:bg-zinc-800" />
                     {currentUser ? (
                         <button
                             onClick={() => setIsProfileOpen(true)}
@@ -3338,7 +3357,7 @@ const AppContent: React.FC = () => {
                         <IconButton
                             icon="login"
                             title={i18n.t("app.guest")}
-                            className="text-indigo-600 hover:bg-indigo-50"
+                            className="text-white hover:bg-zinc-800"
                             onClick={handleLogin}
                         />
                     ) : null}
@@ -3346,7 +3365,7 @@ const AppContent: React.FC = () => {
             </nav>
 
             {/* Main Content Area - Split Pane Layout */}
-            <main id="main-content" className="flex-1 flex overflow-hidden relative gap-3 h-full min-h-0 min-w-0">
+            <main id="main-content" role="main" className="flex-1 flex overflow-hidden relative gap-3 h-full min-h-0 min-w-0">
 
                 {/* PANE 1: DRAFTING TABLE (Chat & Vis) */}
                 <div className={`flex-1 flex flex-col h-full bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden relative min-h-0 min-w-0 ${mobileTab === 'draft' ? 'flex' : 'hidden lg:flex'}`}>
@@ -3472,7 +3491,7 @@ const AppContent: React.FC = () => {
                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
                                             aria-label={i18n.t("aria.signin")}
                                         >
-                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true">login</span>
+                                            <span className="material-symbols-rounded text-[18px]" aria-hidden="true" data-icon="login"></span>
                                             <span className="hidden sm:inline">Sign In</span>
                                         </button>
                                     )}
@@ -3490,10 +3509,12 @@ const AppContent: React.FC = () => {
                     <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 bg-white" aria-label={i18n.t("aria.conversationFeed")} role="log" aria-live="polite" tabIndex={0}>
                         {session.messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full opacity-60">
-                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                                    <span className="material-symbols-rounded text-slate-300 text-3xl" aria-hidden="true">chat_bubble_outline</span>
+                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4">
+                                    <span className="material-symbols-rounded text-slate-800 text-3xl" aria-hidden="true">chat_bubble_outline</span>
                                 </div>
                                 <p className="text-sm font-medium text-slate-500">Describe your hardware project to begin.</p>
+                                <p className="text-xs text-slate-500 mt-1">Try: &quot;Design a Raspberry Pi Zero 2W USB KVM switch with auto-switching&quot;</p>
+                                <p className="text-xs text-slate-500 mt-2">Try asking to analyze a parts list or scan a component photo.</p>
                             </div>
                         )}
                         {session.messages.map((m, i) => (
@@ -3599,11 +3620,12 @@ const AppContent: React.FC = () => {
                                     )}
                                 </div>
                             )}
+                                <label htmlFor="file-attachment" className="sr-only">Attach file</label>
                             <input
                                 type="file"
                                 accept="image/*,.heic,.heif,image/heic,image/heif"
                                 className="hidden"
-                                id="image-upload"
+                                id="file-attachment"
                                 onChange={async (e) => {
                                     const file = e.target.files?.[0];
                                     if (file) {
@@ -3636,7 +3658,7 @@ const AppContent: React.FC = () => {
                                 }}
                             />
                             <label
-                                htmlFor="image-upload"
+                                htmlFor="file-attachment"
                                 className="w-12 h-12 ml-1 text-slate-400 hover:text-indigo-600 rounded-full flex items-center justify-center transition-all cursor-pointer hover:bg-white shrink-0"
                                 title={i18n.t("aria.attachFile")}
                                 aria-label={i18n.t("aria.attachFile")}
@@ -3644,32 +3666,33 @@ const AppContent: React.FC = () => {
                                 <span className="material-symbols-rounded">attach_file</span>
                             </label>
                             <textarea
+                                id="ai-prompt-input"
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                                 placeholder={i18n.t("input.placeholder")}
-                                aria-label={i18n.t("input.placeholder")}
-                                className="w-full pr-24 py-4 bg-transparent border-none text-slate-800 resize-none outline-none placeholder:text-slate-500"
+                                aria-label="Describe your hardware project"
+                                className="w-full pr-24 py-4 bg-transparent border-none text-slate-800 resize-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 placeholder:text-slate-500"
                                 rows={1}
                             />
                             <button
                                 onClick={tierInfo.hasVoiceMode ? () => setVoiceOpen(true) : () => setUpgradeOpen(true)}
                                 aria-label={tierInfo.hasVoiceMode ? 'Voice Mode' : 'Upgrade for Voice Mode'}
                                 title={tierInfo.hasVoiceMode ? 'Voice Mode' : 'Upgrade for Voice Mode'}
-                                className={`absolute right-14 top-2 w-10 h-10 rounded-full flex items-center justify-center transition-all ${tierInfo.hasVoiceMode ? 'text-slate-500 hover:text-amber-600 hover:bg-white' : 'text-slate-300 hover:text-slate-400 hover:bg-white'}`}
+                                className={`absolute right-14 top-1.5 w-12 h-12 rounded-full flex items-center justify-center transition-all ${tierInfo.hasVoiceMode ? 'text-slate-500 hover:text-amber-600 hover:bg-white' : 'text-slate-300 hover:text-slate-400 hover:bg-white'}`}
                             >
-                                <span className="material-symbols-rounded" aria-hidden="true">mic</span>
+                                <span className="material-symbols-rounded" aria-hidden="true" data-icon="mic"></span>
                             </button>
                             <button
                                 onClick={handleSend}
                                 disabled={!input.trim() || isThinking}
                                 aria-label={i18n.t("voice.closeAria")}
-                                className="absolute right-2 top-2 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-0 disabled:scale-50 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none"
+                                className="absolute right-2 top-1.5 w-12 h-12 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-all shadow-md active:scale-90 disabled:opacity-30 disabled:scale-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none"
                             >
-                                <span className="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
+                                <span className="material-symbols-rounded" aria-hidden="true" data-icon="arrow_upward"></span>
                             </button>
                         </div>
-                        <p className="text-center text-xs text-slate-400 mt-2 px-2">
+                        <p className="text-center text-xs text-slate-600 mt-2 px-2">
                             All outputs are draft-quality — verify all specifications before procurement or fabrication.
                         </p>
                     </footer>
@@ -3680,13 +3703,13 @@ const AppContent: React.FC = () => {
                     <header className="px-6 py-6 bg-white border-b border-gray-100 flex flex-col gap-4 shrink-0">
                         <div className="flex justify-between items-end">
                             <div>
-                                <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1">Total Estimate</h2>
-                                <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${formatPrice(draftingEngine.getTotalCost())}`}>
+                                <h2 className="font-bold text-xs uppercase tracking-[0.2em] text-slate-500 mb-1" aria-hidden="true">Total Estimate</h2>
+                                <div className="text-3xl font-bold text-indigo-900 tracking-tight" aria-label={`Total cost: ${formatPrice(draftingEngine.getTotalCost())}`} aria-live="polite">
                                     {formatPrice(draftingEngine.getTotalCost())}
                                 </div>
                             </div>
                             <div className="flex flex-col items-end gap-2">
-                                <Button variant="ghost" onClick={handleAddCustomPart} className="text-xs bg-indigo-50 text-indigo-700 h-8" icon="add">Custom Part</Button>
+                                <Button variant="ghost" onClick={handleAddCustomPart} className="text-xs bg-indigo-50 text-indigo-700 min-h-[44px]" icon="add">Custom Part</Button>
                                 <span className="text-xs font-medium text-slate-500">{session.bom.length} Components</span>
                             </div>
                         </div>
@@ -3703,9 +3726,9 @@ const AppContent: React.FC = () => {
                             </Button>
                             <button
                                 onClick={() => setPreferredVendorsOpen(true)}
-                                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-[12px] text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                                className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-[12px] text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors min-h-[44px]"
                             >
-                                <span className="material-symbols-rounded text-[16px]" aria-hidden="true">storefront</span>
+                                <span className="material-symbols-rounded text-[16px]" aria-hidden="true" data-icon="storefront"></span>
                                 Preferred Vendors
                                 {draftingEngine.getPreferredVendors().length > 0 && (
                                     <span className="bg-amber-200 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -3821,7 +3844,7 @@ const AppContent: React.FC = () => {
                             return rootParts.length > 0 ? rootParts.map(entry => renderEntry(entry)) : null;
                         })()}
                         {session.bom.length === 0 && (
-                            <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8">
+                            <div className="h-64 flex flex-col items-center justify-center opacity-40 text-center px-8" aria-live="polite">
                                 <span className="material-symbols-rounded text-4xl text-slate-300 mb-2" aria-hidden="true">list_alt</span>
                                 <p className="text-sm font-medium text-slate-500">Bill of Materials is empty.</p>
                             </div>
@@ -3859,7 +3882,7 @@ const AppContent: React.FC = () => {
                         className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'draft' ? 'text-indigo-600' : 'text-slate-600'}`}
                     >
                         <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'draft' ? 'bg-indigo-100' : 'bg-transparent'}`}>
-                            <span className="material-symbols-rounded text-[24px]" aria-hidden="true">edit_note</span>
+                            <span className="icon-text-hidden symbol-filled material-symbols-rounded text-[24px]" aria-hidden="true" data-icon="edit_note"></span>
                         </div>
                         <span className="text-[11px] font-bold">Draft</span>
                     </button>
@@ -3871,7 +3894,7 @@ const AppContent: React.FC = () => {
                         className={`flex flex-col items-center justify-center w-full h-full gap-1 rounded-full ${mobileTab === 'bom' ? 'text-indigo-600' : 'text-slate-600'}`}
                     >
                         <div className={`px-5 py-1 rounded-full transition-colors ${mobileTab === 'bom' ? 'bg-indigo-100' : 'bg-transparent'}`}>
-                            <span className="material-symbols-rounded text-[24px]" aria-hidden="true">inventory_2</span>
+                            <span className="icon-text-hidden symbol-filled material-symbols-rounded text-[24px]" aria-hidden="true" data-icon="inventory_2"></span>
                         </div>
                         <span className="text-[11px] font-bold">Parts</span>
                     </button>

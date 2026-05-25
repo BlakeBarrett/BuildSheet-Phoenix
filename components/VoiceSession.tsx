@@ -136,7 +136,7 @@ USER QUESTION (spoken): ${query}`;
       <div className="flex justify-between items-center p-6">
         <div>
           <h2 className="text-white text-xl font-bold tracking-tight flex items-center gap-2">
-            <span className="material-symbols-rounded text-amber-400" aria-hidden="true">mic</span>
+            <span className="material-symbols-rounded text-amber-400" aria-hidden="true" data-icon="mic"></span>
             {t('voice.title')}
           </h2>
           <p className="text-white/50 text-xs mt-0.5">{t('voice.subtitle')}</p>

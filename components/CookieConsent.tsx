@@ -67,10 +67,10 @@ export const CookieConsent: React.FC = () => {
     <div role="alertdialog" aria-labelledby="cookie-heading" aria-describedby="cookie-desc" className="fixed bottom-0 left-0 right-0 z-[200] p-4 flex justify-center pointer-events-none">
       <div className="bg-[#1E1E1E] text-[#F0F4F9] rounded-[24px] shadow-2xl p-6 max-w-3xl w-full flex flex-col md:flex-row items-start md:items-center gap-6 pointer-events-auto border border-white/10 animate-in slide-in-from-bottom-4 duration-500">
         <div className="flex-1">
-          <h3 id="cookie-heading" className="text-lg font-bold mb-2 flex items-center gap-2">
+          <div id="cookie-heading" className="text-lg font-bold mb-2 flex items-center gap-2" role="heading" aria-level="3">
             <span className="material-symbols-rounded text-indigo-300" aria-hidden="true">cookie</span>
             Privacy & Data Control
-          </h3>
+          </div>
           <p id="cookie-desc" className="text-sm text-[#C4C7C5] leading-relaxed">
             We use <strong>{t('cookie.localStorage')}</strong> to save your projects on-device. Project descriptions, images, and BOM data are sent to our <strong>{t('cookie.aiProvider')}</strong> for AI processing. No personal data is sold to third parties.
           </p>

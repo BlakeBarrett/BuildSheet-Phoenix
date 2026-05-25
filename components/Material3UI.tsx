@@ -102,11 +102,11 @@ export const Button: React.FC<ButtonProps> = ({
   const activeVariant = styles[variant as keyof typeof styles] || styles.primary;
 
   return (
-    <button 
+    <button
       onClick={onClick}
       disabled={disabled}
       className={`
-        relative px-6 py-3 rounded-full font-medium text-sm tracking-wide 
+        relative px-6 py-3 rounded-full font-medium text-sm tracking-wide
         flex items-center justify-center gap-2 transition-all duration-300
         disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
         focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-600 focus-visible:outline-none
@@ -114,19 +114,38 @@ export const Button: React.FC<ButtonProps> = ({
       `}
       {...props}
     >
-      {icon && <span className="material-symbols-rounded text-[20px]" aria-hidden="true">{icon}</span>}
+      {icon && <span className="material-symbols-rounded text-[20px]" aria-hidden="true" data-icon={icon}></span>}
       {children}
     </button>
   );
 };
 
+// Material Icons text hiding — the Material Symbols Rounded font renders the span's
+// text content as an icon glyph. But that text also leaks into DOM textContent as the
+// icon name string (e.g. "add_box"). Fix: the span has zero text content and the icon
+// is rendered via ::before { content: attr(data-icon) }, so textContent is clean.
+export const IconTextFix = () => (
+  <style>{`
+    span.icon-text-hidden::before {
+      content: attr(data-icon);
+      font-family: 'Material Symbols Rounded';
+      font-size: inherit;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    span.icon-text-hidden[data-icon]::before {
+      content: attr(data-icon);
+    }
+  `}</style>
+);
 // M3 Icon Button
 export const IconButton: React.FC<{ icon: string, onClick?: () => void, className?: string, active?: boolean, disabled?: boolean, title?: string }> = ({ icon, onClick, className, active, disabled, title }) => (
   <button
     onClick={onClick}
     disabled={disabled}
-    title={title}
-    aria-label={title || icon}
+    title={title || icon}
+    aria-label={title || icon.replace(/_/g, ' ')}
     className={`
       w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200
       disabled:opacity-30 disabled:cursor-not-allowed
@@ -135,7 +154,7 @@ export const IconButton: React.FC<{ icon: string, onClick?: () => void, classNam
       ${className}
     `}
   >
-    <span className={`material-symbols-rounded ${active ? 'symbol-filled' : ''}`} aria-hidden="true">{icon}</span>
+    <span className={`icon-text-hidden ${active ? 'symbol-filled' : ''}`} aria-hidden="true" data-icon={icon}></span>
   </button>
 );
 
@@ -144,12 +163,12 @@ export const Chip: React.FC<{ label: string, color?: string, icon?: string, onCl
   <button 
     onClick={onClick}
     className={`
-      h-8 px-3 rounded-[8px] text-[11px] font-bold tracking-wider flex items-center gap-1.5 border
+      min-h-[44px] px-3 rounded-[8px] text-[11px] font-bold tracking-wider flex items-center gap-1.5 border
       focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none
       ${color ? color : 'bg-white border-[#C4C7C5] text-[#444746] hover:bg-[#F0F4F9]'}
     `}
   >
-    {icon && <span className="material-symbols-rounded text-[14px]" aria-hidden="true">{icon}</span>}
+    {icon && <span className="icon-text-hidden text-[14px]" aria-hidden="true" data-icon={icon}></span>}
     {label}
   </button>
 );
