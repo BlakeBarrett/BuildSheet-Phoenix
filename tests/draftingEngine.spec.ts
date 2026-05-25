@@ -1014,17 +1014,15 @@ test.describe('DraftingEngine Image Load Race Condition', () => {
         // Start with Project B (no images in IDB) - already the active one
         await page.waitForTimeout(2000);
 
-        // Switch to Project A via the UI - click "Your Projects" dropdown, then click Project A
-        const yourProjectsButton = page.locator('button', { hasText: 'Your Projects' });
-        await yourProjectsButton.click();
+        // Switch to Project A via the UI - click "Your Projects" button (title="Your Projects")
+        const yourProjectsButton = page.getByTitle('Your Projects');
+        await yourProjectsButton.click({ force: true });
         await page.waitForTimeout(500);
 
-        // Click on Project A from the dropdown
-        const projectAButton = page.locator('button', { hasText: 'Project A With Images' }).first();
-        if (await projectAButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await projectAButton.click();
-            await page.waitForTimeout(2000);
-        }
+        // Click on Project A from the dropdown dialog
+        const projectAButton = page.locator('div[role="button"]', { hasText: 'Project A With Images' }).first();
+        await projectAButton.click({ force: true });
+        await page.waitForTimeout(2000);
 
         // Verify Project A's images are now visible
         const imageCount = await page.evaluate(() => {
