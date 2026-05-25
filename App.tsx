@@ -18,7 +18,6 @@ import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent, hasFullConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
-import { VisualManifestRenderer } from './components/VisualManifestRenderer.tsx';
 import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
@@ -3028,16 +3027,6 @@ const AppContent: React.FC = () => {
                 else if (call.type === 'removePart') { draftingEngine.removePart(call.instanceId); stateModified = true; }
             }
 
-            // Populate VisualManifest if the architect returned one
-            if (parsed.visualization && parsed.visualization.components && parsed.visualization.components.length > 0) {
-                draftingEngine.setVisualManifest(parsed.visualization);
-                stateModified = true;
-            } else if (stateModified && !draftingEngine.getSession().visualManifest) {
-                // Generate a fallback manifest from the BOM
-                const fallback = draftingEngine.generateFallbackManifest();
-                if (fallback) draftingEngine.setVisualManifest(fallback);
-            }
-
             let displayContent = parsed.reasoning;
             if (!displayContent && parsed.toolCalls.length > 0) {
                 const init = parsed.toolCalls.find((c: any) => c.type === 'initializeDraft') as any;
@@ -3503,27 +3492,9 @@ const AppContent: React.FC = () => {
                         </div>
                     </header>
 
-                    {/* Hero Visualizer — Block Diagram + Image Gallery */}
-                    <div className="px-4 pb-2 h-[30%] md:h-[40%] shrink-0 flex flex-col min-h-0 min-w-0">
-                        {session.visualManifest && session.visualManifest.components.length > 0 ? (
-                            <div className="flex-1 flex gap-2 min-h-0 min-w-0">
-                                <div className="flex-1 min-w-0 min-h-0">
-                                    <VisualManifestRenderer
-                                        manifest={session.visualManifest}
-                                        bom={session.bom}
-                                        onComponentClick={(partId) => {
-                                            const entry = session.bom.find(b => b.part.id === partId);
-                                            if (entry) setSelectedPart(entry);
-                                        }}
-                                    />
-                                </div>
-                                <div className="w-[40%] min-w-0 min-h-0">
-                                    <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
-                                </div>
-                            </div>
-                        ) : (
-                            <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
-                        )}
+                    {/* Hero Visualizer */}
+                    <div className="px-4 pb-2 h-[26%] md:h-[30%] shrink-0 flex flex-col min-h-0 min-w-0">
+                        <ChiltonVisualizer images={session.generatedImages} onGenerate={handleGenerateVisual} isGenerating={isVisualizing} hasItems={session.bom.length > 0} />
                     </div>
 
                     {/* Conversation Feed */}

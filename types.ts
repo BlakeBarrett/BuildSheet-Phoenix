@@ -39,19 +39,6 @@ export interface Part {
   description: string;
 }
 
-export interface VisualComponent {
-  partId: string;
-  shape: 'box' | 'cylinder' | 'sphere';
-  dims: [number, number, number]; // [width, height, depth] or [radius, height, 0]
-  color: string;
-  label: string;
-}
-
-export interface VisualManifest {
-  stackAxis: 'x' | 'y' | 'z';
-  components: VisualComponent[];
-}
-
 export interface ShoppingOption {
   title: string;
   url: string;
@@ -176,7 +163,6 @@ export interface DraftingSession {
   name: string;
   designRequirements: string;
   bom: BOMEntry[];
-  visualManifest?: VisualManifest;
   generatedImages: GeneratedImage[];
   messages: UserMessage[];
   createdAt: Date;

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('visualizer takes up 40% of viewport height', async ({ page }) => {
+test('visualizer takes up ~30% of viewport height on desktop', async ({ page }) => {
     await page.goto('http://localhost:8080/app/');
 
     const visualizerComponent = page.locator('[data-testid="visualizer-root"], .ChiltonVisualizer, div.h-full.w-full.flex').first();
@@ -10,7 +10,7 @@ test('visualizer takes up 40% of viewport height', async ({ page }) => {
     expect(viewportSize).not.toBeNull();
     const viewportHeight = viewportSize!.height;
 
-    const visualizerRoot = page.locator('div.h-full.w-full.flex.flex-col.md\\:flex-row.gap-3').first();
+    const visualizerRoot = page.locator('div.px-4.pb-2.h-\\[26%\\].md\\:h-\\[30%\\]').first();
     await expect(visualizerRoot).toBeVisible();
 
     const box = await visualizerRoot.boundingBox();
@@ -20,10 +20,10 @@ test('visualizer takes up 40% of viewport height', async ({ page }) => {
     const percentage = visualizerHeight / viewportHeight;
     console.log(`Viewport Height: ${viewportHeight}, Visualizer Height: ${visualizerHeight}, Percentage: ${percentage}`);
 
-    expect(percentage).toBeCloseTo(0.4, 1);
+    expect(percentage).toBeCloseTo(0.3, 1);
 
     if (viewportHeight > 800) {
-        expect(visualizerHeight).toBeGreaterThan(300);
+        expect(visualizerHeight).toBeGreaterThan(250);
     }
 });
 

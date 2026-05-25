@@ -1,4 +1,4 @@
-import { Part, BOMEntry, DraftingSession, Gender, PortType, VisualManifest, VisualComponent, GeneratedImage, UserMessage, AssemblyPlan, ProjectFolder, PreferredVendor } from '../types.ts';
+import { Part, BOMEntry, DraftingSession, Gender, PortType, GeneratedImage, UserMessage, AssemblyPlan, ProjectFolder, PreferredVendor } from '../types.ts';
 import { ActivityLogService } from './activityLogService.ts';
 import { UserService } from './userService.ts';
 import { projectsApi } from './apiClient.ts';
@@ -936,37 +936,6 @@ export class DraftingEngine {
     this.session.name = name.trim();
     this.session.shareSlug = DraftingEngine.generateShareSlug(name);
     this.saveSession();
-  }
-
-  public setVisualManifest(manifest: VisualManifest | undefined) {
-    this.session.visualManifest = manifest;
-    this.saveSession();
-  }
-
-  public generateFallbackManifest(): VisualManifest | undefined {
-    if (this.session.bom.length === 0) return undefined;
-
-    const palette = ['#818CF8', '#34D399', '#F59E0B', '#F87171', '#60A5FA', '#A78BFA', '#FB923C', '#2DD4BF'];
-    const components = this.session.bom.map((entry, i): VisualComponent => ({
-      partId: entry.part.id,
-      shape: entry.part.category.toLowerCase().includes('motor') || entry.part.category.toLowerCase().includes('engine')
-        ? 'cylinder'
-        : entry.part.category.toLowerCase().includes('bearing') || entry.part.category.toLowerCase().includes('ball')
-          ? 'sphere'
-          : 'box',
-      dims: [
-        Math.max(80, 60 + entry.part.name.length * 3),
-        60,
-        40
-      ],
-      color: palette[i % palette.length],
-      label: entry.part.name,
-    }));
-
-    return {
-      stackAxis: components.length > 5 ? 'y' : 'x',
-      components
-    };
   }
 
   public getShareUrl(): string {

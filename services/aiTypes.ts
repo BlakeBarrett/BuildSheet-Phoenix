@@ -1,11 +1,10 @@
 
-import { Part, VisualManifest, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, AdvancedValidationOption } from '../types.ts';
+import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, AdvancedValidationOption } from '../types.ts';
 import { ProcurementResult } from './procurementTypes.ts';
 
 export interface ArchitectResponse {
   reasoning: string;
   toolCalls: any[];
-  visualization?: VisualManifest;
   auditActions?: AuditAction[];
 }
 
