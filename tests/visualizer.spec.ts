@@ -10,7 +10,7 @@ test('visualizer takes up ~30% of viewport height on desktop', async ({ page }) 
     expect(viewportSize).not.toBeNull();
     const viewportHeight = viewportSize!.height;
 
-    const visualizerRoot = page.locator('div.px-4.pb-2.h-\\[26%\\].md\\:h-\\[30%\\]').first();
+    const visualizerRoot = page.locator('div.px-4.pb-2.shrink-0.flex.flex-col').first();
     await expect(visualizerRoot).toBeVisible();
 
     const box = await visualizerRoot.boundingBox();

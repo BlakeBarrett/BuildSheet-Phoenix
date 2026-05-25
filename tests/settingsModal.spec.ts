@@ -44,7 +44,7 @@ test.describe('Settings Modal — All Model Selectors', () => {
     test('should save all 5 model selectors to localStorage correctly', async ({ page }) => {
         // Open Settings Modal
         await page.getByRole('button', { name: 'Settings' }).click();
-        await expect(page.getByRole('heading', { name: 'AI Settings' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
         // Select models for all 5 slots
         await page.locator('select#local-model').selectOption('gemma-4-26b');
@@ -54,8 +54,8 @@ test.describe('Settings Modal — All Model Selectors', () => {
         await page.locator('select#utility-model').selectOption('codellama');
 
         // Save
-        await page.getByRole('button', { name: 'Save Changes' }).click();
-        await expect(page.getByRole('heading', { name: 'AI Settings' })).not.toBeVisible();
+        await page.getByRole('button', { name: 'Save' }).click();
+        await expect(page.getByRole('heading', { name: 'Settings' })).not.toBeVisible();
 
         // Verify all localStorage keys
         const architectProvider = await page.evaluate(() => localStorage.getItem('localArchitectProvider'));
@@ -85,13 +85,13 @@ test.describe('Settings Modal — All Model Selectors', () => {
         });
 
         await page.getByRole('button', { name: 'Settings' }).click();
-        await expect(page.getByRole('heading', { name: 'AI Settings' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 
         // Set back to defaults
         await page.locator('select#cad-model').selectOption('');
         await page.locator('select#utility-model').selectOption('');
 
-        await page.getByRole('button', { name: 'Save Changes' }).click();
+        await page.getByRole('button', { name: 'Save' }).click();
 
         const cadProvider = await page.evaluate(() => localStorage.getItem('localCadProvider'));
         const utilityProvider = await page.evaluate(() => localStorage.getItem('localUtilityProvider'));
