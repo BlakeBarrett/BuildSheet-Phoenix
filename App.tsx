@@ -619,9 +619,12 @@ const KitSummaryModal: React.FC<{
 }> = ({ isOpen, onClose, session, onExport }) => {
     const { t } = useTranslation();
     if (!isOpen) return null;
-    const sourcedParts = session.bom.filter(b => b.sourcing?.online?.length);
-    const missingParts = session.bom.filter(b => !b.sourcing?.online?.length);
-    const totalCost = session.bom.reduce((acc, curr) => acc + (curr.part.price * curr.quantity), 0);
+
+    // Build a Google search URL for assembling a specific part
+    const getAssemblySearchUrl = (partName: string) => {
+        const query = encodeURIComponent(partName + ' assembly guide');
+        return `https://www.google.com/search?q=${query}`;
+    };
 
     return (
         <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="kit-title">
@@ -629,58 +632,36 @@ const KitSummaryModal: React.FC<{
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
                         <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h3>
-                        <p className="text-base text-slate-600 font-medium mt-1">{i18n.t("bom.readyForAssembly")}</p>
+                        <p className="text-base text-slate-600 font-medium mt-1">Your hardware kit — {session.bom.length} component{session.bom.length !== 1 ? 's' : ''}</p>
                     </div>
                     <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} />
                 </div>
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="p-6 bg-slate-900 rounded-[24px] text-white shadow-lg">
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{i18n.t("bom.totalCost")}</span>
-                            <div className="text-4xl font-mono font-medium mt-1 tracking-tight">{formatPrice(totalCost)}</div>
-                        </div>
-                        <div className="p-6 bg-indigo-100 rounded-[24px] text-indigo-900">
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-indigo-600">{i18n.t("bom.kitProgress")}</span>
-                            <div className="text-4xl font-medium mt-1 tracking-tight">{Math.round((sourcedParts.length / session.bom.length) * 100)}%</div>
-                        </div>
-                    </div>
-
+                    {/* Part list */}
                     <div>
-                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">{i18n.t('bom.verifyItems') + ' (' + sourcedParts.length + ')'} </h4>
+                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">Components</h4>
                         <div className="space-y-2">
-                            {sourcedParts.map((b, i) => (
-                                <div key={i} className="flex items-center justify-between p-4 bg-white rounded-[20px] shadow-sm">
-                                    <div className="flex-1">
-                                        <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
-                                        <div className="flex gap-2 mt-2">
-                                            {b.sourcing?.online?.slice(0, 1).filter(s => s.url).map((s, idx) => (
-                                                <a key={idx} href={s.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors flex items-center gap-1">
-                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">shopping_cart</span>
-                                                    Buy on {s.source}
-                                                </a>
-                                            ))}
-                                        </div>
+                            {session.bom.map((b, i) => (
+                                <div key={i} className="p-4 bg-white rounded-[20px] shadow-sm">
+                                    <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
+                                    {b.part.description && (
+                                        <div className="text-xs text-slate-500 mt-1">{b.part.description}</div>
+                                    )}
+                                    <div className="flex gap-2 mt-2">
+                                        <a
+                                            href={getAssemblySearchUrl(b.part.name)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                                        >
+                                            <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span>
+                                            Search Assembly
+                                        </a>
                                     </div>
-                                    <div className="text-base font-mono font-bold text-slate-900">{formatPrice(b.part.price * b.quantity)}</div>
                                 </div>
                             ))}
                         </div>
                     </div>
-
-                    {missingParts.length > 0 && (
-                        <div className="p-5 bg-amber-50 rounded-[24px] text-amber-900">
-                            <p className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <span className="material-symbols-rounded text-[18px]" aria-hidden="true">warning</span>
-                                {i18n.t('bom.actionRequired')}
-                            </p>
-                            <p className="text-sm leading-relaxed">{i18n.t('bom.couldNotFindPurchaseLinks', {count: missingParts.length})}</p>
-                            <div className="mt-4 space-y-2">
-                                {missingParts.map((b, i) => (
-                                    <div key={i} className="text-xs font-medium border-l-4 border-amber-200 pl-3 py-1 opacity-80">{b.part.name} (Custom/Inferred)</div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
                 <div className="p-6 pt-2 flex gap-3">
                     <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">{i18n.t("bom.exportData")}</Button>
@@ -2602,6 +2583,14 @@ const AppContent: React.FC = () => {
         }
     };
 
+    const handleGoogleSearchKit = () => {
+        const session = draftingEngine.getSession();
+        if (session.bom.length === 0) return;
+
+        // Show the kit summary so the user can open a Google search for all parts or search individual assemblies
+        setKitSummaryOpen(true);
+    };
+
     const handleVerifyAudit = async () => {
         // Always open the modal to show cached results or let user configure
         setAuditOpen(true);
@@ -3706,11 +3695,11 @@ const AppContent: React.FC = () => {
                             <Button
                                 variant={kitReady ? "primary" : "fab"}
                                 className={`w-full h-14 text-sm font-bold shadow-lg transition-all ${kitReady ? 'bg-gradient-to-r from-indigo-600 to-violet-600' : ''}`}
-                                onClick={handleOneClickKit}
+                                onClick={handleGoogleSearchKit}
                                 disabled={isKitting}
-                                icon={isKitting ? "motion_mode" : kitReady ? "inventory_2" : "magic_button"}
+                                icon="search"
                             >
-                                {isKitting ? 'Stabilizing Kit...' : kitReady ? 'View Kit Summary' : 'One-Click Kit'}
+                                {'Google Search Kit'}
                             </Button>
                             <button
                                 onClick={() => setPreferredVendorsOpen(true)}
