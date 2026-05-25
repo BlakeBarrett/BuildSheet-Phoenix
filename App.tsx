@@ -622,7 +622,7 @@ const KitSummaryModal: React.FC<{
 
     // Build a Google search URL for assembling a specific part
     const getAssemblySearchUrl = (partName: string) => {
-        const query = encodeURIComponent(partName + ' assembly guide');
+        const query = encodeURIComponent(partName);
         return `https://www.google.com/search?q=${query}`;
     };
 
