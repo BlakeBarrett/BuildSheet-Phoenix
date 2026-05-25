@@ -162,7 +162,7 @@ const ProjectNavigator: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="nav-title" onClick={onClose}>
-            <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F0F4F9] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="absolute left-4 top-4 bottom-4 w-[85vw] md:w-[380px] bg-[#F8FAFC] rounded-[28px] shadow-2xl flex flex-col animate-in slide-in-from-left-4 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
                 <header className="p-6 pb-2 flex justify-between items-center">
                     <div>
                         <div id="nav-title" className="text-2xl font-bold text-slate-800 leading-tight tracking-tight">{i18n.t('nav.myBuilds')}</div>
@@ -631,7 +631,7 @@ const KitSummaryModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="kit-title">
-            <div className="bg-[#F0F4F9] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-[#F8FAFC] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
                         <h2 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h2>
@@ -814,7 +814,7 @@ const PartDetailModal: React.FC<{
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                     <div className="space-y-6">
 
-                        <div className="bg-[#F0F4F9] p-4 rounded-[20px]">
+                        <div className="bg-[#F8FAFC] p-4 rounded-[20px]">
                             <p className="text-sm text-slate-700 leading-relaxed">{displayDescription}</p>
                         </div>
 
@@ -1489,7 +1489,7 @@ const ScanPartModal: React.FC<{
                     {/* Result */}
                     {result && !isScanning && (
                         <div className="space-y-4">
-                            <div className="p-5 bg-[#F0F4F9] rounded-[20px]">
+                            <div className="p-5 bg-[#F8FAFC] rounded-[20px]">
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
                                         <h4 className="font-bold text-lg text-slate-800">{result.name}</h4>
@@ -3093,7 +3093,7 @@ const AppContent: React.FC = () => {
     const isShortScreen = windowHeight < 900;
 
     return (
-        <div className="flex h-[100dvh] w-full bg-[#F0F4F9] text-[#1F1F1F] overflow-hidden font-sans relative flex-col lg:flex-row p-0 pb-[90px] lg:p-3 lg:pb-3 gap-3">
+        <div className="flex h-[100dvh] w-full bg-[#F8FAFC] text-[#1F1F1F] overflow-hidden font-sans relative flex-col lg:flex-row p-0 pb-[90px] lg:p-3 lg:pb-3 gap-3">
 
             {syncError && currentUser && (
                 <div className="absolute top-0 left-0 right-0 z-[999] bg-red-600 text-white text-xs px-4 py-2 flex items-center gap-2" role="alert">
@@ -3210,8 +3210,7 @@ const AppContent: React.FC = () => {
             {/* Icon text hiding fix — renders global CSS for Material Icons */}
             <IconTextFix />
 
-            {/* Server connection status banner */}
-            <ServerStatusIndicator online={online} onRetry={checkServerHealth} />
+
 
             {/* M3 Navigation Rail (Floating on Desktop) */}
             <nav className="hidden lg:flex w-[80px] bg-zinc-900 rounded-[40px] shadow-sm flex-col items-center py-6 gap-6 z-[60] shrink-0 h-[609px] border border-zinc-800 min-h-0" aria-label={i18n.t("aria.mainNavigation")} role="navigation">
