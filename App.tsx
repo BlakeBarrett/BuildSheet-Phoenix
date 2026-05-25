@@ -22,7 +22,6 @@ import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
 import { VoiceSession } from './components/VoiceSession.tsx';
-import { ServerStatusIndicator, useServerHealth } from './components/ServerStatusIndicator.tsx';
 
 import { ProjectTemplatePicker, ProjectTemplate } from './components/ProjectTemplates.tsx';
 import { PrivacyDisclosureToast, usePrivacyDisclosure } from './components/PrivacyDisclosure.tsx';
@@ -1814,9 +1813,6 @@ const AppContent: React.FC = () => {
     // Tier-based gating
     const tierInfo = useTier();
     const [upgradeOpen, setUpgradeOpen] = useState(false);
-
-    // Server connection monitoring
-    const { online, check: checkServerHealth } = useServerHealth();
 
     // Per-session usage counters for rate-limited features
     const [architectMessageCount, setArchitectMessageCount] = useState(() => getDailyMessageCount());
