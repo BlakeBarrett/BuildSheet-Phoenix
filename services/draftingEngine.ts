@@ -61,11 +61,17 @@ export class DraftingEngine {
   private onRemoteChange?: () => void;
 
   private onImagesLoaded?: () => void;
+  // Track which project's images we're loading so stale IDB results don't
+  // overwrite another project's data when switching projects rapidly.
+  private imagesLoadedForProject?: string = null;
+  private hasImagesLoaded = false;
 
   public setOnImagesLoaded(cb: () => void) {
     this.onImagesLoaded = cb;
-    // Trigger immediately if images were already loaded synchronously during hydrated states or prior
-    if (this.session.generatedImages.length > 0) {
+    // Trigger immediately if IDB resolved before this callback was registered
+    // for the current project (common race: constructor fires loadImagesAsync,
+    // IDB resolves, then React mounts and registers the callback via useEffect)
+    if (this.hasImagesLoaded && this.imagesLoadedForProject === this.session.id) {
         cb();
     }
   }
@@ -77,14 +83,23 @@ export class DraftingEngine {
   }
 
   private loadImagesAsync() {
-    get(this.SESSION_PREFIX + this.session.id + '_images').then((images: any) => {
+    const projectId = this.session.id;
+    this.hasImagesLoaded = false;
+    this.imagesLoadedForProject = projectId;
+    get(this.SESSION_PREFIX + projectId + '_images').then((images: any) => {
+        // Only apply this IDB result if it matches the current project.
+        // If the user switched projects while this was loading, we discard
+        // the stale result so we don't clobber the new project's data.
+        if (this.imagesLoadedForProject !== projectId) return;
+
         if (images && Array.isArray(images)) {
             this.session.generatedImages = images.map(img => ({
                 ...img,
                 timestamp: new Date(img.timestamp)
             }));
-            if (this.onImagesLoaded) this.onImagesLoaded();
         }
+        this.hasImagesLoaded = true;
+        if (this.onImagesLoaded) this.onImagesLoaded();
     }).catch(e => console.error("IDB load failed", e));
   }
 

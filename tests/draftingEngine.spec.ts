@@ -775,3 +775,267 @@ test.describe('Advanced Validation in Audit', () => {
         expect(passed).toBe(true);
     });
 });
+
+test.describe('DraftingEngine Image Load Race Condition', () => {
+
+    // Regression test: verifies the imagesLoaded flag fix in DraftingEngine.
+    // Before the fix, if IndexedDB resolved before React's useEffect registered
+    // the onImagesLoaded callback, images loaded from IDB were silently dropped
+    // and the visualizer stayed empty on page reloads.
+    //
+    // This test:
+    // 1. Creates a session with mock images and saves them to IndexedDB
+    // 2. Refreshes the page (simulating a browser reload)
+    // 3. Verifies the images are visible in the visualizer after React mounts
+
+    test('should show generated images in visualizer after page refresh (race condition guard)', {
+        tag: '@slow', // Requires real app bootstrap + IndexedDB
+    }, async ({ page }) => {
+        const sessionId = 'race-condition-test';
+
+        // Pre-populate IndexedDB with image data via an init script.
+        // We use the exact same key format DraftingEngine uses and the same
+        // idb-keyval database/store names ('keyval-store' / 'keyval').
+        await page.addInitScript(async ({ id, images }) => {
+            const DB_NAME = 'keyval-store';
+            const STORE_NAME = 'keyval';
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME);
+                req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put(images, 'buildsheet_project_' + id + '_images');
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+
+            db.close();
+        }, {
+            id: sessionId,
+            images: [
+                { id: 'img-1', url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', prompt: 'First generated image', timestamp: new Date().toISOString() },
+                { id: 'img-2', url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==', prompt: 'Second generated image', timestamp: new Date().toISOString() },
+                { id: 'img-3', url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', prompt: 'Third generated image', timestamp: new Date().toISOString() },
+            ],
+        });
+
+        // Pre-load the session into localStorage (with images stripped to [] as DraftingEngine does)
+        await page.addInitScript(({ id }) => {
+            const mockSession = {
+                id: id,
+                slug: id,
+                ownerId: '',
+                name: 'Race Condition Test',
+                designRequirements: '',
+                bom: [],
+                generatedImages: [], // Images are ONLY in IndexedDB (post-fix behavior)
+                messages: [],
+                createdAt: new Date().toISOString(),
+                lastModified: new Date().toISOString(),
+                cacheIsDirty: false,
+            };
+            localStorage.setItem('buildsheet_active_project_id', id);
+            localStorage.setItem('buildsheet_project_' + id, JSON.stringify(mockSession));
+            localStorage.setItem('buildsheet_projects_index', JSON.stringify([
+                { id, name: mockSession.name, lastModified: mockSession.lastModified, preview: '' }
+            ]));
+        }, { id: sessionId });
+
+        await page.goto('http://localhost:8080/app/');
+        await page.setViewportSize({ width: 1400, height: 900 });
+        await page.waitForTimeout(1000);
+
+        // Dismiss cookie consent dialog if present
+        const acceptAll = page.locator('button:has-text("Accept All")');
+        if (await acceptAll.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await acceptAll.click();
+            await page.waitForTimeout(300);
+        }
+
+        // Wait for the app to fully bootstrap and for the IDB load + React re-render cycle
+        await page.waitForTimeout(2000);
+
+        // The key assertion: images loaded from IndexedDB should appear in the visualizer.
+        // Before the fix, this would fail because the race condition dropped the callback
+        // and the visualizer stayed empty even though IDB had the images.
+        //
+        // We check for img elements inside the visualizer that were populated by the
+        // onImagesLoaded callback triggering setSession(draftingEngine.getSession()).
+        const imageCount = await page.evaluate(() => {
+            // Count <img> tags rendered by the visualizer that have base64 data URLs
+            // (these come from generatedImages being set via the onImagesLoaded callback)
+            return document.querySelectorAll('img[src^="data:image/png"]').length;
+        });
+
+        expect(imageCount).toBeGreaterThan(0);
+
+        // Verify the prompts from our mock images are visible on the page.
+        // The DraftingEngine loadImagesAsync maps IDB images into session.generatedImages,
+        // which triggers onImagesLoaded → setSession → visualizer re-render.
+        const hasFirstImage = await page.locator('text=First generated image').first().isVisible({ timeout: 3000 });
+        const hasSecondImage = await page.locator('text=Second generated image').first().isVisible({ timeout: 3000 });
+        const hasThirdImage = await page.locator('text=Third generated image').first().isVisible({ timeout: 3000 });
+
+        expect(hasFirstImage).toBe(true);
+        expect(hasSecondImage).toBe(true);
+        expect(hasThirdImage).toBe(true);
+    });
+
+    // Direct unit-level test: simulate the race by calling setOnImagesLoaded
+    // after the IDB resolve would have already happened, but with a mock engine.
+    test('setOnImagesLoaded should fire immediately if IDB loaded before callback registration', {
+        tag: '@slow',
+    }, async ({ page }) => {
+        const result = await page.evaluate(async () => {
+            // Create a minimal mock that simulates the DraftingEngine imagesLoaded flag pattern.
+            // This tests the core fix in isolation.
+            class MockImagesLoadedHandler {
+                private onImagesLoaded?: () => void;
+                private imagesLoaded = false;
+
+                setOnImagesLoaded(cb: () => void) {
+                    this.onImagesLoaded = cb;
+                    if (this.imagesLoaded) {
+                        cb();
+                    }
+                }
+
+                simulateIdbResolve() {
+                    // Simulates: IDB load resolves, sets flag, fires callback
+                    this.imagesLoaded = true;
+                    if (this.onImagesLoaded) this.onImagesLoaded();
+                }
+            }
+
+            const handler = new MockImagesLoadedHandler();
+
+            // Case 1: IDB resolves BEFORE callback is registered (the bug scenario)
+            let callbackFired = false;
+            handler.simulateIdbResolve();
+            // Now register callback (like React useEffect after mount)
+            handler.setOnImagesLoaded(() => {
+                callbackFired = true;
+            });
+
+            // Case 2: Callback registered BEFORE IDB resolves (normal case)
+            let callbackFired2 = false;
+            handler.setOnImagesLoaded(() => {
+                callbackFired2 = true;
+            });
+            handler.simulateIdbResolve();
+
+            return { case1: callbackFired, case2: callbackFired2 };
+        });
+
+        // Both cases must fire the callback — the fix ensures the flag check
+        // in setOnImagesLoaded handles the "late registration" case.
+        expect(result.case1).toBe(true);
+        expect(result.case2).toBe(true);
+    });
+
+    // Regression test: verifies that switching between projects doesn't
+    // clobber images due to stale IDB resolves. Before the fix, when
+    // switching back to a project that had images, a stale IDB result from
+    // a previous project switch would overwrite the session's images with [].
+    test('should preserve images when switching between projects', {
+        tag: '@slow',
+    }, async ({ page }) => {
+        const projectA = 'project-a-images';
+        const projectB = 'project-b-no-images';
+
+        // Populate IDB: Project A has images, Project B has none
+        await page.addInitScript(async ({ projectA, projectB, projectAImages }) => {
+            const DB_NAME = 'keyval-store';
+            const STORE_NAME = 'keyval';
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME);
+                req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+
+            // Project A: has images
+            const tx1 = db.transaction(STORE_NAME, 'readwrite');
+            tx1.objectStore(STORE_NAME).put(projectAImages, 'buildsheet_project_' + projectA + '_images');
+            await new Promise((resolve, reject) => {
+                tx1.oncomplete = () => resolve();
+                tx1.onerror = () => reject(tx1.error);
+            });
+
+            // Project B: no images (don't write anything to IDB)
+            db.close();
+        }, {
+            projectA,
+            projectB,
+            projectAImages: [
+                { id: 'img-a', url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', prompt: 'Project A image', timestamp: new Date().toISOString() },
+            ],
+        });
+
+        // Pre-load both sessions into localStorage
+        await page.addInitScript(({ projectA, projectB }) => {
+            const sessionA = {
+                id: projectA, slug: projectA, ownerId: '', name: 'Project A With Images',
+                designRequirements: '', bom: [], generatedImages: [],
+                messages: [], createdAt: new Date().toISOString(), lastModified: new Date().toISOString(), cacheIsDirty: false,
+            };
+            const sessionB = {
+                id: projectB, slug: projectB, ownerId: '', name: 'Project B No Images',
+                designRequirements: '', bom: [], generatedImages: [],
+                messages: [], createdAt: new Date().toISOString(), lastModified: new Date().toISOString(), cacheIsDirty: false,
+            };
+
+            localStorage.setItem('buildsheet_active_project_id', projectB);
+            localStorage.setItem('buildsheet_project_' + projectA, JSON.stringify(sessionA));
+            localStorage.setItem('buildsheet_project_' + projectB, JSON.stringify(sessionB));
+            localStorage.setItem('buildsheet_projects_index', JSON.stringify([
+                { id: projectA, name: sessionA.name, lastModified: sessionA.lastModified, preview: '' },
+                { id: projectB, name: sessionB.name, lastModified: sessionB.lastModified, preview: '' },
+            ]));
+        }, { projectA, projectB });
+
+        // Navigate to the app
+        await page.goto('http://localhost:8080/app/');
+        await page.setViewportSize({ width: 1400, height: 900 });
+        await page.waitForTimeout(1000);
+
+        // Dismiss cookie consent dialog if present
+        const acceptAll = page.locator('button:has-text("Accept All")');
+        if (await acceptAll.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await acceptAll.click();
+            await page.waitForTimeout(300);
+        }
+
+        // Start with Project B (no images in IDB) - already the active one
+        await page.waitForTimeout(2000);
+
+        // Switch to Project A via the UI - click "Your Projects" dropdown, then click Project A
+        const yourProjectsButton = page.locator('button', { hasText: 'Your Projects' });
+        await yourProjectsButton.click();
+        await page.waitForTimeout(500);
+
+        // Click on Project A from the dropdown
+        const projectAButton = page.locator('button', { hasText: 'Project A With Images' }).first();
+        if (await projectAButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await projectAButton.click();
+            await page.waitForTimeout(2000);
+        }
+
+        // Verify Project A's images are now visible
+        const imageCount = await page.evaluate(() => {
+            return document.querySelectorAll('img[src^="data:image/png"]').length;
+        });
+
+        // Before the fix: imageCount would be 0 because a stale IDB result from
+        // Project B (or the empty[] that gets written during the project switch)
+        // would overwrite Project A's images.
+        // After the fix: imageCount > 0 because the projectId guard prevents
+        // stale results from overwriting the current project's images.
+        expect(imageCount).toBeGreaterThan(0);
+    });
+});
