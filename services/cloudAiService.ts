@@ -129,7 +129,7 @@ export class CloudAIService implements AIService {
     private async openAiChat(options: {
         model: string;
         system?: string;
-        /** Gemini-style history array [{role, parts}] — converted automatically. */
+        /** Cloud API-style history array [{role, parts}] — converted automatically. */
         history?: any[];
         /** Simple text prompt OR OpenAI content array (for vision). */
         userContent: string | Array<{ type: string; [k: string]: any }>;

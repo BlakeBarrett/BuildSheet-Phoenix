@@ -2,23 +2,23 @@
 
 **BuildSheet** is the first **AI-Native Hardware Architect** designed to bridge the gap between generative logic and physical manufacturing. It transforms natural language into validated Bill of Materials (BOM), manufacturing blueprints, and robotic assembly plans.
 
-It is architected as a "Function-First" Agent, using Gemini not just as a chatbot, but as a state-machine that manipulates a drafting board, validates engineering constraints, and orchestrates the supply chain.
+It is architected as a "Function-First" Agent, using AI not just as a chatbot, but as a state-machine that manipulates a drafting board, validates engineering constraints, and orchestrates the supply chain.
 
 ## 🚀 Key Features & Google Ecosystem Integration
 
-BuildSheet demonstrates the power of the **Gemini 3.0** models as the operating system for the physical world:
+BuildSheet demonstrates the power of advanced multimodal AI models as the operating system for the physical world:
 
-### 1. The "Robotics-ER" Engine (Gemini 3 Pro)
+### 1. The "Robotics-ER" Engine
 *   **Kinematic Planning:** The system doesn't just list parts; it understands how they fit. It generates step-by-step **Robotic Assembly Plans**, calculating the required end-effectors (grippers), 6-DOF arm movements, and automation feasibility percentages.
 *   **Context:** Located in the "Plan Assembly" workflow.
 
-### 2. Legal & Patent Intelligence (Gemini 3 Pro Thinking)
+### 2. Legal & Patent Intelligence
 *   **Patent Risk Analysis:** During the "Verify System Integrity" phase, the model performs a deep reasoning pass to identify potential infringement risks against major utility patents (e.g., Apple MagSafe, Tesla thermal loops) based on the mechanical arrangement of the BOM.
 *   **Safety & Compliance:** Automatically flags non-compliant voltage mismatches and safety hazards.
 
 ### 3. Supply Chain Orchestration (Search & Maps Grounding)
-*   **Shopping Graph:** The "Global Source" feature uses **Gemini Search Grounding** to retrieve real-time pricing and stock status from the open web.
-*   **Hyper-Local Sourcing:** The "Find Local" feature leverages **Gemini Maps Grounding** to geo-locate physical inventory nearby, supporting local businesses and reducing shipping latency.
+*   **Shopping Graph:** The "Global Source" feature uses **Search Grounding** to retrieve real-time pricing and stock status from the open web.
+*   **Hyper-Local Sourcing:** The "Find Local" feature leverages **Maps Grounding** to geo-locate physical inventory nearby, supporting local businesses and reducing shipping latency.
 
 ### 4. Manufacturing Data Engine (MDE) Bridge
 *   **Visual Inspection AI:** The system acts as a Quality Engineer, analyzing component geometry to generate **Inspection Protocols** (JSON) compatible with Google Cloud Visual Inspection AI, defining critical defect criteria before a single part is manufactured.
@@ -26,7 +26,7 @@ BuildSheet demonstrates the power of the **Gemini 3.0** models as the operating 
 ### 5. Self-Hosted AI & Local Model Routing
 *   **Granular Model Selection:** Enterprise customers can route all AI generation tasks to self-hosted models via any OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, SageMaker).
 *   **5 configurable model slots:** Architect, Audit, Plan, CAD/Enclosure (e.g., Nemotron), and General Utility.
-*   **Fallback chain:** Specific slot → Utility → Architect → Gemini Cloud.
+*   **Fallback chain:** Specific slot → Utility → Architect → Cloud API.
 *   **Search/grounding isolation:** Part search, local suppliers, and data hydration can use a separate API key (`SEARCH_API_KEY`), keeping generation and retrieval credentials decoupled.
 *   **Zero-leakage guarantee:** When all local models are configured, no requests reach external APIs for generation tasks.
 
@@ -45,12 +45,12 @@ BuildSheet is designed for eventual fully air-gapped, on-premise deployment. See
 
 ## 🎯 Strategic Alignment: Google 2026 & AI Futures Fund
 
-**To the Judges of the Gemini 3.0 Hackathon:**
+**To the Hackathon Judges:**
 
 BuildSheet represents the transition from the "Information Era" of AI to the **"Action Era"**.
 
-### 1. The "Gemini as OS" Thesis
-We are proving that Gemini is not just a text processor, but a **Physics Engine**. By successfully modeling complex hardware interactions, sourcing real-world parts, and generating valid robotic G-code logic, we demonstrate that Gemini is ready to control the factory floor.
+### 1. The "AI as OS" Thesis
+We are proving that AI is not just a text processor, but a **Physics Engine**. By successfully modeling complex hardware interactions, sourcing real-world parts, and generating valid robotic G-code logic, we demonstrate that AI is ready to control the factory floor.
 
 ### 2. Democratizing Hardware & Job Creation
 Hardware engineering historically has a massive "Knowledge Moat." BuildSheet lowers this barrier significantly.
@@ -77,7 +77,7 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 │  ┌──────────┐       ┌───────────────────────────────┐   │
 │  │  nginx   │──/api/│  Express.js API Server (:8081)│   │
 │  │  (:8080) │       │  • Firebase Admin Auth        │   │
-│  │          │       │  • AI Orchestration (Gemini)  │   │
+│  │          │       │  • AI Orchestration  │   │
 │  │  /       │       │  • Procurement Pipeline       │   │
 │  │  → mktg  │       │  • Project CRUD (Firestore)   │   │
 │  │          │       │  • Rate Limiting              │   │
@@ -91,7 +91,7 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 *   **Frontend:** React SPA with i18next (8 languages), locale-aware formatting
 *   **Backend:** Express.js API server with Firebase Admin SDK
 *   **Persistence:** Firestore (via server-side Admin SDK) + browser IndexedDB (images)
-*   **AI Backend:** Gemini Cloud (default), or self-hosted OpenAI-compatible models
+*   **AI Backend:** Cloud API (default), or self-hosted OpenAI-compatible models
 *   **API Security:** Firebase ID token verification; all AI keys server-side only
 
 ### Environment Variables
@@ -99,7 +99,7 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `AI_KEY` | Yes* | Primary AI key (server-side only — never sent to browser) |
-| `AI_PROVIDER` | No | `hosted` (Gemini SDK) or `on-prem` (OpenAI-compatible) |
+| `AI_PROVIDER` | No | `hosted` (Cloud SDK) or `on-prem` (OpenAI-compatible) |
 | `AI_BASE_URL` | No | Base URL for OpenAI-compatible provider |
 | `AI_IMAGE_BASE_URL` | No | Base URL for image generation API |
 | `AI_DISPLAY_NAME` | No | Display name shown in UI for the AI service |
@@ -150,7 +150,7 @@ server/                     # Express.js API server (backend)
 │   │   ├── generation.ts   # Image, fabrication, QA, enclosure, component ID
 │   │   └── projects.ts     # CRUD: list, get, save, delete, archive, duplicate
 │   └── services/
-│       ├── cloudAiService.ts    # Server-side Gemini/OpenAI orchestration
+│       ├── cloudAiService.ts    # Server-side Cloud AI/OpenAI orchestration
 │       ├── procurementEngine.ts # (Deprecated) Verified Procurement Pipeline
 │       ├── aiServiceFactory.ts  # AI service creation from env vars
 │       └── types.ts             # Server-side type definitions

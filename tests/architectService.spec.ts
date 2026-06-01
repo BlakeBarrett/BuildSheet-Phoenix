@@ -1,6 +1,6 @@
 
 import { test, expect } from '@playwright/test';
-import { GeminiService } from '../services/geminiService';
+import { ArchitectService } from '../services/architectService';
 import { CloudAIService } from '../services/cloudAiService';
 import http from 'http';
 import * as net from 'net';
@@ -86,7 +86,7 @@ test.describe('CloudAIService — on-prem path', () => {
         expect(capturedBody.messages.at(-1).content).toContain('LED circuit');
     });
 
-    test('askArchitect converts Gemini history roles (model → assistant)', async () => {
+    test('askArchitect converts cloud history roles (model → assistant)', async () => {
         let capturedBody: any;
         restore = mockFetch((url, init) => {
             capturedBody = JSON.parse(init.body as string);
@@ -101,7 +101,7 @@ test.describe('CloudAIService — on-prem path', () => {
         await service.askArchitect('Follow up', history);
 
         const roles = capturedBody.messages.map((m: any) => m.role);
-        expect(roles).not.toContain('model');   // Gemini role must be converted
+        expect(roles).not.toContain('model');   // cloud role must be converted
         expect(roles).toContain('assistant');
     });
 
@@ -121,7 +121,7 @@ test.describe('CloudAIService — on-prem path', () => {
 
 
     test('parseArchitectResponse should extract single addPart', () => {
-        const service = new GeminiService('fake-key');
+        const service = new ArchitectService('fake-key');
         const input = `Here is my reasoning. addPart("test-part", "Test Part", "Category", 1);`;
         const result = service.parseArchitectResponse(input);
         
@@ -131,7 +131,7 @@ test.describe('CloudAIService — on-prem path', () => {
     });
 
     test('parseArchitectResponse should extract un-semicoloned addPart calls on multiple lines', () => {
-        const service = new GeminiService('fake-key');
+        const service = new ArchitectService('fake-key');
         const input = `To integrate your 27" monitor and provide seamless switching between the ProArt PC, the Mac Mini, and the XPS 17 (via eGPU), we need a Triple-Input DisplayPort KVM.
 
 The Architecture Reasoning:

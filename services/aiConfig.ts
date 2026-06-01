@@ -4,7 +4,7 @@
  * allowing the backend LLM to be swapped without code changes.
  *
  * Supported providers:
- *   - 'hosted'  — Hosted cloud AI (Google Gemini via @google/genai SDK)
+ *   - 'hosted'  — Hosted cloud AI (via @google/genai SDK or OpenAI-compatible)
  *   - 'on-prem' — Any OpenAI-compatible REST endpoint (self-hosted or third-party)
  */
 

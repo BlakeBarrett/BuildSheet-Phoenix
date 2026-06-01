@@ -103,7 +103,7 @@ function extractJson<T>(text: string): T | null {
  * OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, etc.)
  *
  * Search-grounded tasks (findPartSources, findLocalSuppliers, hydratePartDetails)
- * are intentionally NOT implemented here — those always route through Gemini / future VertexAI.
+ * are intentionally NOT implemented here — those always route through Cloud API / future VertexAI.
  */
 export class LocalArchitectService {
     public isOffline = false;
@@ -122,7 +122,7 @@ export class LocalArchitectService {
 
     async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
         try {
-            // Reformat history from Gemini's {role: 'user'|'model', parts: [{text: ...}]}
+            // Reformat history from cloud API {role: 'user'|'model', parts: [{text: ...}]}
             // to OpenAI's {role: 'user'|'assistant', content: ...}
             const messages = history.map(msg => ({
                 role: msg.role === 'model' ? 'assistant' : msg.role,
@@ -144,7 +144,7 @@ export class LocalArchitectService {
 
             messages.unshift({
                 role: 'system',
-                content: `ROLE: You are Gemini, the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
+                content: `ROLE: You are the Senior Hardware Architect and Robotics Engineer (Robotics-ER 1.5) at BuildSheet. 
 CORE DIRECTIVE: You are a FUNCTIONAL AGENT. Your primary job is to Manipulate the State of the drafting board using Tools.
 DO NOT just describe the build in text. You MUST call \`initializeDraft\` and \`addPart\` commands to actually create the BOM.
 

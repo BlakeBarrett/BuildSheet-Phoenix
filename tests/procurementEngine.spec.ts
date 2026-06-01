@@ -395,12 +395,12 @@ test.describe('VerifiedProcurementEngine', () => {
   });
 
   // =========================================================================
-  // GEMINI VERIFICATION PATH
+  // CLOUD VERIFICATION PATH
   // =========================================================================
 
-  test.describe('stageVerification with Gemini backend', () => {
+  test.describe('stageVerification with cloud backend', () => {
 
-    test('uses Gemini client when backend is gemini and client is provided', async () => {
+    test('uses cloud client when backend is cloud and client is provided', async () => {
       let callCount = 0;
       const client = mockAiClient({
         generateStructuredJson: async () => {
@@ -426,7 +426,7 @@ test.describe('VerifiedProcurementEngine', () => {
       expect(results[0].confidence).toBe(0.85);
     });
 
-    test('falls back to regex when Gemini client throws', async () => {
+    test('falls back to regex when cloud client throws', async () => {
       const client = mockAiClient({
         generateStructuredJson: async () => { throw new Error('API quota exceeded'); },
       });

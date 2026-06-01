@@ -4,7 +4,7 @@
  * Multi-stage pipeline:
  *   1. Discovery  — SearXNG local API → top 5 product landing pages
  *   2. Extraction — Firecrawl → scrape Markdown from those pages
- *   3. Verification — Gemini API (default) or local LLM → extract price, stock, shipping, date
+ *   3. Verification — Cloud API (default) or local LLM → extract price, stock, shipping, date
  *
  * Includes RAMpocalypse price anomaly detection and Hormuz/Red Sea logistics risk.
  */
