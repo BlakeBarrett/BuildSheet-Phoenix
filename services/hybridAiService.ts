@@ -56,7 +56,7 @@ export class HybridAIService implements AIService {
 
     /**
      * Resolve + return the local service for a given role, with fallback chain:
-     *   Specific slot → Utility → Architect → null (meaning: use Gemini)
+     *   Specific slot → Utility → Architect → null (meaning: use Cloud API)
      */
     private getLocalFor(role: 'architect' | 'audit' | 'plan' | 'cad' | 'utility'): LocalArchitectService | null {
         const specific: Record<string, LocalArchitectService | null> = {
@@ -144,7 +144,7 @@ export class HybridAIService implements AIService {
 
     async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
         // Image generation: if ANY local model is configured, return null
-        // (local text models can't generate images). Otherwise use Gemini.
+        // (local text models can't generate images). Otherwise use Cloud API.
         const anyLocal = this.localService || this.localUtilityService;
         if (anyLocal) return null;
         return this.cloudAiService.generateProductImage(description, referenceImage);

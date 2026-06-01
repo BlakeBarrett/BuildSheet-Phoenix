@@ -76,12 +76,12 @@ A comprehensive analysis of every external dependency that would need to be addr
 ---
 
 #### 4. Google Search Grounding & Procurement Pipeline
-**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts`. The pipeline exclusively uses Gemini's native Google Grounding Search API.
+**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts`. The pipeline exclusively uses Google Grounding Search API.
 
-**On-prem impact**: The Gemini Search Grounding functions require `generativelanguage.googleapis.com`. This functionality is **not available** in strictly air-gapped environments.
+**On-prem impact**: The Search Grounding functions require `generativelanguage.googleapis.com`. This functionality is **not available** in strictly air-gapped environments.
 
 **Recommended approach**:
-- If internet access is available, use the default `SearchService` which leverages Gemini Google Grounding.
+- If internet access is available, use the default `SearchService` which leverages Google Grounding.
 - For strictly air-gapped deployments, sourcing features will fallback to returning empty results unless a custom local search provider is integrated into `server/src/services/searchService.ts`.
 - For internal parts catalog: implement a `SearchProvider` interface:
   ```ts
@@ -91,7 +91,7 @@ A comprehensive analysis of every external dependency that would need to be addr
     hydratePartDetails(name: string, category: string): Promise<Partial<Part>>;
   }
   ```
-- Backends: `GeminiSearchProvider` (current), `SearXNGProvider` (self-hosted), `InternalCatalogProvider` (on-prem — queries customer's own parts database via REST)
+- Backends: current `SearchService` (`server/src/services/searchService.ts`), `SearXNGProvider` (self-hosted), `InternalCatalogProvider` (on-prem — queries customer's own parts database via REST)
 - For MVP on-prem: these functions return `null` gracefully (UI already handles this)
 
 ---

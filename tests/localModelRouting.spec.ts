@@ -2,14 +2,14 @@ import { test, expect, Page } from '@playwright/test';
 
 /**
  * These tests verify that when local models are configured, ALL generation
- * tasks route to the local endpoint and ZERO requests leak to Gemini.
+ * tasks route to the local endpoint and ZERO requests leak to the cloud API.
  *
  * Search/retrieval tasks (findPartSources, findLocalSuppliers, hydratePartDetails)
- * are intentionally excluded — they always go to Gemini.
+ * are intentionally excluded — they always go to the cloud API.
  */
 
 const LOCAL_CHAT_URL = 'http://192.168.1.41:1234/v1/chat/completions';
-// Matches any cloud AI provider endpoint — currently Google Gemini OR Alibaba DashScope.
+// Matches any cloud AI provider endpoint.
 // Update this pattern when the cloud provider changes so the test stays meaningful.
 const CLOUD_API_PATTERN = /generativelanguage\.googleapis\.com|dashscope.*\.aliyuncs\.com/;
 /** @deprecated kept for readability at call sites — use CLOUD_API_PATTERN instead */
@@ -58,17 +58,17 @@ async function mockLocalEndpoint(page: Page) {
     });
 }
 
-test.describe('Local Model Routing — No Gemini Leakage', () => {
+test.describe('Local Model Routing — No Cloud Leakage', () => {
 
-    test('generation tasks should route to local and not to Gemini when all models are configured', async ({ page }) => {
+    test('generation tasks should route to local and not to the cloud when all models are configured', async ({ page }) => {
         // Track all outgoing requests
-        const geminiRequests: string[] = [];
+        const cloudRequests: string[] = [];
         const localRequests: string[] = [];
 
         page.on('request', req => {
             const url = req.url();
-            if (GEMINI_API_PATTERN.test(url)) {
-                geminiRequests.push(url);
+            if (CLOUD_API_PATTERN.test(url)) {
+                cloudRequests.push(url);
             }
             if (url.includes('1234/v1/chat/completions')) {
                 localRequests.push(url);
@@ -93,9 +93,9 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
             });
         });
 
-        // Block Gemini to ensure nothing leaks
-        await page.route(GEMINI_API_PATTERN, async route => {
-            geminiRequests.push(route.request().url());
+        // Block the cloud API to ensure nothing leaks
+        await page.route(CLOUD_API_PATTERN, async route => {
+            cloudRequests.push(route.request().url());
             await route.abort('failed');
         });
 
@@ -108,7 +108,7 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
         await page.waitForTimeout(2000);
 
         // Clear any startup requests
-        geminiRequests.length = 0;
+        cloudRequests.length = 0;
         localRequests.length = 0;
 
         // Now trigger a chat message to exercise the architect path
@@ -120,10 +120,10 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
             await page.waitForTimeout(3000);
         }
 
-        // Verify: no Gemini requests were made for generation tasks
-        // (Note: search/retrieval requests ARE allowed to hit Gemini, but those
+        // Verify: no cloud requests were made for generation tasks
+        // (Note: search/retrieval requests ARE allowed to hit the cloud, but those
         // are triggered by explicit user actions like "Find Sources", not by chat)
-        expect(geminiRequests.length).toBe(0);
+        expect(cloudRequests.length).toBe(0);
     });
 
     test('HybridAIService fallback chain resolves correctly', async ({ page }) => {
@@ -148,8 +148,8 @@ test.describe('Local Model Routing — No Gemini Leakage', () => {
             });
         });
 
-        // Block Gemini
-        await page.route(GEMINI_API_PATTERN, async route => {
+        // Block the cloud API
+        await page.route(CLOUD_API_PATTERN, async route => {
             await route.abort('failed');
         });
 

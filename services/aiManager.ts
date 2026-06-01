@@ -108,7 +108,7 @@ export class AIManager {
    * Google Maps, part hydration). Falls back to the main API key if not set.
    *
    * This abstraction exists so that Enterprise customers can:
-   *   1. Use their own Gemini API key for grounding, separate from generation
+   *   1. Use their own API key for grounding, separate from generation
    *   2. Eventually swap to VertexAI Products API with a different credential
    */
   public static getSearchApiKey(): string | undefined {

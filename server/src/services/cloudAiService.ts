@@ -231,7 +231,7 @@ export class ServerCloudAIService implements ServerAIService {
       }
       const response = await ai.models.generateContent({ model: this.config.models.image, contents: { parts } });
       const candidateParts = response.candidates?.[0]?.content?.parts;
-      // Gemini returns inline base64 data — we have no CDN URL, so return null.
+      // Cloud API returns inline base64 data — we have no CDN URL, so return null.
       // Use DashScope (openai-compat) for image generation.
       void candidateParts;
       return null;

@@ -36,7 +36,7 @@ architectRouter.post('/chat', optionalAuth, apiRateLimit, async (req: Request, r
 
   try {
     // For now, we get the full response and stream it in chunks.
-    // TODO: When the Gemini SDK supports true streaming, switch to generateContentStream.
+    // TODO: When the cloud SDK supports true streaming, switch to generateContentStream.
     const result = await ai.askArchitect(prompt, history, image);
     const text = result.text;
 

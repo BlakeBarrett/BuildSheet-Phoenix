@@ -5,7 +5,7 @@ import { ArchitectResponse } from './aiTypes.ts';
  * Extracts tool calls (initializeDraft, addPart, removePart) from LLM output
  * and separates them from the reasoning text.
  *
- * Used by both GeminiService and LocalArchitectService so neither depends on the other.
+ * Used by both CloudAIService and LocalArchitectService so neither depends on the other.
  */
 export function parseArchitectResponse(text: string): ArchitectResponse {
     const toolCalls: any[] = [];

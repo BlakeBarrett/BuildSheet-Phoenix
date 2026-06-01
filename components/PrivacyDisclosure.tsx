@@ -7,12 +7,12 @@ const DISCLOSURE_MESSAGES: Record<DisclosureType, { icon: string; title: string;
   'image-upload': {
     icon: 'photo_camera',
     title: 'Image Processing',
-    body: 'Your image will be sent to Google Gemini for analysis. It is processed in-session only and is never used to train AI models. See our Privacy Policy for details.',
+    body: 'Your image will be sent to a configured third-party cloud AI provider for analysis. It is processed in-session only and is never used to train AI models. See our Privacy Policy for details.',
   },
   'ai-analysis': {
     icon: 'psychology',
     title: 'AI Analysis',
-    body: 'Your project data will be sent to Google Gemini for analysis. Data is processed under contractual necessity and is never used for model training.',
+    body: 'Your project data will be sent to a configured third-party cloud AI provider for analysis. Data is processed under contractual necessity and is never used for model training.',
   },
 };
 

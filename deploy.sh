@@ -86,7 +86,7 @@ echo "  Deploying '$SERVICE_NAME' to Cloud Run"
 echo "  Project:  $PROJECT_ID"
 echo "  Region:   $REGION"
 echo "  AI_KEY:   ${EFFECTIVE_KEY:0:8}... (${#EFFECTIVE_KEY} chars)"
-echo "  Provider: ${AI_PROVIDER:-gemini (default)}"
+echo "  Provider: ${AI_PROVIDER:-openai-compat (default)}"
 echo "══════════════════════════════════════════════════════════════"
 echo ""
 

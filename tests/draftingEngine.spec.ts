@@ -425,7 +425,7 @@ test.describe('Audit JSON Parsing Robustness', () => {
         await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
-            // Simulates the parsing logic from geminiService.ts verifyDesign
+            // Simulates the parsing logic from cloudAiService.ts verifyDesign
             function parseAuditActions(fullText: string) {
                 let auditText = fullText;
                 let auditActions: any[] | undefined;
@@ -556,7 +556,7 @@ test.describe('Design Context Propagation', () => {
         await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
-            // Simulate the contextClause logic used in geminiService.findPartSources
+            // Simulate the contextClause logic used in cloudAiService.findPartSources
             function buildSourceQuery(query: string, designContext?: string) {
                 const contextClause = designContext ? ` The part must be compatible with: ${designContext}.` : '';
                 return `Find real-world purchase options and actual prices for: ${query}.${contextClause}`;
@@ -580,7 +580,7 @@ test.describe('Design Context Propagation', () => {
         await page.goto('http://localhost:8080/app/');
 
         const passed = await page.evaluate(() => {
-            // Simulate the contextClause logic used in geminiService.hydratePartDetails
+            // Simulate the contextClause logic used in cloudAiService.hydratePartDetails
             function buildHydrationPrompt(name: string, category: string, designContext?: string) {
                 const contextClause = designContext ? ` This part is for: ${designContext}. Ensure the part is compatible with this specific platform/application.` : '';
                 return `Look up the real-world hardware component: "${name}" (category: ${category}).${contextClause}`;
@@ -705,7 +705,7 @@ test.describe('Advanced Validation in Audit', () => {
                 { id: 'custom-check', label: 'GDPR Compliance', enabled: true, kind: 'custom' as const }
             ];
 
-            // Mirrors the filtering in geminiService.verifyDesign
+            // Mirrors the filtering in cloudAiService.verifyDesign
             const enabledAdvanced = validations.filter(v => v.enabled);
 
             return (
