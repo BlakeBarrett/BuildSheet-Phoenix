@@ -5,7 +5,7 @@
  *
  * Supported providers:
  *   - 'hosted'  — Hosted cloud AI (via @google/genai SDK or OpenAI-compatible)
- *   - 'on-prem' — Any OpenAI-compatible REST endpoint (self-hosted or third-party)
+ *   - 'openai-compat' — Any OpenAI-compatible REST endpoint (self-hosted or third-party)
  */
 
 export type AiProvider = 'hosted' | 'openai-compat';

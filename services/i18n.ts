@@ -1312,7 +1312,7 @@ const resources = {
       "fab.pcbway": "Pata Bei PCBWay",
       "fab.scs": "Pata Bei SendCutSend",
       "fab.title": "Ripoti ya Utengenezaji",
-      "input.placeholder": "Mpe maelekezo kwa Arquiteto...",
+      "input.placeholder": "Mpe maelekezo kwa Architect...",
       "lang.select": "Lugha",      "modal.cancel": "Cancel",
       "modal.close": "Close",
       "modal.done": "Done",

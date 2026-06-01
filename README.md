@@ -77,7 +77,7 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 │  ┌──────────┐       ┌───────────────────────────────┐   │
 │  │  nginx   │──/api/│  Express.js API Server (:8081)│   │
 │  │  (:8080) │       │  • Firebase Admin Auth        │   │
-│  │          │       │  • AI Orchestration  │   │
+│  │          │       │  • AI Orchestration       │   │
 │  │  /       │       │  • Procurement Pipeline       │   │
 │  │  → mktg  │       │  • Project CRUD (Firestore)   │   │
 │  │          │       │  • Rate Limiting              │   │
@@ -99,7 +99,7 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `AI_KEY` | Yes* | Primary AI key (server-side only — never sent to browser) |
-| `AI_PROVIDER` | No | `hosted` (Cloud SDK) or `on-prem` (OpenAI-compatible) |
+| `AI_PROVIDER` | No | `hosted` (Cloud SDK) or `openai-compat` (OpenAI-compatible; legacy `on-prem` still accepted) |
 | `AI_BASE_URL` | No | Base URL for OpenAI-compatible provider |
 | `AI_IMAGE_BASE_URL` | No | Base URL for image generation API |
 | `AI_DISPLAY_NAME` | No | Display name shown in UI for the AI service |

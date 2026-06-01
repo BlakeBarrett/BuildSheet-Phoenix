@@ -91,7 +91,7 @@ A comprehensive analysis of every external dependency that would need to be addr
     hydratePartDetails(name: string, category: string): Promise<Partial<Part>>;
   }
   ```
-- Backends: `CloudSearchProvider` (current), `SearXNGProvider` (self-hosted), `InternalCatalogProvider` (on-prem — queries customer's own parts database via REST)
+- Backends: current `SearchService` (`server/src/services/searchService.ts`), `SearXNGProvider` (self-hosted), `InternalCatalogProvider` (on-prem — queries customer's own parts database via REST)
 - For MVP on-prem: these functions return `null` gracefully (UI already handles this)
 
 ---
