@@ -10,7 +10,7 @@ import { collection, addDoc, onSnapshot } from 'firebase/firestore';
  * Launch promotion — auto-applied to all checkout sessions.
  * Free Pro / Enterprise until 30 Jun 2026.  Expires 1 Jul 2026.
  */
-const LAUNCH_PROMO_CODE = 'promo_1ToSRsDWtg9s0tYc5g4wYpZ0';
+const LAUNCH_PROMO_CODE = 'promo_1THXv5DWtg9s0tYcn8ElRlE6';
 
 let payments: StripePayments | null = null;
 
