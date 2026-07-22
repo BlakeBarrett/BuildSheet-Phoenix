@@ -1,5 +1,33 @@
 import { test, expect } from '@playwright/test';
 
+test.describe('Settings Modal — Debranding Verification', () => {
+    test('should display cloud-agnostic terminology instead of Gemini', async ({ page }) => {
+        // Pre-set consent to skip Privacy & Data Control modal
+        await page.addInitScript(() => {
+            localStorage.setItem('buildsheet_consent', 'full');
+        });
+
+        await page.goto('/app/');
+        await page.waitForTimeout(1000);
+
+        // Open Settings Modal
+        await page.getByRole('button', { name: 'Settings' }).click();
+        await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+
+        // Verify "Default (Cloud API)" appears instead of "Default (Gemini Cloud API)"
+        const defaultOption = page.locator('select#local-model option[value=""]');
+        await expect(defaultOption).toHaveText('Default (Cloud API)');
+
+        // Verify no "Gemini" text appears in model labels
+        const labels = page.locator('label').allTextContents();
+        const combinedLabels = (await labels).join(' ');
+        expect(combinedLabels).not.toContain('Gemini');
+
+        // Verify "Local Architect Model" label is present
+        await expect(page.locator('label[for="local-model"]')).toContainText('Local Architect Model');
+    });
+});
+
 test.describe('Settings Modal — All Model Selectors', () => {
 
     test.beforeEach(async ({ page }) => {

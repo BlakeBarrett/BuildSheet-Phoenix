@@ -1,6 +1,5 @@
-
 /**
- * @deprecated Renamed to CloudAIService. This file is kept for backward compatibility only.
- * Import from './cloudAiService.ts' instead.
+ * @deprecated Renamed to ArchitectService. This file is kept for backward compatibility only.
+ * Import from './architectService.ts' instead.
  */
-export { CloudAIService as GeminiService } from './cloudAiService.ts';
+export { ArchitectService as GeminiService } from './architectService';

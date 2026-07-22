@@ -14,7 +14,7 @@ interface VoiceSessionProps {
 /**
  * "Greasy Hands" Voice Mode — hands-free voice assistant for the shop floor.
  * Uses the browser SpeechRecognition API for STT and SpeechSynthesis for TTS,
- * with Gemini processing the transcribed queries against the current BOM/plan.
+ * with cloud AI processing the transcribed queries against the current BOM/plan.
  */
 export const VoiceSession: React.FC<VoiceSessionProps> = ({ bom, plan, aiService, onClose }) => {
   const { t } = useTranslation();

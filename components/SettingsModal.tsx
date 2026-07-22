@@ -296,7 +296,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 onChange={(e) => setSelectedModelId(e.target.value)}
                                 className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                             >
-                                <option value="">{t('settings.defaultGemini')}</option>
+                                <option value="">{t('settings.defaultCloud')}</option>
                                 {models.map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
@@ -314,15 +314,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="mt-5 pt-4 border-t border-gray-100">
                                     <label htmlFor="audit-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.validationModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
-                                        Override the default Gemini model for the Validation Audit (design feasibility check).
-                                    </p>
+                                                                        Override the default cloud model for the Validation Audit (design feasibility check).
+                                                                    </p>
                                     <select
                                         id="audit-model"
                                         value={selectedAuditModelId}
                                         onChange={(e) => setSelectedAuditModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">{t('settings.defaultGemini')}</option>
+                                        <option value="">{t('settings.defaultCloud')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -332,15 +332,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="mt-5 pt-4 border-t border-gray-100">
                                     <label htmlFor="plan-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.planModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
-                                        Override the default Gemini model for the Assembly Plan generation.
-                                    </p>
+                                                                        Override the default cloud model for the Assembly Plan generation.
+                                                                    </p>
                                     <select
                                         id="plan-model"
                                         value={selectedPlanModelId}
                                         onChange={(e) => setSelectedPlanModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">{t('settings.defaultGemini')}</option>
+                                        <option value="">{t('settings.defaultCloud')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -358,7 +358,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedCadModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">{t('settings.defaultGemini')}</option>
+                                        <option value="">{t('settings.defaultCloud')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -376,7 +376,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedUtilityModelId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">{t('settings.defaultGemini')}</option>
+                                        <option value="">{t('settings.defaultCloud')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
@@ -386,7 +386,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 <div className="mt-5 pt-4 border-t border-gray-100">
                                     <label htmlFor="search-reasoning-model" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.searchModel')}</label>
                                     <p className="text-xs text-slate-600 mb-3">
-                                        Controls which LLM verifies and extracts pricing data from scraped product pages during procurement search. Defaults to Gemini Cloud API.
+                                        Controls which LLM verifies and extracts pricing data from scraped product pages during procurement search. Defaults to cloud API.
                                     </p>
                                     <select
                                         id="search-reasoning-model"
@@ -394,7 +394,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         onChange={(e) => setSelectedSearchReasoningId(e.target.value)}
                                         className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                     >
-                                        <option value="">{t('settings.defaultGemini')}</option>
+                                        <option value="">{t('settings.defaultCloud')}</option>
                                         {models.map(m => (
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}

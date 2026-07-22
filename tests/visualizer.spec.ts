@@ -1,5 +1,20 @@
 import { test, expect } from '@playwright/test';
 
+test.describe('Debranding — UI Text Verification', () => {
+    test('chat input placeholder should say "Instruct the cloud AI..." not "Instruct Gemini..."', async ({ page }) => {
+        await page.goto('http://localhost:8080/app/');
+        await page.waitForTimeout(1000);
+
+        // Find the chat input textarea
+        const chatInput = page.locator('textarea[aria-label*="placeholder"], textarea[placeholder]').first();
+        await expect(chatInput).toBeVisible();
+
+        const placeholder = await chatInput.getAttribute('placeholder');
+        expect(placeholder).toContain('cloud AI');
+        expect(placeholder).not.toContain('Gemini');
+    });
+});
+
 test('visualizer takes up ~30% of viewport height on desktop', async ({ page }) => {
     await page.goto('http://localhost:8080/app/');
 
