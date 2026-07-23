@@ -3423,7 +3423,6 @@ const AppContent: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                            {session.cacheIsDirty && session.bom.length > 0 && <Chip label={i18n.t("bom.analyzingBuild")} color="bg-amber-100 text-amber-900 border-transparent" />}
 
                             {/* Auth chip — visible on all screen sizes */}
                             {isFirebaseConfigured() && (
