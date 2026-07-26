@@ -7,6 +7,8 @@
  */
 
 import { ServerCloudAIService } from './cloudAiService.js';
+import { VerifiedFactService } from './verifiedFactService.js';
+import { getFirestore } from 'firebase-admin/firestore';
 import type { ServerAIService } from './types.js';
 
 /**
@@ -42,5 +44,6 @@ export function createAiService(): ServerAIService {
     console.warn('[AIFactory] No API key found — service will operate in degraded mode');
   }
 
-  return new ServerCloudAIService(config);
+  const factService = new VerifiedFactService(getFirestore());
+  return new ServerCloudAIService(config, factService);
 }

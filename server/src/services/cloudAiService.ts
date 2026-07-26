@@ -4,6 +4,7 @@
  */
 import { GoogleGenAI, GenerateContentResponse, Type, Modality, GroundingSupport } from "@google/genai";
 import { parseArchitectResponse } from './parseUtils.js';
+import { VerifiedFactService } from './verifiedFactService.js';
 import type {
   ServerAIService, AiConfig, AskArchitectResult, ArchitectResponse,
   ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan,
@@ -69,11 +70,26 @@ export class ServerCloudAIService implements ServerAIService {
   public name: string;
   public isOffline = false;
   private config: AiConfig;
+  private factService?: VerifiedFactService;
 
-  constructor(config: AiConfig) {
+  constructor(config: AiConfig, factService?: VerifiedFactService) {
     this.config = config;
     this.name = config.displayName;
     this.isOffline = !config.apiKey;
+    this.factService = factService;
+  }
+
+  private async injectVerifiedFacts(prompt: string): Promise<string> {
+    if (!this.factService) return '';
+    const keywords = prompt.split(' ').filter(w => w.length > 3);
+    const facts = await this.factService.searchFacts({
+      searchTerm: keywords.join(' '),
+      minConfidence: 0.8,
+      limit: 10
+    });
+    if (facts.length === 0) return '';
+    const factContext = facts.map(f => `- VERIFIED: ${f.statement} (source: ${f.source}, confidence: ${f.confidence})`).join('\n');
+    return `\n\n=== VERIFIED FACTS ===\n${factContext}\n=========================\n`;
   }
 
   private getClient(): GoogleGenAI {
@@ -152,6 +168,9 @@ export class ServerCloudAIService implements ServerAIService {
   // --- Core methods ---
 
   async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
+    const factContext = await this.injectVerifiedFacts(prompt);
+    const enhancedSystemInstruction = SYSTEM_INSTRUCTION + factContext;
+    
     if (this.config.provider === 'openai-compat') {
       let userContent: any = prompt;
       if (image) {
@@ -159,7 +178,7 @@ export class ServerCloudAIService implements ServerAIService {
         const imageData = this.cleanBase64(image);
         if (imageData) userContent.unshift({ type: 'image_url', image_url: { url: image } });
       }
-      const text = await this.openAiChat({ model: this.config.models.fast, system: SYSTEM_INSTRUCTION, history, userContent, temperature: 0.7, maxTokens: 4096 });
+      const text = await this.openAiChat({ model: this.config.models.fast, system: enhancedSystemInstruction, history, userContent, temperature: 0.7, maxTokens: 4096 });
       return { text: text || 'AI service provided no output.', metadata: { model: this.config.models.fast } };
     }
     const ai = this.getClient();
@@ -171,7 +190,7 @@ export class ServerCloudAIService implements ServerAIService {
     const contents = [...history, { role: 'user', parts: userParts }];
     const response = await ai.models.generateContent({
       model: this.config.models.fast, contents,
-      config: { systemInstruction: SYSTEM_INSTRUCTION, temperature: 0.7 },
+      config: { systemInstruction: enhancedSystemInstruction, temperature: 0.7 },
     });
     return { text: response.text || "AI service provided no output.", metadata: { model: this.config.models.fast, tokens: response.usageMetadata?.totalTokenCount } };
   }
