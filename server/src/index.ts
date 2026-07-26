@@ -12,6 +12,7 @@ import { generationRouter } from './routes/generation.js';
 import { projectsRouter } from './routes/projects.js';
 import { sharesRouter, sharePageRouter } from './routes/shares.js';
 import aiRouter from './routes/ai.js';
+import { adminRouter } from './routes/admin.js';
 import { createAiService } from './services/aiServiceFactory.js';
 import { requestLogger } from './middleware/logger.js';
 
@@ -130,6 +131,7 @@ app.use('/api/v1/generate', generationRouter);
 app.use('/api/v1/projects', projectsRouter);
 app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1/ai', aiRouter);
+app.use('/api/v1/admin', adminRouter);
 
 // ---------------------------------------------------------------------------
 // Error Handler
