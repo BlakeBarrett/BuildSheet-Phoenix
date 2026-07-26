@@ -5,8 +5,12 @@ import { Router, type Request, type Response } from 'express';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { apiRateLimit, generationRateLimit } from '../middleware/rateLimit.js';
 import type { ServerAIService } from '../services/types.js';
+import { VerifiedFactService } from '../services/verifiedFactService.js';
+import { getFirestore } from 'firebase-admin/firestore';
 
 export const architectRouter = Router();
+
+const factService = new VerifiedFactService(getFirestore());
 
 function getAI(req: Request): ServerAIService {
   return (req as any).aiService;
@@ -105,6 +109,50 @@ architectRouter.post('/apply-audit', requireAuth, apiRateLimit, async (req: Requ
     const result = await ai.applyAuditRecommendations(bom, auditResult, requirements);
     res.json(result);
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/architect/correct — User correction submission.
+ * Body: { statement, category, tags?, source? }
+ * Creates a pending verified fact for admin review.
+ */
+architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
+  const { statement, category, tags = [], source = 'user-correction' } = req.body;
+  
+  if (!statement) { 
+    res.status(400).json({ error: 'statement is required' }); 
+    return; 
+  }
+
+  // Validate category
+  const validCategories = ['component-specs', 'compatibility', 'requirements', 'procurement', 'general'];
+  if (category && !validCategories.includes(category)) {
+    res.status(400).json({ error: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
+    return;
+  }
+
+  try {
+    const userId = (req as any).user?.id;
+    
+    const fact = await factService.storeFact({
+      category: (category as any) || 'general',
+      statement,
+      source: source as any,
+      confidence: 0.5, // Default confidence for user submissions
+      tags,
+      createdBy: userId,
+      status: 'pending'
+    });
+
+    res.status(201).json({
+      message: 'Correction submitted for review',
+      factId: fact.factId,
+      status: fact.status
+    });
+  } catch (err: any) {
+    console.error('[architect/correct] Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
