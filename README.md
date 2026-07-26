@@ -120,10 +120,31 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 
 ### Routing
 The nginx config supports dynamic sharing:
-*   **`/`** — Marketing website
-*   **`/app/`** — React SPA
-*   **`/api/v1/`** — Backend API server (proxied to Express on port 8081)
-*   **`/{username}/{slug}`** — Share links (fall through to SPA)
+* **`/`** — Marketing website
+* **`/app/`** — React SPA
+* **`/api/v1/`** — Backend API server (proxied to Express on port 8081)
+* **`/{username}/{slug}`** — Share links (fall through to SPA)
+
+## Fact Verification System
+
+BuildSheet includes a **Fact Verification System** that allows users to submit corrections and technical facts for admin review. This ensures the AI architect has access to accurate, source-attributed knowledge.
+
+### Key Features
+
+- **User Submissions**: Users can submit corrections via `POST /api/v1/architect/correct`
+- **Admin Review**: Admins review and approve/reject corrections via `/api/v1/admin/corrections`
+- **Firestore Storage**: Facts stored with confidence scoring and source attribution
+- **Categorization**: 5 categories (component-specs, compatibility, requirements, procurement, general)
+
+### Configuration
+
+Set `ADMIN_UIDS` in `.env` with comma-separated Firebase user IDs:
+
+```env
+ADMIN_UIDS=firebase-user-id-1,firebase-user-id-2
+```
+
+See [`docs/FACT_VERIFICATION.md`](docs/FACT_VERIFICATION.md) for full documentation.
 
 ## Simulation Mode
 If no API Key is provided, the app gracefully degrades into **Simulation Mode**, using a deterministic `MockService` to demonstrate the UI and logic flow without consuming API credits.
