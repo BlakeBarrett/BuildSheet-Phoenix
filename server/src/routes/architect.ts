@@ -1,5 +1,5 @@
 /**
- * Architect routes — chat (SSE streaming), verify, assembly plan, apply-audit.
+ * Architect routes — chat (SSE streaming), verify, assembly plan, apply-audit, correction.
  */
 import { Router, type Request, type Response } from 'express';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
