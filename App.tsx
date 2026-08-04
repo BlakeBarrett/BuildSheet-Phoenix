@@ -1,6 +1,7 @@
 import React, { Component, useState, useRef, useEffect, useCallback, ErrorInfo } from 'react';
 import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import i18n from './services/i18n.ts';
 import { getDraftingEngine, DraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
@@ -9,6 +10,7 @@ import { UserService } from './services/userService.ts';
 import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
+import { sanitizeMarkdownTables } from './services/parseUtils.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder, PreferredVendor } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
@@ -1249,7 +1251,7 @@ const AuditModal: React.FC<{
                     ) : result ? (
                         <div className="space-y-6">
                             <div className="prose prose-sm max-w-none text-slate-600">
-                                <ReactMarkdown>{result}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeMarkdownTables(result)}</ReactMarkdown>
                             </div>
 
                             {/* Structured Changelist */}
@@ -3509,7 +3511,7 @@ const AppContent: React.FC = () => {
                                                 <img src={m.attachment} alt={i18n.t("aria.uploadedAttachment")} className="max-w-full sm:max-w-xs rounded-[12px] border border-white/20 shadow-sm" />
                                             </div>
                                         )}
-                                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeMarkdownTables(m.content)}</ReactMarkdown>
                                     </div>
                                     {m.role === 'user' && (
                                         <div className="absolute top-full right-0 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex gap-2 pr-2 z-10 items-center">

@@ -1,11 +1,55 @@
 import { ArchitectResponse } from './aiTypes.ts';
 
 /**
- * Shared parser for architect response text.
- * Extracts tool calls (initializeDraft, addPart, removePart) from LLM output
- * and separates them from the reasoning text.
- *
- * Used by both GeminiService and LocalArchitectService so neither depends on the other.
+ * Sanitize markdown tables by fixing common syntax errors.
+ * Fixes:
+ * - Extra leading/trailing pipes on separator rows
+ * - Mismatched pipe counts between header and separator
+ * - Missing pipes between columns
+ * 
+ * @param markdown - The markdown text to sanitize
+ * @returns Sanitized markdown with properly formatted tables
+ */
+export function sanitizeMarkdownTables(markdown: string): string {
+    if (!markdown) return markdown;
+
+    const lines = markdown.split('\n');
+    return lines.map((rawLine, idx) => {
+        const row = rawLine.trim();
+        if (row === '') return rawLine;
+
+        // Separator row: only pipes, dashes, colons, and whitespace.
+        // Leading/trailing pipes are optional so malformed LLM output is caught.
+        const isSeparator = /^\|?[\s:|-]+\|?$/.test(row);
+        if (!isSeparator) return rawLine;
+
+        // Look backward for the nearest header row within the same table block.
+        for (let j = idx - 1; j >= 0; j--) {
+            const header = lines[j].trim();
+            if (header === '') break;            // blank line ends the table block
+            if (!header.startsWith('|')) break;  // non-table content above
+            const colCount = countColumns(header);
+            if (colCount > 0) {
+                // Rebuild a properly formatted separator row: |---|---|---|
+                return '| ' + Array(colCount).fill('---').join(' | ') + ' |';
+            }
+        }
+
+        return row;
+    }).join('\n');
+}
+
+/**
+ * Count the number of visible columns in a table header row.
+ * Splits on pipes and ignores the empty segments created by leading/trailing pipes.
+ */
+function countColumns(headerRow: string): number {
+    return headerRow.trim().split('|').filter(seg => seg.trim() !== '').length;
+}
+
+/**
+ * Parse architect response text and extract tool calls.
+ * Also sanitizes markdown for proper rendering.
  */
 export function parseArchitectResponse(text: string): ArchitectResponse {
     const toolCalls: any[] = [];

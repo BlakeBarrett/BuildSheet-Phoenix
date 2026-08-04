@@ -105,9 +105,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setLoading(true);
         const fetchedModels: LocalModelProvider[] = [];
 
+        // Bound the scan so an unreachable host can't hang the modal forever.
+        const scanTimeout = (ms: number) => {
+            const ctrl = new AbortController();
+            setTimeout(() => ctrl.abort(), ms);
+            return ctrl.signal;
+        };
+
         // Fetch LM Studio Models
         try {
-            const res = await fetch(`http://${addressToUse}:1234/v1/models`);
+            const res = await fetch(`http://${addressToUse}:1234/v1/models`, { signal: scanTimeout(4000) });
             if (res.ok) {
                 const data = await res.json();
                 if (data.data) {
@@ -127,7 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         // Fetch Ollama Models
         try {
-            const res = await fetch(`http://${addressToUse}:11434/api/tags`);
+            const res = await fetch(`http://${addressToUse}:11434/api/tags`, { signal: scanTimeout(4000) });
             if (res.ok) {
                 const data = await res.json();
                 if (data.models) {

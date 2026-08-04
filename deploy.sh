@@ -19,12 +19,16 @@ SERVICE_NAME="buildsheet"
 REPO_NAME="buildsheet"  # Artifact Registry repository name
 IMAGE_NAME="buildsheet"
 
-# load .env variables if file is present
-if [ -f .env ]; then
+# load env variables if file is present (default .env.prod; override with ENV_FILE)
+ENV_FILE="${ENV_FILE:-.env.prod}"
+if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1091
   set -a
-  source .env
+  source "$ENV_FILE"
   set +a
+  echo "📦 Loading env from $ENV_FILE"
+else
+  echo "⚠️  Warning: $ENV_FILE not found — using exported/shell env vars."
 fi
 
 # API keys and Firebase config — set these as env vars or they'll be read from the current env

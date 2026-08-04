@@ -56,7 +56,7 @@ if (!firebaseProjectId) {
     // initializeApp() succeeds even without credentials — getFirestore() is
     // where the "Could not load the default credentials" error actually fires.
     // Test it now so firebaseInitialized reflects real availability.
-    try { getFirestore(); } catch (err: any) {
+    try { getFirestore(); firebaseInitialized = true; } catch (err: any) {
       firebaseInitialized = false;
       firebaseErrorMessage = err.message || 'Failed to connect to Firestore (missing credentials).';
       console.error('[Server] Firebase Admin: getFirestore() failed after initializeApp() —', err.message);

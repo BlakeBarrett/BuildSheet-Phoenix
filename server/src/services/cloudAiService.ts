@@ -81,15 +81,23 @@ export class ServerCloudAIService implements ServerAIService {
 
   private async injectVerifiedFacts(prompt: string): Promise<string> {
     if (!this.factService) return '';
-    const keywords = prompt.split(' ').filter(w => w.length > 3);
-    const facts = await this.factService.searchFacts({
-      searchTerm: keywords.join(' '),
-      minConfidence: 0.8,
-      limit: 10
-    });
-    if (facts.length === 0) return '';
-    const factContext = facts.map(f => `- VERIFIED: ${f.statement} (source: ${f.source}, confidence: ${f.confidence})`).join('\n');
-    return `\n\n=== VERIFIED FACTS ===\n${factContext}\n=========================\n`;
+    try {
+      const keywords = prompt.split(' ').filter(w => w.length > 3);
+      const facts = await this.factService.searchFacts({
+        searchTerm: keywords.join(' '),
+        minConfidence: 0.8,
+        limit: 10
+      });
+      if (facts.length === 0) return '';
+      const factContext = facts.map(f => `- VERIFIED: ${f.statement} (source: ${f.source}, confidence: ${f.confidence})`).join('\n');
+      return `\n\n=== VERIFIED FACTS ===\n${factContext}\n=========================\n`;
+    } catch (err: any) {
+      // Verified facts are an enrichment, never a hard dependency. If Firestore
+      // is unavailable (missing/misconfigured credentials, outage), continue
+      // without them so chat always works.
+      console.warn('[cloudAi] Verified facts unavailable, continuing without them:', err?.message || err);
+      return '';
+    }
   }
 
   private getClient(): GoogleGenAI {
@@ -212,27 +220,41 @@ export class ServerCloudAIService implements ServerAIService {
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     try {
       if (this.config.provider === 'openai-compat') {
-        // DashScope async generation
-        const submitUrl = `${this.config.imageBaseUrl}/services/aigc/image-generation/generation`;
-        const resp = await fetch(submitUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}`, 'X-DashScope-Async': 'enable' },
-          body: JSON.stringify({ model: this.config.models.image, input: { messages: [{ role: 'user', content: [{ text: description }] }] }, parameters: { n: 1, size: '1024*1024' } }),
-        });
-        const data: any = await resp.json();
-        if (!resp.ok) {
-            console.error('[DashScope] Failed to submit image generation:', data);
-            throw new Error(`DashScope Error: ${data.message || data.code || 'Unknown error'}`);
+        // DashScope async image generation.
+        // Endpoints are tried in order: the legacy image-generation path (used
+        // by wanx / wan2.x-pro models AND local LAN image servers) first, then
+        // the newer text2image path (wan2.2/wan2.5 flash models). Response
+        // parsing accepts both result shapes.
+        const endpoints = [
+          `${this.config.imageBaseUrl}/services/aigc/image-generation/generation`,
+          `${this.config.imageBaseUrl}/services/aigc/text2image/image-synthesis`,
+        ];
+        let taskId: string | null = null;
+        for (const submitUrl of endpoints) {
+          const resp = await fetch(submitUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}`, 'X-DashScope-Async': 'enable' },
+            body: JSON.stringify({ model: this.config.models.image, input: { messages: [{ role: 'user', content: [{ text: description }] }] }, parameters: { n: 1, size: '1024*1024' } }),
+          });
+          let data: any = null;
+          try { data = await resp.json(); } catch { data = null; }
+          if (resp.ok && data?.output?.task_id) {
+            taskId = data.output.task_id;
+            break;
+          }
+          console.warn(`[DashScope] Image submission failed (${submitUrl}):`, data?.message || data?.code || `HTTP ${resp.status}`);
         }
-        const taskId = data.output?.task_id;
-        if (!taskId) return null;
-        for (let i = 0; i < 20; i++) {
+        if (!taskId) {
+          throw new Error('DashScope image generation submission failed on all endpoints');
+        }
+        for (let i = 0; i < 45; i++) {
           await new Promise(r => setTimeout(r, 3000));
           const pollResp = await fetch(`${this.config.imageBaseUrl}/tasks/${taskId}`, { headers: { 'Authorization': `Bearer ${this.config.apiKey}` } });
           const pollData: any = await pollResp.json();
           const status = pollData.output?.task_status;
           if (status === 'SUCCEEDED') {
-            const imageUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
+            const imageUrl = pollData.output?.results?.[0]?.url
+              || pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
             if (!imageUrl) throw new Error('DashScope returned SUCCEEDED but no image URL was found');
             return imageUrl;
           }

@@ -19,12 +19,15 @@ CONTAINER_NAME="buildsheet-local-run"
 HOST_PORT=8080
 CONTAINER_PORT=8080
 
-# load .env variables if file is present (export them for use below)
-if [ -f .env ]; then
+# load env variables if file is present (export them for use below)
+# Default .env; override with ENV_FILE=.env.local (offline) etc.
+ENV_FILE="${ENV_FILE:-.env}"
+if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1091
   set -a
-  . .env
+  . "$ENV_FILE"
   set +a
+  echo "📦 Loading env from $ENV_FILE"
 fi
 
 # allow overrides from environment (after loading .env)

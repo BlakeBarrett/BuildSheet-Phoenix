@@ -10,7 +10,34 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 export const architectRouter = Router();
 
-const factService = new VerifiedFactService(getFirestore());
+/**
+ * The public fact-service surface used by these routes. Defined structurally so
+ * both VerifiedFactService and the degraded-mode stub satisfy it without casts.
+ */
+type FactServiceLike = Pick<VerifiedFactService,
+  'storeFact' | 'getFact' | 'searchFacts' | 'updateFact' | 'deleteFact'>;
+
+// Lazy-initialize factService to avoid Firebase errors at module load time
+let _factService: FactServiceLike | null = null;
+function getFactService(): FactServiceLike {
+  if (!_factService) {
+    try {
+      _factService = new VerifiedFactService(getFirestore());
+    } catch (err: any) {
+      console.warn('[architect] VerifiedFactService unavailable:', err.message);
+      // Return a stub service that fails gracefully. Method names mirror
+      // VerifiedFactService's real API so callers never hit a TypeError.
+      _factService = {
+        storeFact: async () => { throw new Error('VerifiedFactService unavailable'); },
+        getFact: async () => null,
+        searchFacts: async () => [],
+        updateFact: async () => null,
+        deleteFact: async () => false,
+      };
+    }
+  }
+  return _factService;
+}
 
 function getAI(req: Request): ServerAIService {
   return (req as any).aiService;
@@ -135,16 +162,20 @@ architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request
 
   try {
     const userId = (req as any).user?.id;
-    
-    const fact = await factService.storeFact({
+
+    // Only include createdBy when a user is authenticated — Firestore rejects
+    // explicit `undefined` values, so anonymous corrections must omit the key.
+    const factInput: Record<string, any> = {
       category: (category as any) || 'general',
       statement,
       source: source as any,
       confidence: 0.5, // Default confidence for user submissions
       tags,
-      createdBy: userId,
       status: 'pending'
-    });
+    };
+    if (userId) factInput.createdBy = userId;
+
+    const fact = await getFactService().storeFact(factInput as any);
 
     res.status(201).json({
       message: 'Correction submitted for review',
@@ -152,7 +183,21 @@ architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request
       status: fact.status
     });
   } catch (err: any) {
-    console.error('[architect/correct] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    // Corrections are best-effort persistence. Firestore credential/outage
+    // failures degrade gracefully (503) instead of leaking raw errors.
+    const msg = err?.message || String(err);
+    const isCredError = msg.includes('credentials')
+      || msg.includes('Could not load the default')
+      || msg.includes('Failed to connect to Firestore');
+    if (isCredError) {
+      console.warn('[architect/correct] Firestore unavailable — returning 503:', msg);
+      res.status(503).json({
+        error: 'Sync service unavailable. Your correction will not be persisted until the server has valid cloud credentials.',
+        syncUnavailable: true,
+      });
+      return;
+    }
+    console.error('[architect/correct] Error:', msg);
+    res.status(500).json({ error: msg });
   }
 });
