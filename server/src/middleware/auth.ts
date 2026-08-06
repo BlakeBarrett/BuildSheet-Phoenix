@@ -8,9 +8,14 @@
  * In dev mode (no Firebase Admin configured), the middleware
  * is permissive and allows unauthenticated requests through
  * with a guest user context.
+ *
+ * In production the middleware fails CLOSED: a missing Firebase
+ * configuration returns 503 rather than downgrading requests to a
+ * shared guest/dev identity.
  */
 import { type Request, type Response, type NextFunction } from 'express';
 import { getAuth } from 'firebase-admin/auth';
+import { isDev } from '../config.js';
 
 export interface AuthenticatedUser {
   uid: string;
@@ -50,15 +55,14 @@ async function authenticateRequest(
   required: boolean
 ): Promise<void> {
   const authHeader = req.headers.authorization;
-  const isDev = process.env.NODE_ENV !== 'production';
 
   if (!authHeader?.startsWith('Bearer ')) {
-    if (required && !isDev) {
+    if (required && !isDev()) {
       res.status(401).json({ error: 'Missing or invalid Authorization header' });
       return;
     }
     // Dev mode or optional auth — allow through
-    req.user = isDev
+    req.user = isDev()
       ? { uid: 'dev-user', email: 'dev@localhost', isGuest: false }
       : { uid: 'guest', isGuest: true };
     next();
@@ -77,19 +81,27 @@ async function authenticateRequest(
     };
     next();
   } catch (err: any) {
-    // If Firebase Admin isn't initialized (dev mode), allow through as guest
-    if (err.code === 'app/no-app') {
-      console.warn('[Auth] Firebase Admin not initialized — allowing as guest');
+    // Fail closed: in production, Firebase misconfiguration must NOT downgrade
+    // requests to a shared guest/dev identity (cross-tenant isolation breach).
+    // Only non-production environments may degrade to permissive dev mode.
+    const firebaseUnavailable =
+      err.code === 'app/no-app' ||
+      (err.message?.includes('credentials') || err.message?.includes('Could not load the default'));
+
+    if (firebaseUnavailable && isDev()) {
+      console.warn('[Auth] Firebase unavailable — dev mode, allowing as dev-user:', err.message);
       req.user = { uid: 'dev-user', email: 'dev@localhost', isGuest: false };
       next();
       return;
     }
 
-    // If credentials are missing/unavailable, allow through as guest (same as dev)
-    if (err.message?.includes('credentials') || err.message?.includes('Could not load the default')) {
-      console.warn('[Auth] Firebase credentials unavailable — allowing as guest:', err.message);
-      req.user = { uid: 'guest', isGuest: true };
-      next();
+    if (firebaseUnavailable) {
+      console.error('[Auth] Firebase unavailable in production — failing closed:', err.message);
+      if (required) {
+        res.status(503).json({ error: 'Authentication service unavailable. Please try again shortly.' });
+        return;
+      }
+      res.status(503).json({ error: 'Authentication service unavailable. Please try again shortly.' });
       return;
     }
 

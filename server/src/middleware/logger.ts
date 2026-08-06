@@ -5,6 +5,7 @@
  * - Dev: colored ANSI output
  */
 import { Request, Response, NextFunction } from 'express';
+import { isProduction } from '../config.js';
 
 // ANSI escape codes for colors
 const C = {
@@ -18,7 +19,7 @@ const C = {
 } as const;
 
 function color(str: string, code: string): string {
-  return process.env.NODE_ENV === 'production' ? str : `${code}${str}${C.reset}`;
+  return isProduction() ? str : `${code}${str}${C.reset}`;
 }
 
 function formatDuration(ms: number): string {
@@ -28,7 +29,7 @@ function formatDuration(ms: number): string {
 }
 
 function log(level: string, message: string) {
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     console.log(JSON.stringify({ level, message }));
   } else {
     const ts = new Date().toISOString();
@@ -48,8 +49,12 @@ export function requestLogger(
 ): void {
   const start = Date.now();
 
-  // Set request ID if not present
-  const requestId = (req.headers as any)['x-request-id'] || crypto.randomUUID();
+  // Sanitize a client-supplied request id: strip CR/LF so a hostile header
+  // cannot smuggle response-header lines or log lines (header injection).
+  const rawRequestId = (req.headers as any)['x-request-id'];
+  const requestId = (typeof rawRequestId === 'string' && /^[A-Za-z0-9\-_:.]+$/.test(rawRequestId))
+    ? rawRequestId
+    : crypto.randomUUID();
   (req.headers as any)['x-request-id'] = requestId;
   res.setHeader('X-Request-Id', requestId);
 

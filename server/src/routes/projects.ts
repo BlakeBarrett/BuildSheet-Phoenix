@@ -3,10 +3,11 @@
  * Replaces direct client-side Firestore access for project persistence.
  */
 import { Router, type Request, type Response } from 'express';
+import { nanoid } from 'nanoid';
 import { requireAuth } from '../middleware/auth.js';
 import { apiRateLimit } from '../middleware/rateLimit.js';
 import { getFirestore } from 'firebase-admin/firestore';
-import { firebaseInitialized, firebaseErrorMessage } from '../index.js';
+import { firebaseInitialized, firebaseErrorMessage } from '../firebaseState.js';
 
 export const projectsRouter = Router();
 
@@ -165,7 +166,7 @@ projectsRouter.post('/:id/duplicate', async (req: Request, res: Response) => {
     if (!doc.exists) { res.status(404).json({ error: 'Project not found' }); return; }
 
     const data = doc.data()!;
-    const newId = Math.random().toString(36).substr(2, 9);
+    const newId = nanoid(10);
     const now = new Date().toISOString();
     const newProject = {
       ...data,

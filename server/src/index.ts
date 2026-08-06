@@ -14,6 +14,11 @@ import { sharesRouter, sharePageRouter } from './routes/shares.js';
 import aiRouter from './routes/ai.js';
 import { createAiService } from './services/aiServiceFactory.js';
 import { requestLogger } from './middleware/logger.js';
+import { requireAuth } from './middleware/auth.js';
+import { generationRateLimit } from './middleware/rateLimit.js';
+import { isDev } from './config.js';
+import { markFirebaseReady, markFirebaseFailed } from './firebaseState.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -24,7 +29,6 @@ dotenv.config({ path: '../.env' });
 // Cloud Run injects PORT=8080 for nginx (the public port); env.sh overrides it
 // to 8081 before spawning this process so there is never a conflict.
 const PORT = parseInt(process.env.PORT || '8081', 10);
-const isDev = process.env.NODE_ENV !== 'production';
 
 // ---------------------------------------------------------------------------
 // Firebase Admin — initialize with proper credentials handling
@@ -32,11 +36,8 @@ const isDev = process.env.NODE_ENV !== 'production';
 const firebaseProjectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
 const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-let firebaseInitialized = false;
-let firebaseErrorMessage = '';
-
 if (!firebaseProjectId) {
-  firebaseErrorMessage = 'No Firebase project ID configured';
+  markFirebaseFailed('No Firebase project ID configured');
   console.error('[Server] CRITICAL: No Firebase project ID found (check VITE_FIREBASE_PROJECT_ID or .env). Firebase features will fail.');
 } else {
   try {
@@ -54,22 +55,22 @@ if (!firebaseProjectId) {
     initializeApp(appConfig);
     // initializeApp() succeeds even without credentials — getFirestore() is
     // where the "Could not load the default credentials" error actually fires.
-    // Test it now so firebaseInitialized reflects real availability.
-    try { getFirestore(); } catch (err: any) {
-      firebaseInitialized = false;
-      firebaseErrorMessage = err.message || 'Failed to connect to Firestore (missing credentials).';
+    // Test it now so the availability flag reflects real connectivity.
+    try {
+      getFirestore();
+      markFirebaseReady();
+      console.log(`[Server] Firebase Admin initialized (project: ${firebaseProjectId})`);
+    } catch (err: any) {
+      markFirebaseFailed(err.message || 'Failed to connect to Firestore (missing credentials).');
       console.error('[Server] Firebase Admin: getFirestore() failed after initializeApp() —', err.message);
     }
-    if (firebaseInitialized) {
-      console.log(`[Server] Firebase Admin initialized (project: ${firebaseProjectId})`);
-    }
   } catch (err: any) {
-    firebaseErrorMessage = err.message || 'Firebase Admin initialization failed';
+    markFirebaseFailed(err.message || 'Firebase Admin initialization failed');
     console.error('[Server] Firebase Admin initialization failed:', err.message);
   }
 }
 
-export { firebaseInitialized, firebaseErrorMessage };
+export { firebaseInitialized, firebaseErrorMessage } from './firebaseState.js';
 
 // ---------------------------------------------------------------------------
 // AI Service — create once, share across routes
@@ -82,6 +83,10 @@ console.log(`[Server] AI Service: ${aiService.name} (offline=${aiService.isOffli
 // ---------------------------------------------------------------------------
 const app = express();
 
+// Trust the first reverse proxy (nginx) so req.ip / rate-limit keys reflect the
+// real client address (via X-Forwarded-For) instead of 127.0.0.1 for everyone.
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   // Allow the SPA to load assets; adjust as needed
@@ -92,7 +97,7 @@ app.use(helmet({
 // Request logger — first to catch all requests and add request ID
 app.use(requestLogger);
 app.use(cors({
-  origin: isDev ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : false,
+  origin: isDev() ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : false,
   credentials: true,
 }));
 
@@ -129,19 +134,15 @@ app.use('/api/v1/sourcing', sourcingRouter);
 app.use('/api/v1/generate', generationRouter);
 app.use('/api/v1/projects', projectsRouter);
 app.use('/api/v1/shares', sharesRouter);
-app.use('/api/v1/ai', aiRouter);
+
+// AI proxy — requires authentication and is rate-limited so the server-side
+// AI_KEY cannot be used as an anonymous paid-API relay (cost-exhaustion vector).
+app.use('/api/v1/ai', requireAuth, generationRateLimit, aiRouter);
 
 // ---------------------------------------------------------------------------
 // Error Handler
 // ---------------------------------------------------------------------------
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[Server] Unhandled error:', err);
-  const status = err.status || err.statusCode || 500;
-  res.status(status).json({
-    error: isDev ? err.message : 'Internal server error',
-    ...(isDev && { stack: err.stack }),
-  });
-});
+app.use(errorHandler);
 
 // ---------------------------------------------------------------------------
 // Start

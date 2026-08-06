@@ -7,6 +7,7 @@
  * The core logic is identical to the client-side procurementEngine.ts.
  */
 import type { ServerAIService, ShoppingOption } from './types.js';
+import { isObviouslyUnsafeUrl, isUrlSafeForFetch } from './ssrfGuard.js';
 
 // Re-export the procurement types
 export interface ProcurementResult {
@@ -122,13 +123,18 @@ export class VerifiedProcurementEngine {
       const data: any = await resp.json();
       return (data.results || []).slice(0, this.config.max_discovery_results).map((r: any) => ({
         url: r.url, title: r.title || '', source: r.engine || 'searxng', thumbnail: r.img_src || undefined,
-      }));
+      })).filter((r: any) => !isObviouslyUnsafeUrl(r.url));
     } catch { return []; }
   }
 
   private async stageExtraction(discovered: DiscoveryResult[]): Promise<ExtractedPageData[]> {
     const results: ExtractedPageData[] = [];
-    const settled = await Promise.allSettled(discovered.map(async d => {
+    // SSRF guard: never forward a discovery URL that resolves to a private,
+    // loopback, link-local, or metadata address to the Firecrawl fetcher.
+    const safe = (
+      await Promise.all(discovered.map(async d => ({ d, ok: await isUrlSafeForFetch(d.url) })))
+    ).filter(x => x.ok).map(x => x.d);
+    const settled = await Promise.allSettled(safe.map(async d => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (this.config.firecrawl_api_key) headers['Authorization'] = `Bearer ${this.config.firecrawl_api_key}`;
       const resp = await fetch(new URL('/v1/scrape', this.config.firecrawl_base_url).toString(), {

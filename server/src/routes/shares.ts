@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { apiRateLimit } from '../middleware/rateLimit.js';
 import { getFirestore } from 'firebase-admin/firestore';
+import { isDev } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Slug validation
@@ -19,10 +20,26 @@ function getSharesCollection() {
   return getFirestore().collection('shares');
 }
 
+/** Strict slug charset — used both at create-time and defensively at render. */
+export const SLUG_PATTERN = /^[a-z0-9-]{1,64}$/;
+
+/** Accepts only real http/https URLs (blocks data:, javascript:, and control chars). */
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    // Reject control characters / spaces which are never valid in a URL we render
+    if (/[\u0000-\u001f\u007f\s]/.test(value)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Local Memory Fallback (for local development without credentials)
 // ---------------------------------------------------------------------------
-const isLocal = process.env.NODE_ENV !== 'production';
+const isLocal = isDev();
 const localSharesStore = new Map<string, any>();
 
 async function getShareDocLocallyOrRemote(slugOrId: string) {
@@ -78,13 +95,21 @@ async function saveShareLocallyOrRemote(shareId: string, shareDoc: any) {
 // Share page HTML template
 // ---------------------------------------------------------------------------
 
-function renderSharePage(share: any, host: string): string {
+export function renderSharePage(share: any, host: string): string {
   const shareUrl = `https://${host}/share/${share.slug}`;
   const remixUrl = `/app/?remix=${encodeURIComponent(share.slug)}`;
   const escapedName = escapeHtml(share.name || 'Untitled Build');
   const escapedDesc = escapeHtml(share.description || '');
   const escapedAssemblyUrl = share.assemblyUrl ? escapeHtml(share.assemblyUrl) : '';
-  const cssSafeAssemblyUrl = share.assemblyUrl ? share.assemblyUrl.replace(/'/g, "\\'") : '';
+  // Only use a real http(s) URL for the CSS flourish — never emit attacker
+  // input into a <style> block unless it passes strict validation AND is
+  // CSS-string-escaped (prevents </style><script> breakout).
+  const cssSafeAssemblyUrl = isValidHttpUrl(String(share.assemblyUrl || ''))
+    ? escapeCssString(String(share.assemblyUrl))
+    : '';
+  const escapedShareUrl = escapeHtml(shareUrl);
+  // JS string + HTML attribute escaping for the inline onclick handler.
+  const jsSafeShareUrl = escapeJsString(shareUrl);
 
   // BOM table rows
   const bomRows = (share.bom || [])
@@ -107,7 +132,7 @@ function renderSharePage(share: any, host: string): string {
   <meta property="og:type" content="website">
   <meta property="og:title" content="${escapedName}">
   <meta property="og:description" content="${escapedDesc || 'A hardware assembly shared on BuildSheet.'}">
-  <meta property="og:url" content="${shareUrl}">
+  <meta property="og:url" content="${escapedShareUrl}">
   ${escapedAssemblyUrl ? `<meta property="og:image" content="${escapedAssemblyUrl}">` : ''}
   <meta property="og:site_name" content="BuildSheet">
 
@@ -378,7 +403,7 @@ function renderSharePage(share: any, host: string): string {
 
       <div class="actions">
         <a href="${remixUrl}" class="btn-remix">⚡ Remix This Build</a>
-        <button class="btn-copy" onclick="navigator.clipboard.writeText('${shareUrl}');this.textContent='✓ Copied!'">📋 Copy Link</button>
+        <button class="btn-copy" onclick="navigator.clipboard.writeText('${jsSafeShareUrl}');this.textContent='✓ Copied!'">📋 Copy Link</button>
       </div>
     </div>
 
@@ -431,6 +456,39 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * Escape a string for use inside a CSS single-quoted string that lives inside a
+ * <style> block. CSS hex-escapes `<`/`>` so a crafted URL cannot terminate the
+ * <style> element, and backslash-escapes quotes so the string cannot be broken.
+ */
+export function escapeCssString(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/</g, '\\3C ')
+    .replace(/>/g, '\\3E ')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, ' ');
+}
+
+/**
+ * Escape a string for embedding inside a double-quoted HTML attribute that is
+ * parsed as JavaScript (inline onclick). Handles JS string escaping, HTML
+ * attribute escaping, and `</script>`/newline termination.
+ */
+export function escapeJsString(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function formatDate(iso: string): string {
@@ -577,8 +635,10 @@ sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Res
 
     // Determine slug: use the requested one if it's available, otherwise generate a short one.
     const normalized = requestedSlug ? String(requestedSlug).toLowerCase().trim() : '';
-    const isTaken = normalized ? await isSlugTakenLocallyOrRemote(normalized) : true;
-    const slug = (!isTaken && normalized) ? normalized : nanoid(10);
+    // Enforce a strict slug charset — prevents XSS/JS-breakout in share URLs.
+    const slugIsValid = normalized ? SLUG_PATTERN.test(normalized) : false;
+    const isTaken = slugIsValid ? await isSlugTakenLocallyOrRemote(normalized) : true;
+    const slug = (!isTaken && slugIsValid) ? normalized : nanoid(10);
 
     // Strip BOM to minimal data (name, category, quantity only)
     const minimalBom = bom.map((entry: any) => ({
@@ -590,9 +650,10 @@ sharesRouter.post('/', optionalAuth, apiRateLimit, async (req: Request, res: Res
     const shareId = nanoid(10);
     const now = new Date().toISOString();
 
-    // Reject data URLs — only real http/https URLs are accepted
-    if (assemblyUrl && String(assemblyUrl).startsWith('data:')) {
-      res.status(400).json({ error: 'assemblyUrl must be an http/https URL, not a data URL.' });
+    // Reject anything that isn't a real http/https URL — prevents data:,
+    // javascript:, and other schemes from reaching the share page / CSS.
+    if (assemblyUrl && !isValidHttpUrl(String(assemblyUrl))) {
+      res.status(400).json({ error: 'assemblyUrl must be a valid http/https URL.' });
       return;
     }
 

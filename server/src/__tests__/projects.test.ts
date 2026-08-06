@@ -52,8 +52,8 @@ vi.mock('firebase-admin/firestore', () => ({
   }),
 }));
 
-// Mock Firebase exports that projects.ts imports from index.ts (breaks circular dep)
-vi.mock('../index.js', () => ({
+// Mock Firebase availability state that projects.ts imports (breaks circular dep)
+vi.mock('../firebaseState.js', () => ({
   firebaseInitialized: true,
   firebaseErrorMessage: '',
 }));

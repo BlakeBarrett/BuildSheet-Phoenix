@@ -4,6 +4,13 @@
  * These are pure logic tests that don't require Firestore.
  */
 import { describe, it, expect } from 'vitest';
+import {
+  renderSharePage,
+  escapeCssString,
+  escapeJsString,
+  isValidHttpUrl,
+  SLUG_PATTERN,
+} from '../routes/shares.js';
 
 // ---------------------------------------------------------------------------
 // Slug selection logic (mirrors shares.ts)
@@ -115,6 +122,131 @@ describe('Share HTML Helpers', () => {
     it('handles invalid URLs gracefully', () => {
       const result = truncateUrl('not a url');
       expect(result).toBe('not a url');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// XSS / input-validation tests (S3 hardening)
+// ---------------------------------------------------------------------------
+
+describe('Share XSS hardening', () => {
+  describe('escapeCssString', () => {
+    it('hex-escapes </style> breakout characters', () => {
+      const result = escapeCssString('x</style><script>alert(1)</script>');
+      expect(result).not.toContain('</style>');
+      expect(result).not.toContain('<script>');
+      expect(result).toContain('\\3C ');
+      expect(result).toContain('\\3E ');
+    });
+
+    it('backslash-escapes quotes and backslashes', () => {
+      expect(escapeCssString("a'b\\c")).toBe("a\\'b\\\\c");
+    });
+
+    it('strips newlines', () => {
+      expect(escapeCssString("a\nb\r")).toBe('a b ');
+    });
+  });
+
+  describe('escapeJsString', () => {
+    it('prevents single-quote breakout in an onclick string', () => {
+      const result = escapeJsString("foo');alert(1);//");
+      // The single quote must be backslash-escaped so it cannot terminate the JS string.
+      expect(result).toContain("\\'");
+      expect(result).not.toContain("foo';");
+    });
+
+    it('escapes script-close and newlines', () => {
+      const result = escapeJsString('</script>\n');
+      expect(result).not.toContain('</script>');
+      expect(result).toContain('\\n');
+    });
+
+    it('escapes HTML attribute terminators', () => {
+      expect(escapeJsString('a"b&c')).toBe('a&quot;b&amp;c');
+    });
+  });
+
+  describe('renderSharePage output safety', () => {
+    const baseShare = {
+      name: 'Test Build',
+      description: 'Desc',
+      slug: 'safe-slug',
+      assemblyUrl: 'https://example.com/img.png',
+      bom: [],
+    };
+
+    it('never emits a raw <script> from a hostile assemblyUrl', () => {
+      const hostile = {
+        ...baseShare,
+        assemblyUrl: "https://evil.com/x</style><script>alert(1)</script>",
+      };
+      const html = renderSharePage(hostile, 'buildsheet.cloud');
+      expect(html).not.toContain('<script>alert(1)</script>');
+      expect(html).not.toContain('</style><script>');
+    });
+
+    it('escapes a hostile slug inside the copy-link onclick', () => {
+      const hostile = { ...baseShare, slug: "x');alert(1);//" };
+      const html = renderSharePage(hostile, 'buildsheet.cloud');
+      // The escaped slug must not be able to break out of the JS string.
+      expect(html).not.toContain("x';");
+      // The onclick should still contain a valid JS string assignment.
+      expect(html).toContain("navigator.clipboard.writeText(");
+    });
+
+    it('escapes a hostile Host header reflected into the page', () => {
+      const hostileHost = 'evil.com"><script>alert(1)</script>';
+      const html = renderSharePage(baseShare, hostileHost);
+      expect(html).not.toContain('<script>alert(1)</script>');
+    });
+
+    it('omits the CSS flourish for non-http(s) or malformed assemblyUrl', () => {
+      const dataUrl = { ...baseShare, assemblyUrl: 'data:text/html,<script>alert(1)</script>' };
+      expect(renderSharePage(dataUrl, 'host').includes('background-image')).toBe(false);
+
+      const javascriptUrl = { ...baseShare, assemblyUrl: 'javascript:alert(1)' };
+      expect(renderSharePage(javascriptUrl, 'host').includes('background-image')).toBe(false);
+
+      const nullUrl = { ...baseShare, assemblyUrl: null };
+      expect(renderSharePage(nullUrl, 'host').includes('background-image')).toBe(false);
+    });
+  });
+
+  describe('isValidHttpUrl', () => {
+    it('accepts http/https URLs', () => {
+      expect(isValidHttpUrl('https://example.com/img.png')).toBe(true);
+      expect(isValidHttpUrl('http://example.com')).toBe(true);
+    });
+
+    it('rejects non-http schemes', () => {
+      expect(isValidHttpUrl('javascript:alert(1)')).toBe(false);
+      expect(isValidHttpUrl('data:text/html,<script>')).toBe(false);
+      expect(isValidHttpUrl('file:///etc/passwd')).toBe(false);
+    });
+
+    it('rejects control characters and whitespace', () => {
+      expect(isValidHttpUrl('https://example.com/\u0000x')).toBe(false);
+      expect(isValidHttpUrl('https://exa mple.com')).toBe(false);
+    });
+
+    it('rejects malformed URLs', () => {
+      expect(isValidHttpUrl('not a url')).toBe(false);
+    });
+  });
+
+  describe('SLUG_PATTERN', () => {
+    it('accepts safe slugs', () => {
+      expect(SLUG_PATTERN.test('my-cool-build-2')).toBe(true);
+    });
+
+    it('rejects slugs that could break out of attributes/JS', () => {
+      expect(SLUG_PATTERN.test("x');alert(1);//")).toBe(false);
+      expect(SLUG_PATTERN.test('has spaces')).toBe(false);
+      expect(SLUG_PATTERN.test('UPPER')).toBe(false);
+      expect(SLUG_PATTERN.test('slash/slug')).toBe(false);
+      expect(SLUG_PATTERN.test('<script>')).toBe(false);
     });
   });
 });
