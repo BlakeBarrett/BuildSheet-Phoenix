@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
@@ -19,8 +20,7 @@
     "express-rate-limit": "^7.5.0",
     "firebase-admin": "^13.4.0",
     "helmet": "^8.1.0",
-    "nanoid": "^5.1.11",
-    "pino-http": "^11.0.0"
+    "nanoid": "^5.1.11"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
