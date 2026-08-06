@@ -3,6 +3,7 @@ import { AIService, ArchitectResponse, AskArchitectResult, ComponentIdentificati
 import { parseArchitectResponse } from "./parseUtils.ts";
 import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, PortType, Gender } from "../types.ts";
 import { AIManager } from "./aiManager.ts";
+import { authHeaders } from "./apiClient.ts";
 import { getAiTemperature } from "./localAiService.ts";
 import { MODEL_FAST, MODEL_SMART, MODEL_STRUCTURED, MODEL_IMAGE, MODEL_AUDIO, getCloudAiDisplayName, getAiProvider, getAiBaseUrl, getAiImageBaseUrl } from "./aiConfig.ts";
 
@@ -163,9 +164,10 @@ export class CloudAIService implements AIService {
             max_tokens: options.maxTokens ?? 4096,
         };
 
+        const headers = await authHeaders();
         const resp = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(body),
         });
         if (!resp.ok) {

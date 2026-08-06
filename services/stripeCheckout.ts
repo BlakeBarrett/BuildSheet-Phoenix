@@ -8,9 +8,13 @@ import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 
 /**
  * Launch promotion — auto-applied to all checkout sessions.
- * Free Pro / Enterprise until 30 Jun 2026.  Expires 1 Jul 2026.
+ *
+ * Configured via VITE_STRIPE_PROMO_CODE (a Stripe PromotionCode ID, e.g.
+ * "promo_..."). Left empty by default so checkout never fails on an expired
+ * or invalid code. The previous hardcoded code (promo_1THXv5... / "LAUNCH100")
+ * expired 1 Jul 2026 and was removed.
  */
-const LAUNCH_PROMO_CODE = 'promo_1THXv5DWtg9s0tYcn8ElRlE6';
+const LAUNCH_PROMO_CODE = (import.meta.env?.VITE_STRIPE_PROMO_CODE as string | undefined) || '';
 
 let payments: StripePayments | null = null;
 
@@ -51,15 +55,16 @@ export async function redirectToCheckout(priceId: string): Promise<void> {
   if (!db) throw new Error('Firestore is not configured.');
 
   const sessionsRef = collection(db, 'customers', user.id, 'checkout_sessions');
-  const docRef = await addDoc(sessionsRef, {
+  const payload: Record<string, unknown> = {
     price: priceId,
     success_url: window.location.href,
     cancel_url: window.location.href,
     automatic_tax: true,
     tax_id_collection: true,
     customer_creation: 'if_required',
-    promotion_code: LAUNCH_PROMO_CODE,
-  });
+  };
+  if (LAUNCH_PROMO_CODE) payload.promotion_code = LAUNCH_PROMO_CODE;
+  const docRef = await addDoc(sessionsRef, payload);
 
   // Listen for the extension to write back either a URL or an error.
   return new Promise<void>((resolve, reject) => {
@@ -73,18 +78,20 @@ export async function redirectToCheckout(priceId: string): Promise<void> {
       if (!data) return;
 
       // Extension writes error.message on failure
-      if (data.error?.message) {
+      const error = data.error as { message?: string } | undefined;
+      if (error?.message) {
         clearTimeout(timeout);
         unsub();
-        reject(new Error(`Stripe error: ${data.error.message}`));
+        reject(new Error(`Stripe error: ${error.message}`));
         return;
       }
 
       // Extension writes sessionId + url on success
-      if (data.url) {
+      const url = data.url as string | undefined;
+      if (url) {
         clearTimeout(timeout);
         unsub();
-        window.location.assign(data.url);
+        window.location.assign(url);
         resolve();
       }
     }, (err) => {

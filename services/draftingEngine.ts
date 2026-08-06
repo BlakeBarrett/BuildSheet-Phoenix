@@ -199,34 +199,66 @@ export class DraftingEngine {
 
   // --- Server-side persistence helpers ---
 
-  private async saveSessionToServer(session: DraftingSession) {
+  /** FIFO chain of server saves; guarantees ordering so a stale snapshot can
+   *  never overwrite a newer one (the out-of-order save race). */
+  private serverSaveChain: Promise<void> = Promise.resolve();
+  /** id -> newest snapshot queued; used to coalesce bursts of edits. */
+  private pendingServerSaves = new Map<string, any>();
+
+  private serializeForServer(session: DraftingSession): any {
+    return {
+      id: session.id,
+      name: session.name,
+      createdAt: session.createdAt.toISOString(),
+      lastModified: session.lastModified.toISOString(),
+      generatedImages: [], // large blobs stay in IDB
+      thumbnail: session.thumbnail || '',
+      cachedAssemblyPlan: session.cachedAssemblyPlan
+        ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
+        : undefined,
+      messages: session.messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
+      bom: session.bom.map(b => ({
+        ...b,
+        sourcing: b.sourcing
+          ? { ...b.sourcing, lastUpdated: b.sourcing.lastUpdated?.toISOString() }
+          : undefined,
+      })),
+    };
+  }
+
+  private async performServerSave(snapshot: any): Promise<void> {
+    try {
+      await projectsApi.save(snapshot.id, snapshot);
+      console.log(`[Sync] ✓ Saved "${snapshot.name}" (${snapshot.id}) via API – ${(snapshot.bom || []).length} parts`);
+    } catch (e: any) {
+      console.error(`[Sync] ✗ Server save FAILED for "${snapshot.name}" (${snapshot.id}):`, e?.message || e);
+    }
+  }
+
+  private saveSessionToServer(session: DraftingSession): Promise<void> {
     if (!UserService.isAuthenticated()) {
       console.debug(`[Sync] Server save skipped for "${session.name}" – user not authenticated`);
-      return;
+      return Promise.resolve();
     }
-    try {
-      const plain = {
-        ...session,
-        createdAt: session.createdAt.toISOString(),
-        lastModified: session.lastModified.toISOString(),
-        generatedImages: [], // large blobs stay in IDB
-        thumbnail: session.thumbnail || '',
-        cachedAssemblyPlan: session.cachedAssemblyPlan
-          ? { ...session.cachedAssemblyPlan, generatedAt: session.cachedAssemblyPlan.generatedAt.toISOString() }
-          : undefined,
-        messages: session.messages.map(m => ({ ...m, timestamp: m.timestamp.toISOString() })),
-        bom: session.bom.map(b => ({
-          ...b,
-          sourcing: b.sourcing
-            ? { ...b.sourcing, lastUpdated: b.sourcing.lastUpdated?.toISOString() }
-            : undefined,
-        })),
-      };
-      await projectsApi.save(session.id, plain);
-      console.log(`[Sync] ✓ Saved "${session.name}" (${session.id}) via API – ${session.bom.length} parts`);
-    } catch (e: any) {
-      console.error(`[Sync] ✗ Server save FAILED for "${session.name}" (${session.id}):`, e?.message || e);
+    const snapshot = this.serializeForServer(session);
+    const id = snapshot.id;
+
+    // Coalesce: if a save for this session is already queued, replace its
+    // snapshot with the newest one instead of enqueuing another round-trip.
+    if (this.pendingServerSaves.has(id)) {
+      this.pendingServerSaves.set(id, snapshot);
+      return this.serverSaveChain;
     }
+
+    this.pendingServerSaves.set(id, snapshot);
+    const task = this.serverSaveChain.then(async () => {
+      const latest = this.pendingServerSaves.get(id);
+      this.pendingServerSaves.delete(id);
+      if (latest) await this.performServerSave(latest);
+    });
+    // Keep the chain healthy even when an individual save fails.
+    this.serverSaveChain = task.catch(() => {});
+    return task;
   }
 
   /**

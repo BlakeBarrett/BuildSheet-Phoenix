@@ -13,6 +13,9 @@ import { getFirebaseAuth } from './firebase.ts';
 /** Base URL for the API server. In dev, Vite proxies /api to localhost:8081. */
 const API_BASE = '/api/v1';
 
+/** Upper bound for SSE streaming requests (ms). */
+const STREAM_TIMEOUT_MS = 120_000;
+
 // ---------------------------------------------------------------------------
 // Token Management
 // ---------------------------------------------------------------------------
@@ -34,6 +37,30 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+export { getIdToken, authHeaders };
+
+// ---------------------------------------------------------------------------
+// Shared error handling
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolves the error message and throws/rejects consistently across all verbs.
+ * - 503 with syncUnavailable: server's Firebase is broken — user-friendly error
+ * - 500 mentioning 'credentials'/'Firestore': getFirestore() without creds
+ */
+async function handleApiErrors(resp: Response): Promise<never> {
+  const err = await resp.json().catch(() => ({ error: resp.statusText }));
+  const msg = err.error || `API error ${resp.status}`;
+  const errText = err.error || '';
+  if (resp.status === 503 && err.syncUnavailable) {
+    return Promise.reject(new Error(msg));
+  }
+  if (resp.status === 500 && (errText.includes('credentials') || errText.includes('Firestore'))) {
+    return Promise.reject(new Error(msg));
+  }
+  throw new Error(msg);
+}
+
 // ---------------------------------------------------------------------------
 // Generic HTTP helpers
 // ---------------------------------------------------------------------------
@@ -44,23 +71,7 @@ async function post<T = any>(path: string, body: any): Promise<T> {
     headers: await authHeaders(),
     body: JSON.stringify(body),
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    const msg = err.error || `API error ${resp.status}`;
-    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
-    if (resp.status === 503 && err.syncUnavailable) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'credentials' in message: server tried getFirestore() without creds
-    if (resp.status === 500 && (err.error || '').includes('credentials')) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'Firestore' in message: same as above (catch partial error text)
-    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
-      return Promise.reject(new Error(msg));
-    }
-    throw new Error(msg);
-  }
+  if (!resp.ok) await handleApiErrors(resp);
   return resp.json();
 }
 
@@ -69,23 +80,7 @@ async function get<T = any>(path: string): Promise<T> {
     method: 'GET',
     headers: await authHeaders(),
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    const msg = err.error || `API error ${resp.status}`;
-    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
-    if (resp.status === 503 && err.syncUnavailable) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'credentials' in message: server tried getFirestore() without creds
-    if (resp.status === 500 && (err.error || '').includes('credentials')) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'Firestore' in message: same as above (catch partial error text)
-    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
-      return Promise.reject(new Error(msg));
-    }
-    throw new Error(msg);
-  }
+  if (!resp.ok) await handleApiErrors(resp);
   return resp.json();
 }
 
@@ -95,23 +90,7 @@ async function put<T = any>(path: string, body: any): Promise<T> {
     headers: await authHeaders(),
     body: JSON.stringify(body),
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    const msg = err.error || `API error ${resp.status}`;
-    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
-    if (resp.status === 503 && err.syncUnavailable) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'credentials' in message: server tried getFirestore() without creds
-    if (resp.status === 500 && (err.error || '').includes('credentials')) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'Firestore' in message: same as above (catch partial error text)
-    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
-      return Promise.reject(new Error(msg));
-    }
-    throw new Error(msg);
-  }
+  if (!resp.ok) await handleApiErrors(resp);
   return resp.json();
 }
 
@@ -120,23 +99,7 @@ async function del<T = any>(path: string): Promise<T> {
     method: 'DELETE',
     headers: await authHeaders(),
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    const msg = err.error || `API error ${resp.status}`;
-    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
-    if (resp.status === 503 && err.syncUnavailable) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'credentials' in message: server tried getFirestore() without creds
-    if (resp.status === 500 && (err.error || '').includes('credentials')) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'Firestore' in message: same as above (catch partial error text)
-    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
-      return Promise.reject(new Error(msg));
-    }
-    throw new Error(msg);
-  }
+  if (!resp.ok) await handleApiErrors(resp);
   return resp.json();
 }
 
@@ -146,23 +109,7 @@ async function patch<T = any>(path: string, body: any): Promise<T> {
     headers: await authHeaders(),
     body: JSON.stringify(body),
   });
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    const msg = err.error || `API error ${resp.status}`;
-    // 503 with syncUnavailable: server's Firebase is broken — produce a user-friendly error
-    if (resp.status === 503 && err.syncUnavailable) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'credentials' in message: server tried getFirestore() without creds
-    if (resp.status === 500 && (err.error || '').includes('credentials')) {
-      return Promise.reject(new Error(msg));
-    }
-    // 500 with 'Firestore' in message: same as above (catch partial error text)
-    if (resp.status === 500 && (err.error || '').includes('Firestore')) {
-      return Promise.reject(new Error(msg));
-    }
-    throw new Error(msg);
-  }
+  if (!resp.ok) await handleApiErrors(resp);
   return resp.json();
 }
 
@@ -179,43 +126,66 @@ export interface SSECallbacks {
 /**
  * Opens an SSE connection to the architect chat endpoint.
  * Streams partial text chunks and a final result event.
+ *
+ * Guarantees the caller's callbacks settle: if the stream ends without a
+ * `done` event (server crash mid-stream) or times out, onError is invoked.
  */
 async function streamPost(path: string, body: any, callbacks: SSECallbacks): Promise<void> {
-  const resp = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: await authHeaders(),
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
 
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    callbacks.onError(err.error || `API error ${resp.status}`);
-    return;
-  }
+  try {
+    const resp = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
 
-  const reader = resp.body?.getReader();
-  if (!reader) { callbacks.onError('No response body'); return; }
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const event = JSON.parse(line.substring(6));
-        if (event.type === 'chunk') callbacks.onChunk(event.data);
-        else if (event.type === 'done') callbacks.onDone(event.data);
-        else if (event.type === 'error') callbacks.onError(event.data);
-      } catch { /* skip malformed events */ }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      callbacks.onError(err.error || `API error ${resp.status}`);
+      return;
     }
+
+    const reader = resp.body?.getReader();
+    if (!reader) { callbacks.onError('No response body'); return; }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let receivedDone = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.substring(6));
+          if (event.type === 'chunk') callbacks.onChunk(event.data);
+          else if (event.type === 'done') { receivedDone = true; callbacks.onDone(event.data); }
+          else if (event.type === 'error') callbacks.onError(event.data);
+        } catch { /* skip malformed events */ }
+      }
+    }
+
+    // Stream closed without a terminal event — surface it instead of hanging.
+    if (!receivedDone) {
+      callbacks.onError('Stream ended unexpectedly — please try again.');
+    }
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      callbacks.onError('Request timed out — please try again.');
+    } else {
+      callbacks.onError(err?.message || 'Network error during streaming.');
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

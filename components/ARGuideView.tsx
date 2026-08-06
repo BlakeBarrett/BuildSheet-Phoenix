@@ -15,23 +15,28 @@ export const ARGuideView: React.FC<ARGuideViewProps> = ({ plan, aiService, onClo
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [guidance, setGuidance] = useState("Initializing AR Engine...");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     async function startCamera() {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        setStream(s);
+        streamRef.current = s;
         if (videoRef.current) videoRef.current.srcObject = s;
       } catch (err) {
         setGuidance("Camera access denied.");
       }
     }
     startCamera();
-    return () => stream?.getTracks().forEach(t => t.stop());
+    return () => {
+      // Stop every camera track on unmount (streamRef avoids the stale-closure
+      // bug where the cleanup captured the first-render null stream).
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    };
   }, []);
 
   const captureFrame = async () => {

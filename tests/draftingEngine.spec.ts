@@ -962,7 +962,7 @@ test.describe('DraftingEngine Image Load Race Condition', () => {
             // Project A: has images
             const tx1 = db.transaction(STORE_NAME, 'readwrite');
             tx1.objectStore(STORE_NAME).put(projectAImages, 'buildsheet_project_' + projectA + '_images');
-            await new Promise((resolve, reject) => {
+            await new Promise<void>((resolve, reject) => {
                 tx1.oncomplete = () => resolve();
                 tx1.onerror = () => reject(tx1.error);
             });
