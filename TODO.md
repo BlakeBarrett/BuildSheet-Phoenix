@@ -124,6 +124,9 @@ try {
 
 ## REMAINING ITEMS
 
+_All bugs from this inventory are resolved. BUG-7 and BUG-8 were already fixed
+in the working tree; their entries below are kept for the record._
+
 ### BUG-7: Server startup_local.sh — `CRED_PATH_VALID=false` assignment missing `=` sign
 
 **File:** `startup_local.sh`
@@ -156,8 +159,8 @@ try {
 | BUG-4 | `services/apiClient.ts` | MEDIUM | ✅ RESOLVED |
 | BUG-5 | `App.tsx` | LOW | ✅ RESOLVED |
 | BUG-6 | `services/firebase.ts` | LOW | ✅ RESOLVED |
-| BUG-7 | `startup_local.sh` | LOW | ⏳ Pending |
-| BUG-8 | `services/draftingEngine.ts` | LOW | ⏳ Pending |
+| BUG-7 | `startup_local.sh` | LOW | ✅ RESOLVED |
+| BUG-8 | `services/draftingEngine.ts` | LOW | ✅ RESOLVED |
 | BUG-9 | `App.tsx` (verify catch) | MEDIUM | ✅ RESOLVED |
 
 ---
