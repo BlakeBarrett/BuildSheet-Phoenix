@@ -303,23 +303,26 @@ test.describe('Stripe Integration & Tier Gating', () => {
 
 test.describe('LAUNCH100 Promo Code', () => {
 
-    test('stripeCheckout.ts contains the correct Stripe promo object ID', () => {
+    test('stripeCheckout.ts promo code is env-configurable with no hardcoded ID', () => {
         const src = fs.readFileSync(
             path.join(__dirname, '../services/stripeCheckout.ts'),
             'utf-8'
         );
-        expect(src).toContain('promo_1THXv5DWtg9s0tYcn8ElRlE6');
+        // The promo code comes from VITE_STRIPE_PROMO_CODE — never a hardcoded
+        // ID (the LAUNCH100 promo_1THXv5... code expired 1 Jul 2026).
+        expect(src).toContain('VITE_STRIPE_PROMO_CODE');
         expect(src).toContain('LAUNCH_PROMO_CODE');
+        expect(src).not.toContain('promo_1THXv5DWtg9s0tYcn8ElRlE6');
     });
 
-    test('stripeCheckout.ts passes promotion_code in every checkout session', () => {
+    test('stripeCheckout.ts attaches promotion_code to the payload when configured', () => {
         const src = fs.readFileSync(
             path.join(__dirname, '../services/stripeCheckout.ts'),
             'utf-8'
         );
-        // The promo must be passed as a field in the Firestore document,
-        // not just defined as a constant.
-        expect(src).toContain('promotion_code: LAUNCH_PROMO_CODE');
+        // The promo must be attached to the checkout document, not just
+        // defined as a constant.
+        expect(src).toContain('payload.promotion_code = LAUNCH_PROMO_CODE');
     });
 
     test('marketing site index.html includes the promo banner with LAUNCH100 code', () => {

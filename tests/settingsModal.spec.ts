@@ -7,6 +7,16 @@ test.describe('Settings Modal — Debranding Verification', () => {
             localStorage.setItem('buildsheet_consent', 'full');
         });
 
+        // On localhost the tier auto-upgrades to enterprise, which makes the
+        // modal scan for local models. Mock the endpoints so the scan resolves
+        // and the model <select> (with the "Default (Cloud API)" option) renders.
+        await page.route('http://192.168.1.41:1234/v1/models', async route => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":[]}' });
+        });
+        await page.route('http://192.168.1.41:11434/api/tags', async route => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: '{"models":[]}' });
+        });
+
         await page.goto('/app/');
         await page.waitForTimeout(1000);
 
