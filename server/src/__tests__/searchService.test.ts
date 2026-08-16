@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SearchService } from '../services/searchService.js';
+import { SearchService, resetSearchCache } from '../services/searchService.js';
 import type { ServerAIService, ShoppingOption, LocalSupplier } from '../services/types.js';
 
 // Mock the AI service
@@ -44,6 +44,7 @@ describe('SearchService', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    resetSearchCache();
     mockAI = new MockAI();
     searchService = new SearchService(mockAI);
   });
@@ -125,6 +126,61 @@ describe('SearchService', () => {
       expect(mockAI.findPartSources).toHaveBeenCalledWith(
         'part', 'Embedded system', 'en-US', ['mouser.com', 'digikey.com']
       );
+    });
+
+    it('should serve a repeated query from cache without hitting the AI again', async () => {
+      mockAI.findPartSources.mockResolvedValue([{
+        title: 'Cached Source', url: 'https://example.com',
+        source: 'Test', price: '$1.00',
+      } as ShoppingOption]);
+      mockAI.findLocalSuppliers.mockResolvedValue([]);
+
+      const first = searchService.findSources('unique cached part', undefined, 'en-US');
+      await vi.runAllTimersAsync();
+      const firstResult = await first;
+      expect(mockAI.findPartSources).toHaveBeenCalledTimes(1);
+
+      mockAI.findPartSources.mockClear();
+      const second = searchService.findSources('unique cached part', undefined, 'en-US');
+      await vi.runAllTimersAsync();
+      const secondResult = await second;
+
+      expect(mockAI.findPartSources).not.toHaveBeenCalled();
+      expect(secondResult.options).toHaveLength(1);
+      expect(secondResult.options[0]).toEqual(firstResult.options[0]);
+    });
+
+    it('should cache by locale (different locale misses the cache)', async () => {
+      mockAI.findPartSources.mockResolvedValue([]);
+      mockAI.findLocalSuppliers.mockResolvedValue([]);
+
+      const first = searchService.findSources('cache locale part', undefined, 'en-US');
+      await vi.runAllTimersAsync();
+      await first;
+      mockAI.findPartSources.mockClear();
+
+      const second = searchService.findSources('cache locale part', undefined, 'es-ES');
+      await vi.runAllTimersAsync();
+      await second;
+
+      expect(mockAI.findPartSources).toHaveBeenCalledTimes(1);
+    });
+
+    it('should bypass grounding entirely when GOOGLE_SEARCH_ENABLED=0', async () => {
+      process.env.GOOGLE_SEARCH_ENABLED = '0';
+      try {
+        const promise = searchService.findSources('disabled part');
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(mockAI.findPartSources).not.toHaveBeenCalled();
+        expect(mockAI.findLocalSuppliers).not.toHaveBeenCalled();
+        expect(result.options).toEqual([]);
+        expect(result.localSuppliers).toEqual([]);
+        expect(result.groundedAt).toBeDefined();
+      } finally {
+        delete process.env.GOOGLE_SEARCH_ENABLED;
+      }
     });
   });
 

@@ -21,6 +21,46 @@ const BATCH_SIZE = 5;
 const JITTER_MIN_MS = 200;
 const JITTER_MAX_MS = 700;
 
+// In-memory response cache. Reusing a grounded result within the TTL window
+// avoids re-hitting the Google Search grounding API, which is both costly and
+// the primary cause of API key throttling/blacklisting.
+const CACHE_TTL_MS = Number(process.env.GOOGLE_SEARCH_CACHE_TTL_MS || 60 * 60 * 1000);
+const MAX_CACHE_ENTRIES = 500;
+
+interface CacheEntry {
+  at: number;
+  value: SearchResult;
+}
+
+const resultCache = new Map<string, CacheEntry>();
+
+function cacheKey(query: string, localeContext?: string): string {
+  return `${(localeContext || 'en').toLowerCase()}:${query.trim().toLowerCase()}`;
+}
+
+function cacheGet(key: string): SearchResult | null {
+  const hit = resultCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > CACHE_TTL_MS) {
+    resultCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: SearchResult): void {
+  if (resultCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = resultCache.keys().next().value;
+    if (oldestKey) resultCache.delete(oldestKey);
+  }
+  resultCache.set(key, { at: Date.now(), value });
+}
+
+/** Clears the in-memory grounded-result cache (used between tests). */
+export function resetSearchCache(): void {
+  resultCache.clear();
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -86,6 +126,20 @@ export class SearchService {
     localeContext?: string,
     preferredVendors?: string[]
   ): Promise<SearchResult> {
+    // Serve from cache when a grounded result for the same query/locale exists.
+    // Cached hits skip the Google Search grounding API entirely.
+    const key = cacheKey(query, localeContext);
+    const cached = cacheGet(key);
+    if (cached) return cached;
+
+    // Master toggle: when GOOGLE_SEARCH_ENABLED=0 the Google search grounding
+    // is bypassed entirely so the app falls back to the verified pipeline.
+    if (process.env.GOOGLE_SEARCH_ENABLED === '0') {
+      const result: SearchResult = { query, options: [], localSuppliers: [], groundedAt: new Date().toISOString() };
+      cacheSet(key, result);
+      return result;
+    }
+
     const groundedAt = new Date().toISOString();
     await sleep(jitterMs());
 
@@ -95,12 +149,14 @@ export class SearchService {
         this.ai.findLocalSuppliers(query),
       ]);
 
-      return {
+      const result: SearchResult = {
         query,
         options: this.normalizeOptions(options || [], groundedAt),
         localSuppliers: localSuppliers || [],
         groundedAt,
       };
+      cacheSet(key, result);
+      return result;
     } catch (e: any) {
       console.error(`[SearchService] findSources failed for "${query}":`, e?.message || e);
       return { query, options: [], localSuppliers: [], groundedAt };
