@@ -916,7 +916,7 @@ const PartDetailModal: React.FC<{
                             </div>
                         </div>
 
-                        {entry.part.ports && entry.part.ports.length > 0 && (
+                        {Array.isArray(entry.part.ports) && entry.part.ports.length > 0 && (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="material-symbols-rounded text-violet-600 text-[18px]" aria-hidden="true">cable</span>
@@ -1606,7 +1606,7 @@ const ScanPartModal: React.FC<{
                                 </div>
                             )}
 
-                            {result.ports.length > 0 && (
+                            {Array.isArray(result.ports) && result.ports.length > 0 && (
                                 <div>
                                     <p className="text-[11px] font-bold text-violet-900 uppercase tracking-widest mb-2">Detected Ports</p>
                                     <div className="space-y-1">
@@ -2965,13 +2965,13 @@ const AppContent: React.FC = () => {
                 brand: result.brand,
                 description: result.description + (result.condition !== 'Unknown' ? ` (Condition: ${result.condition})` : ''),
                 price: result.estimatedPrice,
-                ports: result.ports.map((p, i) => ({
+                ports: Array.isArray(result.ports) ? result.ports.map((p, i) => ({
                     id: `port-${i}`,
                     name: p.name,
                     type: p.type as any,
                     gender: p.gender as any,
                     spec: p.spec
-                }))
+                })) : [],
             });
         }
         refreshState();

@@ -356,6 +356,35 @@ export class ServerCloudAIService implements ServerAIService {
     } catch (e) { console.error("findPartSources error:", e); return null; }
   }
 
+  /**
+   * Coerce any `ports` value from an openai-compat model into a stable
+   * PortDefinition[] array. Models frequently return a string list ("USB-C,
+   * HDMI") or an object — neither is safe for `entry.part.ports.map(...)`.
+   */
+  private normalizePorts(value: any): { name: string; type: string; gender: string; spec: string }[] {
+    // Non-array / empty -> []
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((p: any) => p != null)
+      .map((p: any) => {
+        // Object-shaped port
+        if (typeof p === 'object') {
+          const name = typeof p.name === 'string' ? p.name
+            : typeof p.id === 'string' ? p.id
+            : typeof p.spec === 'string' ? p.spec : 'Port';
+          return {
+            name,
+            type: typeof p.type === 'string' ? p.type : '',
+            gender: typeof p.gender === 'string' ? p.gender : '',
+            spec: typeof p.spec === 'string' ? p.spec : '',
+          };
+        }
+        // String port ("USB-C") -> name only
+        return { name: String(p), type: '', gender: '', spec: '' };
+      })
+      .filter((p: any) => p.name);
+  }
+
   /** Parse a JSON array of shopping options from the model's response text. */
   private parseShoppingOptions(text: string): ShoppingOption[] {
     if (!text) return [];
@@ -425,11 +454,18 @@ export class ServerCloudAIService implements ServerAIService {
       if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({
           model: this.config.models.structured,
-          system: 'You are a hardware research specialist. Return JSON with keys: brand, description, price (number, USD), sku, ports.',
+          system: 'You are a hardware research specialist. Return JSON with keys: brand, description, price (number, USD), sku, ports (array of {name, type, gender, spec}).',
           userContent: `Look up hardware component: "${name}" (category: ${category}). Return JSON only.`,
           jsonMode: true, maxTokens: 1024,
         });
-        return JSON.parse(text || 'null');
+        const parsed = JSON.parse(text || 'null');
+        // Normalize ports — openai-compat models often return strings or
+        // malformed shapes. Coerce to a stable PortDefinition[] so the
+        // frontend never crashes on `entry.part.ports.map(...)`.
+        if (parsed && parsed.ports !== undefined) {
+          parsed.ports = this.normalizePorts(parsed.ports);
+        }
+        return parsed;
       }
       const ai = this.getSearchClient();
       const response = await ai.models.generateContent({

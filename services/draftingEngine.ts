@@ -629,7 +629,7 @@ export class DraftingEngine {
       if (details.brand) entry.part.brand = details.brand;
       if (details.description) entry.part.description = details.description;
       if (details.price !== undefined && details.price > 0) entry.part.price = details.price;
-      if (details.ports && details.ports.length > 0) entry.part.ports = details.ports;
+      if (details.ports && Array.isArray(details.ports) && details.ports.length > 0) entry.part.ports = details.ports;
       if (details.sku) entry.part.sku = details.sku;
       this.session.cacheIsDirty = true;
       this.saveSession();
