@@ -6,7 +6,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { apiRateLimit, generationRateLimit } from '../middleware/rateLimit.js';
+import { generationRateLimit, searchRateLimit, searchQuota } from '../middleware/rateLimit.js';
 import type { ServerAIService } from '../services/types.js';
 import { SearchService } from '../services/searchService.js';
 
@@ -26,7 +26,7 @@ function getSearchService(req: Request): SearchService {
  *
  * Returns fully-formed, UI-ready JSON with grounding metadata.
  */
-sourcingRouter.post('/find', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
+sourcingRouter.post('/find', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { query, designContext, localeContext, preferredVendors } = req.body;
   if (!query) { res.status(400).json({ error: 'query is required' }); return; }
 
@@ -41,12 +41,38 @@ sourcingRouter.post('/find', optionalAuth, apiRateLimit, async (req: Request, re
 });
 
 /**
+ * POST /api/v1/sourcing/search
+ * Body: { query, designContext?, localeContext?, preferredVendors? }
+ *
+ * Google AI product search — returns structured, web-wide purchase options
+ * (title, price, source, url) plus local suppliers. Used by the Google Search
+ * Kit modal and the Search & Source flow.
+ */
+sourcingRouter.post('/search', requireAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
+  const { query, designContext, localeContext, preferredVendors } = req.body;
+  if (!query) { res.status(400).json({ error: 'query is required' }); return; }
+
+  try {
+    const search = getSearchService(req);
+    const result = await search.findSources(query, designContext, localeContext, preferredVendors);
+    res.json({
+      query,
+      products: result.options,
+      localSuppliers: result.localSuppliers,
+      groundedAt: result.groundedAt,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/v1/sourcing/hydrate
  * Body: { name, category, designContext?, localeContext?, preferredVendors? }
  *
  * Returns hydrated part details with grounding metadata.
  */
-sourcingRouter.post('/hydrate', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
+sourcingRouter.post('/hydrate', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { name, category, designContext, localeContext, preferredVendors } = req.body;
   if (!name || !category) { res.status(400).json({ error: 'name and category are required' }); return; }
 
@@ -65,7 +91,7 @@ sourcingRouter.post('/hydrate', optionalAuth, apiRateLimit, async (req: Request,
  *
  * Returns local supplier results.
  */
-sourcingRouter.post('/local', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
+sourcingRouter.post('/local', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { query } = req.body;
   if (!query) { res.status(400).json({ error: 'query is required' }); return; }
 
@@ -85,7 +111,7 @@ sourcingRouter.post('/local', optionalAuth, apiRateLimit, async (req: Request, r
  * Batch search for multiple parts at once. Server handles chunking and jitter.
  * Returns all results in a single response.
  */
-sourcingRouter.post('/batch', requireAuth, apiRateLimit, async (req: Request, res: Response) => {
+sourcingRouter.post('/batch', requireAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { queries } = req.body;
   if (!Array.isArray(queries) || queries.length === 0) {
     res.status(400).json({ error: 'queries array is required' }); return;
