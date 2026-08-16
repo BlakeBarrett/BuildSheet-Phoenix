@@ -41,6 +41,8 @@ export interface ShoppingOption {
   price?: string;
   currency?: string;
   thumbnail?: string;
+  rating?: number;
+  reviews?: number;
   isEstimated?: boolean;
 }
 

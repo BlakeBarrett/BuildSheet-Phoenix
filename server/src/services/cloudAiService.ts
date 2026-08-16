@@ -279,6 +279,13 @@ export class ServerCloudAIService implements ServerAIService {
     } catch (e: any) { throw new Error(e.cause ? `DashScope request failed: ${e.cause.message}` : e.message); }
   }
 
+  /**
+   * Web product search using Gemini Google Search grounding with structured
+   * JSON extraction. Returns real-world purchase options (title, price, source,
+   * url) — the closest Google offers to a web-wide "AI product search".
+   *
+   * Server-side only: the key never leaves this process.
+   */
   async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
     try {
       if (this.config.provider === 'openai-compat') {
@@ -294,25 +301,110 @@ export class ServerCloudAIService implements ServerAIService {
           return arr.length ? arr : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
         } catch { return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }]; }
       }
+
       const ai = this.getSearchClient();
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      const prompt = `The current date is ${today}. Find real-world purchase options and actual prices for: ${query}.`;
+      const designHint = designContext ? ` Design context: ${designContext}.` : '';
+      const localeHint = localeContext ? ` Shipping region: ${localeContext}.` : '';
+      const vendorHint = preferredVendors?.length ? ` Prefer these vendors: ${preferredVendors.join(', ')}.` : '';
+      const prompt = `The current date is ${today}. Find real-world purchase options and actual prices for: ${query}.${designHint}${localeHint}${vendorHint}`;
+
       const response = await ai.models.generateContent({
-        model: this.config.models.fast, contents: prompt,
-        config: { systemInstruction: 'You are a hardware sourcing specialist. Search for real-world purchase options.', tools: [{ googleSearch: {} }] }
+        model: this.config.models.fast,
+        contents: prompt,
+        config: {
+          systemInstruction: 'You are a hardware sourcing specialist. Search the web for real-world purchase options. Return a JSON array of objects, each with: title (string, product name), url (string, real product page URL), source (string, retailer/merchant name), price (string, e.g. "$12.99"), currency (string, e.g. "USD"), rating (number or null), reviews (number or null), isEstimated (boolean). Return 4-8 options when possible.',
+          tools: [{ googleSearch: {} }],
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                url: { type: Type.STRING },
+                source: { type: Type.STRING },
+                price: { type: Type.STRING },
+                currency: { type: Type.STRING },
+                rating: { type: Type.NUMBER },
+                reviews: { type: Type.NUMBER },
+                isEstimated: { type: Type.BOOLEAN },
+              },
+              required: ['title', 'url', 'source', 'price', 'isEstimated'],
+            },
+          },
+        },
       });
-      const candidate = response.candidates?.[0];
-      const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
-      const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
+
+      // Ground the extracted options in real URLs returned by Google.
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+      const parsed = this.parseShoppingOptions(response.text || '');
+      const grounded = this.resolveUrlsFromChunks(parsed, chunks);
+      const clean = this.filterShoppingOptions(grounded);
+      if (clean.length) return clean.slice(0, 8);
+
+      // Fallback: build options directly from grounding chunks.
+      const supports = response.candidates?.[0]?.groundingMetadata?.groundingSupports ?? [];
       if (chunks.length === 0) return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
       const confidenceMap = buildChunkConfidenceMap(supports);
       const options: ShoppingOption[] = chunks.map((chunk, idx) => ({
         title: chunk.web?.title || 'Unknown Retailer', url: chunk.web?.uri || '',
         source: chunk.web?.title || 'Unknown', isEstimated: (confidenceMap.get(idx) ?? 1.0) < 0.5,
       }));
-      const clean = options.filter(opt => opt.url && !NOISY_DOMAINS.some(d => opt.url.includes(d)) && !NOISY_URL_PATTERNS.some(p => p.test(opt.url)));
-      return clean.length ? clean.slice(0, 5) : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+      const fallbackClean = this.filterShoppingOptions(options);
+      return fallbackClean.length ? fallbackClean.slice(0, 5) : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
     } catch (e) { console.error("findPartSources error:", e); return null; }
+  }
+
+  /** Parse a JSON array of shopping options from the model's response text. */
+  private parseShoppingOptions(text: string): ShoppingOption[] {
+    if (!text) return [];
+    let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    let data: any = null;
+    try { data = JSON.parse(cleaned); } catch { /* fall through */ }
+    if (!data) {
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) { try { data = JSON.parse(match[0]); } catch { /* give up */ } }
+    }
+    const arr = Array.isArray(data) ? data : (data?.results ?? []);
+    return arr
+      .filter((r: any) => r && typeof r === 'object')
+      .map((r: any) => ({
+        title: typeof r.title === 'string' ? r.title : 'Unknown Retailer',
+        url: typeof r.url === 'string' ? r.url : '',
+        source: typeof r.source === 'string' ? r.source : 'Unknown',
+        price: typeof r.price === 'string' ? r.price : (r.price != null ? String(r.price) : undefined),
+        currency: typeof r.currency === 'string' ? r.currency : undefined,
+        rating: typeof r.rating === 'number' ? r.rating : undefined,
+        reviews: typeof r.reviews === 'number' ? r.reviews : undefined,
+        isEstimated: r.isEstimated === true,
+      }))
+      .filter((r: ShoppingOption) => r.url);
+  }
+
+  /** Replace hallucinated URLs with real URLs from Google's grounding chunks. */
+  private resolveUrlsFromChunks(options: ShoppingOption[], chunks: any[]): ShoppingOption[] {
+    if (chunks.length === 0) return options; // No grounding metadata to verify against
+    const realUrls = new Set<string>();
+    for (const chunk of chunks) {
+      const uri = chunk.web?.uri || chunk.maps?.uri;
+      if (uri) realUrls.add(uri);
+    }
+    return options.map(opt => {
+      if (realUrls.has(opt.url)) return opt;
+      const match = chunks.find(c => {
+        const title = c.web?.title || '';
+        return title && (title.toLowerCase().includes(opt.title.toLowerCase()) || opt.title.toLowerCase().includes(title.toLowerCase()));
+      });
+      const resolvedUrl = match?.web?.uri || match?.maps?.uri;
+      if (resolvedUrl) return { ...opt, url: resolvedUrl, source: match?.web?.title || opt.source };
+      return { ...opt, isEstimated: true };
+    });
+  }
+
+  /** Filter out noisy/irrelevant sources (forums, news, docs, social, etc.). */
+  private filterShoppingOptions(options: ShoppingOption[]): ShoppingOption[] {
+    return options.filter(opt => opt.url && !NOISY_DOMAINS.some(d => opt.url.includes(d)) && !NOISY_URL_PATTERNS.some(p => p.test(opt.url)));
   }
 
   async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
