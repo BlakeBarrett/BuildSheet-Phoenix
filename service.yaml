@@ -91,6 +91,10 @@ spec:
               value: "${FIRECRAWL_BASE_URL}"
             - name: FIRECRAWL_API_KEY
               value: "${FIRECRAWL_API_KEY}"
+            - name: GOOGLE_SEARCH_ENABLED
+              value: "${GOOGLE_SEARCH_ENABLED}"
+            - name: GOOGLE_SEARCH_DAILY_QUOTA
+              value: "${GOOGLE_SEARCH_DAILY_QUOTA}"
             # ── Server config ────────────────────────────────────────────
             # NOTE: Do NOT set PORT here. nginx binds 8080 (the Cloud Run
             # container port). The Node API server uses its own default of 8081,
