@@ -250,6 +250,9 @@ export const sourcingApi = {
   find: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
     post<{ results: any[] }>('/sourcing/find', { query, designContext, localeContext, preferredVendors }),
 
+  search: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
+    post<{ query: string; products: any[]; localSuppliers: any[]; groundedAt: string }>('/sourcing/search', { query, designContext, localeContext, preferredVendors }),
+
   hydrate: (name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
     post<{ result: any }>('/sourcing/hydrate', { name, category, designContext, localeContext, preferredVendors }),
 

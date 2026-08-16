@@ -613,6 +613,13 @@ const PreferredVendorsModal: React.FC<{
     );
 };
 
+interface KitSearchState {
+    loading?: boolean;
+    products?: any[];
+    error?: string;
+    groundedAt?: string;
+}
+
 const KitSummaryModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
@@ -620,12 +627,40 @@ const KitSummaryModal: React.FC<{
     onExport: () => void;
 }> = ({ isOpen, onClose, session, onExport }) => {
     const { t } = useTranslation();
+    const [searchStates, setSearchStates] = useState<Record<string, KitSearchState>>({});
+    const [searchingAll, setSearchingAll] = useState(false);
     if (!isOpen) return null;
 
     // Build a Google search URL for assembling a specific part
     const getAssemblySearchUrl = (partName: string) => {
         const query = encodeURIComponent(partName);
         return `https://www.google.com/search?q=${query}`;
+    };
+
+    // Server-side Google AI product search — the key never leaves the backend.
+    const runSearch = async (instanceId: string, partName: string) => {
+        setSearchStates(prev => ({ ...prev, [instanceId]: { loading: true } }));
+        try {
+            const resp = await sourcingApi.search(partName);
+            setSearchStates(prev => ({
+                ...prev,
+                [instanceId]: { loading: false, products: resp?.products || [], groundedAt: resp?.groundedAt },
+            }));
+        } catch (e) {
+            console.error('AI product search failed:', e);
+            setSearchStates(prev => ({ ...prev, [instanceId]: { loading: false, products: [], error: 'Search failed — please try again.' } }));
+        }
+    };
+
+    const runSearchAll = async () => {
+        if (searchingAll) return;
+        setSearchingAll(true);
+        for (const b of session.bom) {
+            await runSearch(b.instanceId, b.part.name);
+            // Pace requests to stay inside the server search rate limit.
+            await new Promise(r => setTimeout(r, 350));
+        }
+        setSearchingAll(false);
     };
 
     return (
@@ -643,29 +678,67 @@ const KitSummaryModal: React.FC<{
                     <div>
                         <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">Components</h4>
                         <div className="space-y-2">
-                            {session.bom.map((b, i) => (
-                                <div key={i} className="p-4 bg-white rounded-[20px] shadow-sm">
-                                    <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
-                                    {b.part.description && (
-                                        <div className="text-xs text-slate-500 mt-1">{b.part.description}</div>
-                                    )}
-                                    <div className="flex gap-2 mt-2">
-                                        <a
-                                            href={getAssemblySearchUrl(b.part.name)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1"
-                                        >
-                                            <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span>
-                                            Search Assembly
-                                        </a>
+                            {session.bom.map((b, i) => {
+                                const state = searchStates[b.instanceId];
+                                const products = state?.products || [];
+                                return (
+                                    <div key={i} className="p-4 bg-white rounded-[20px] shadow-sm">
+                                        <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
+                                        {b.part.description && (
+                                            <div className="text-xs text-slate-500 mt-1">{b.part.description}</div>
+                                        )}
+                                        <div className="flex gap-2 mt-2 flex-wrap items-center">
+                                            <Button variant="tonal" className="!py-1 !px-3 !text-xs" icon={state?.loading ? "progress_activity" : "travel_explore"} disabled={state?.loading} onClick={() => runSearch(b.instanceId, b.part.name)}>
+                                                {state?.loading ? 'Searching...' : 'AI Product Search'}
+                                            </Button>
+                                            <a
+                                                href={getAssemblySearchUrl(b.part.name)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                                            >
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span>
+                                                Search Assembly
+                                            </a>
+                                        </div>
+                                        {products.length > 0 && (
+                                            <div className="mt-3 space-y-1.5">
+                                                {products.slice(0, 5).map((p, pi) => (
+                                                    <div key={pi} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                                                        <div className="min-w-0">
+                                                            <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-800 hover:text-emerald-700 truncate block">
+                                                                {p.title || p.source}
+                                                            </a>
+                                                            <div className="text-[11px] text-slate-500 truncate">
+                                                                {p.source || '—'}{p.isEstimated ? ' (estimated)' : ''}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-xs font-bold text-slate-800">{p.price || '—'}</div>
+                                                            {typeof p.rating === 'number' && p.rating > 0 && (
+                                                                <div className="text-[11px] text-amber-600">★ {p.rating}</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {state?.groundedAt && (
+                                                    <div className="text-[10px] text-slate-400">Grounded {new Date(state.groundedAt).toLocaleTimeString()}</div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {state?.error && (
+                                            <div className="mt-2 text-[11px] text-red-500">{state.error}</div>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
                 <div className="p-6 pt-2 flex gap-3">
+                    <Button variant="ghost" onClick={runSearchAll} disabled={searchingAll} icon={searchingAll ? "progress_activity" : "manage_search"} className={searchingAll ? '[&_.material-symbols-rounded]:animate-spin' : ''}>
+                        {searchingAll ? 'Searching all parts...' : 'Search all parts'}
+                    </Button>
                     <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">{i18n.t("bom.exportData")}</Button>
                     <Button variant="primary" onClick={onClose} className="flex-1" icon="check">Done</Button>
                 </div>
@@ -2291,8 +2364,25 @@ const AppContent: React.FC = () => {
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
             const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
+            // The Google grounding fallback can return a single placeholder item
+            // ("Local Market Research Required", url: ""). Treat that as empty.
+            const hasRealResults = (results: any[]) => Array.isArray(results) && results.length > 0 && results.some(r => r && r.url);
 
-            // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
+            // 1) Primary: server-side Google AI product search (structured web results)
+            try {
+                const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
+                const localResp = await sourcingApi.local(entry.part.name);
+                if (hasRealResults(findResp?.results)) {
+                    draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], localResp?.results || []);
+                    refreshState();
+                    return;
+                }
+                // Google returned nothing usable — fall through to the verified pipeline
+            } catch (e) {
+                console.warn('[Sourcing] Google AI product search failed, falling back to verified pipeline', e);
+            }
+
+            // 2) Fallback: Verified Procurement Engine (SearXNG → Firecrawl → Mini-Gemma pipeline)
             try {
                 const procResult = await sourcingApi.procure(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
 
@@ -2320,15 +2410,13 @@ const AppContent: React.FC = () => {
                     refreshState();
                     return;
                 }
-                // Pipeline failed — fall through to server-side search
+                // Pipeline failed — fall through
             } catch (e) {
-                console.warn('[ProcurementEngine] Server-side pipeline failed, falling back to Google Grounding', e);
+                console.warn('[Sourcing] Verified pipeline failed, clearing sourcing data', e);
             }
 
-            // Server-side Google Search grounding via backend API
-            const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
-            const localResp = await sourcingApi.local(entry.part.name);
-            draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], localResp?.results || []);
+            // 3) Last resort: clear sourcing state for this part
+            draftingEngine.updatePartSourcing(entry.instanceId, [], []);
             refreshState();
         } catch (e) {
             console.error(e);
