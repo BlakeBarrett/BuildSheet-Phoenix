@@ -103,47 +103,6 @@ export class AIManager {
   }
 
   /**
-   * Safe access to the Search/Grounding API Key.
-   * Allows customers to use a separate key for search operations (Google Search,
-   * Google Maps, part hydration). Falls back to the main API key if not set.
-   *
-   * This abstraction exists so that Enterprise customers can:
-   *   1. Use their own Gemini API key for grounding, separate from generation
-   *   2. Eventually swap to VertexAI Products API with a different credential
-   */
-  public static getSearchApiKey(): string | undefined {
-    let key: any = undefined;
-
-    // 1. Runtime injection via env-config.js
-    // @ts-ignore
-    if (typeof window !== 'undefined' && window._env_ && window._env_.SEARCH_API_KEY) {
-      // @ts-ignore
-      const runtimeKey = window._env_.SEARCH_API_KEY;
-      if (this.isValidKey(runtimeKey)) key = runtimeKey;
-    }
-
-    // 2. process.env
-    if (!key) {
-      // @ts-ignore
-      const processKey = (typeof process !== 'undefined' && process.env) ? process.env.SEARCH_API_KEY : undefined;
-      if (this.isValidKey(processKey)) key = processKey;
-    }
-
-    // 3. localStorage override (set via Settings Modal)
-    if (!key) {
-      try {
-        const saved = localStorage.getItem('searchApiKey');
-        if (saved && this.isValidKey(saved)) key = saved;
-      } catch { /* noop */ }
-    }
-
-    // 4. Fall back to the main API key
-    if (!key) return this.getApiKey();
-
-    return key.trim().replace(/^['"](.*)['"]$/, '$1');
-  }
-
-  /**
    * Initializes the AI Service.
    * All AI calls are routed through the BuildSheet backend API — no keys in the browser.
    * Falls back to MockService if the server health check fails.

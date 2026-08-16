@@ -23,7 +23,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [selectedPlanModelId, setSelectedPlanModelId] = useState<string>('');
     const [selectedCadModelId, setSelectedCadModelId] = useState<string>('');
     const [selectedUtilityModelId, setSelectedUtilityModelId] = useState<string>('');
-    const [searchApiKey, setSearchApiKey] = useState<string>('');
     const [selectedSearchReasoningId, setSelectedSearchReasoningId] = useState<string>('');
     const [serverAddress, setServerAddress] = useState<string>('192.168.1.41');
     const [temperature, setTemperature] = useState<number>(0.7);
@@ -87,8 +86,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     setSelectedUtilityModelId(JSON.parse(savedUtility).id);
                 } catch (e) { }
             }
-            const savedSearchKey = localStorage.getItem('searchApiKey');
-            if (savedSearchKey) setSearchApiKey(savedSearchKey);
             const savedSearchBackend = localStorage.getItem('procurementVerificationBackend');
             const savedSearchProvider = localStorage.getItem('localProcurementProvider');
             if (savedSearchBackend === 'local' && savedSearchProvider) {
@@ -195,12 +192,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 }
             } else {
                 localStorage.removeItem('localUtilityProvider');
-            }
-            // Save search API key
-            if (searchApiKey.trim()) {
-                localStorage.setItem('searchApiKey', searchApiKey.trim());
-            } else {
-                localStorage.removeItem('searchApiKey');
             }
             // Save search reasoning backend
             if (selectedSearchReasoningId) {
@@ -406,22 +397,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                             <option key={m.id} value={m.id}>{m.name}</option>
                                         ))}
                                     </select>
-                                </div>
-
-                                <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="search-api-key" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.searchApiKey')}</label>
-                                    <p className="text-xs text-slate-600 mb-3">
-                                        {t('settings.searchApiKeyDescription')}
-                                    </p>
-                                    <input
-                                        id="search-api-key"
-                                        type="password"
-                                        value={searchApiKey}
-                                        onChange={(e) => setSearchApiKey(e.target.value)}
-                                        className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono"
-                                        placeholder={t('settings.blankDefault')}
-                                        autoComplete="off"
-                                    />
                                 </div>
                             </>
                         )}
