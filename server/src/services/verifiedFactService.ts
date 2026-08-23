@@ -64,7 +64,9 @@ export class VerifiedFactService {
       q = q.where('category', '==', query.category);
     }
     
-    const snapshot: QuerySnapshot<DocumentData> = await q.get();
+    // Bound the read: without a limit every approved fact is pulled (and
+    // billed) on each search even though callers use small result windows.
+    const snapshot: QuerySnapshot<DocumentData> = await q.limit(Number(process.env.VERIFIED_FACTS_SCAN_LIMIT || 200)).get();
     
     // Apply additional filters in-memory (tags, searchTerm, minConfidence)
     snapshot.forEach((docSnap) => {

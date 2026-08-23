@@ -44,6 +44,14 @@ export function createAiService(): ServerAIService {
     console.warn('[AIFactory] No API key found — service will operate in degraded mode');
   }
 
-  const factService = new VerifiedFactService(getFirestore());
+  // Verified facts are an ENRICHMENT — index.ts explicitly supports starting
+  // without Firebase (degraded mode). getFirestore() throws when no app is
+  // initialized, which would crash boot; degrade to a fact-less service.
+  let factService: VerifiedFactService | undefined;
+  try {
+    factService = new VerifiedFactService(getFirestore());
+  } catch (err: any) {
+    console.warn('[AIFactory] Firestore unavailable — starting without verified facts:', err?.message || err);
+  }
   return new ServerCloudAIService(config, factService);
 }

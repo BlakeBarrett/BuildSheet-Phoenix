@@ -51,6 +51,12 @@ class MockQuery {
     return new MockQuery(this.collectionName, [...this.conditions, { field, operator, value }]);
   }
 
+  // Production code bounds its collection scan with .limit(); the mock
+  // accepts and ignores it (test data is tiny by construction).
+  limit(_n: number): MockQuery {
+    return this;
+  }
+
   async get(): Promise<{ forEach: (fn: (doc: any) => void) => void }> {
     // For testing, return a mock snapshot with filtered results
     const mockDocs: any[] = [];

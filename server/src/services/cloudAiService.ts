@@ -83,12 +83,23 @@ export class ServerCloudAIService implements ServerAIService {
   private async injectVerifiedFacts(prompt: string): Promise<string> {
     if (!this.factService) return '';
     try {
-      const keywords = prompt.split(' ').filter(w => w.length > 3);
-      const facts = await this.factService.searchFacts({
-        searchTerm: keywords.join(' '),
-        minConfidence: 0.8,
-        limit: 10
-      });
+      // Query the strongest keywords SEPARATELY: searchFacts matches
+      // statement.includes(searchTerm), so one joined string only ever hit
+      // facts containing the exact phrase — effectively nothing.
+      const keywords = Array.from(new Set(
+        prompt.split(/\s+/).map(w => w.replace(/[^\w-]/g, '')).filter(w => w.length > 3)
+      )).slice(0, 4);
+      const seen = new Set<string>();
+      const facts: Awaited<ReturnType<VerifiedFactService['searchFacts']>> = [];
+      for (const term of keywords) {
+        const hits = await this.factService.searchFacts({ searchTerm: term, minConfidence: 0.8, limit: 5 });
+        for (const f of hits) {
+          if (seen.has(f.factId)) continue;
+          seen.add(f.factId);
+          facts.push(f);
+        }
+        if (facts.length >= 10) break;
+      }
       if (facts.length === 0) return '';
       const factContext = facts.map(f => `- VERIFIED: ${f.statement} (source: ${f.source}, confidence: ${f.confidence})`).join('\n');
       return `\n\n=== VERIFIED FACTS ===\n${factContext}\n=========================\n`;
