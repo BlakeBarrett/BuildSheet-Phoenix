@@ -114,7 +114,10 @@ sourcingRouter.post('/local', optionalAuth, searchRateLimit, searchQuota, async 
     // Local-only grounding: skips findPartSources() entirely (no wasted
     // web-wide grounding when the caller only wants nearby suppliers).
     const suppliers = await search.findLocalSuppliersOnly(query);
-    consumeSearchQuota(req);
+    // No quota charge under the kill-switch: nothing touched Google.
+    if (process.env.GOOGLE_SEARCH_ENABLED !== '0') {
+      consumeSearchQuota(req);
+    }
     res.json({ results: suppliers });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -278,6 +278,20 @@ describe('SearchService', () => {
 
       expect(suppliers).toEqual([]);
     });
+
+    it('should return [] WITHOUT touching the AI under GOOGLE_SEARCH_ENABLED=0', async () => {
+      process.env.GOOGLE_SEARCH_ENABLED = '0';
+      try {
+        const promise = searchService.findLocalSuppliersOnly('kill-switched query');
+        await vi.runAllTimersAsync();
+        const suppliers = await promise;
+
+        expect(suppliers).toEqual([]);
+        expect(mockAI.findLocalSuppliers).not.toHaveBeenCalled();
+      } finally {
+        delete process.env.GOOGLE_SEARCH_ENABLED;
+      }
+    });
   });
 
   describe('hydratePart()', () => {

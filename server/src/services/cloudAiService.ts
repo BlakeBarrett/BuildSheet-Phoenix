@@ -2,7 +2,7 @@
  * Server-side CloudAIService — lifted from the client-side version.
  * Runs in Node.js with direct API key access. No browser dependencies.
  */
-import { GoogleGenAI, GenerateContentResponse, Type, Modality, GroundingSupport } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality, GroundingSupport } from "@google/genai";
 import { parseArchitectResponse } from './parseUtils.js';
 import { VerifiedFactService } from './verifiedFactService.js';
 import type {
@@ -481,12 +481,18 @@ export class ServerCloudAIService implements ServerAIService {
       const response = await ai.models.generateContent({
         model: this.config.models.fast, contents: `Look up the real-world hardware component: "${name}" (category: ${category}).`,
         config: {
-          systemInstruction: 'You are a hardware research specialist.', tools: [{ googleSearch: {} }],
-          responseMimeType: "application/json",
-          responseSchema: { type: Type.OBJECT, properties: { brand: { type: Type.STRING }, description: { type: Type.STRING }, price: { type: Type.NUMBER }, sku: { type: Type.STRING }, ports: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, type: { type: Type.STRING }, gender: { type: Type.STRING }, spec: { type: Type.STRING } }, required: ['id', 'name', 'type', 'gender', 'spec'] } } }, required: ['brand', 'description', 'price', 'ports'] }
+          // No responseMimeType/responseSchema here — structured output is
+          // rejected with googleSearch grounding (see findPartSources note).
+          systemInstruction: 'You are a hardware research specialist. Return ONLY a JSON object with keys: brand (string), description (string), price (number, USD), sku (string), ports (array of {name, type, gender, spec} strings).',
+          tools: [{ googleSearch: {} }],
         }
       });
-      return JSON.parse(response.text || 'null');
+      const parsed = this.extractJson<any>(response.text || '');
+      if (!parsed) return null;
+      if (parsed.ports !== undefined) {
+        parsed.ports = this.normalizePorts(parsed.ports);
+      }
+      return parsed;
     } catch { return null; }
   }
 

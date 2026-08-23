@@ -408,3 +408,49 @@ describe('ServerCloudAIService.generateAssemblyPlan (shape normalization)', () =
     expect(await new ServerCloudAIService(makeConfig()).generateAssemblyPlan([])).toBeNull();
   });
 });
+
+describe('ServerCloudAIService.hydratePartDetails (hosted / grounding)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    mockGenerateContent.mockReset();
+  });
+
+  it('never sends responseMimeType/responseSchema alongside googleSearch', async () => {
+    // Regression: structured output + googleSearch grounding is rejected
+    // (Gemini 2.x HTTP 400) or silently un-grounded (3.x). Same class of bug
+    // previously fixed in findPartSources — hydration had it too.
+    mockGenerateContent.mockResolvedValue({ text: '{}' });
+    const service = new ServerCloudAIService(makeConfig({ provider: 'hosted' }));
+
+    await service.hydratePartDetails('ATmega328P', 'Microcontroller');
+
+    const config = mockGenerateContent.mock.calls[0][0].config;
+    expect(config.tools).toEqual([{ googleSearch: {} }]);
+    expect(config.responseMimeType).toBeUndefined();
+    expect(config.responseSchema).toBeUndefined();
+  });
+
+  it('parses fenced free-form JSON and normalizes malformed ports', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: '```json\n{"brand":"Microchip","description":"8-bit AVR MCU","price":4.5,"sku":"ATMEGA328P-PU","ports":["DIP-28",{"name":"VCC","spec":"5V"}]}\n```',
+    });
+    const service = new ServerCloudAIService(makeConfig({ provider: 'hosted' }));
+
+    const details = await service.hydratePartDetails('ATmega328P', 'Microcontroller');
+
+    expect(details).toMatchObject({ brand: 'Microchip', price: 4.5, sku: 'ATMEGA328P-PU' });
+    expect(details!.ports).toEqual([
+      { name: 'DIP-28', type: '', gender: '', spec: '' },
+      { name: 'VCC', type: '', gender: '', spec: '5V' },
+    ]);
+  });
+
+  it('returns null when no JSON is recoverable from the response', async () => {
+    mockGenerateContent.mockResolvedValue({ text: 'Sorry, I could not structure that.' });
+
+    const details = await new ServerCloudAIService(makeConfig({ provider: 'hosted' })).hydratePartDetails('X', 'Y');
+
+    expect(details).toBeNull();
+  });
+});

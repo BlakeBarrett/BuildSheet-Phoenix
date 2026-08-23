@@ -194,6 +194,10 @@ export class SearchService {
    * Includes the usual jitter delay; failures degrade to an empty list.
    */
   async findLocalSuppliersOnly(query: string): Promise<LocalSupplier[]> {
+    // Respect the master kill-switch: GOOGLE_SEARCH_ENABLED=0 bypasses ALL
+    // Google grounding (web AND maps) so on-prem/air-gapped deployments and
+    // throttled keys never touch Google from this path either.
+    if (process.env.GOOGLE_SEARCH_ENABLED === '0') return [];
     await sleep(jitterMs());
     try {
       const suppliers = await this.ai.findLocalSuppliers(query);
