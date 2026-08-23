@@ -281,9 +281,15 @@ export class ServerCloudAIService implements ServerAIService {
   }
 
   /**
-   * Web product search using Gemini Google Search grounding with structured
-   * JSON extraction. Returns real-world purchase options (title, price, source,
-   * url) — the closest Google offers to a web-wide "AI product search".
+   * Web product search using Gemini Google Search grounding. Returns
+   * real-world purchase options (title, price, source, url) — the closest
+   * Google offers to a web-wide "AI product search".
+   *
+   * NOTE: structured output (responseMimeType/responseSchema) is deliberately
+   * NOT requested here — combined with googleSearch grounding it returns HTTP
+   * 400 INVALID_ARGUMENT on Gemini 2.x and silently drops grounding metadata
+   * on Gemini 3.x. We parse JSON out of free-form text instead, then verify
+   * every URL server-side before surfacing it.
    *
    * Server-side only: the key never leaves this process.
    */
@@ -299,7 +305,10 @@ export class ServerCloudAIService implements ServerAIService {
         try {
           const parsed = JSON.parse(text);
           const arr = (Array.isArray(parsed) ? parsed : parsed.results ?? []).map((r: any) => ({ ...r, isEstimated: true }));
-          return arr.length ? arr : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+          // No grounding chunks exist on this path — every URL here is pure
+          // model hallucination risk, so verify each one before returning.
+          const verified = arr.length ? await validateShoppingOptions(arr) : [];
+          return verified.length ? verified : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
         } catch { return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }]; }
       }
 
@@ -313,27 +322,15 @@ export class ServerCloudAIService implements ServerAIService {
       const response = await ai.models.generateContent({
         model: this.config.models.fast,
         contents: prompt,
+        // No responseMimeType/responseSchema here: structured output plus
+        // googleSearch grounding is rejected by Gemini 2.x (HTTP 400
+        // INVALID_ARGUMENT — "Tool use with a response mime type:
+        // 'application/json' is unsupported") and silently disables the
+        // grounding metadata on Gemini 3.x. parseShoppingOptions below
+        // handles fences/prose-wrapped JSON robustly instead.
         config: {
-          systemInstruction: 'You are a hardware sourcing specialist. Search the web for real-world purchase options. Return a JSON array of objects, each with: title (string, product name), url (string, real product page URL), source (string, retailer/merchant name), price (string, e.g. "$12.99"), currency (string, e.g. "USD"), rating (number or null), reviews (number or null), isEstimated (boolean). Return 4-8 options when possible.',
+          systemInstruction: 'You are a hardware sourcing specialist. Search the web for real-world purchase options. Return a JSON array of objects, each with: title (string, product name), url (string, real product page URL), source (string, retailer/merchant name), price (string, e.g. "$12.99"), currency (string, e.g. "USD"), rating (number or null), reviews (number or null), isEstimated (boolean). Return 4-8 options when possible. Return ONLY the JSON array, no commentary.',
           tools: [{ googleSearch: {} }],
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                url: { type: Type.STRING },
-                source: { type: Type.STRING },
-                price: { type: Type.STRING },
-                currency: { type: Type.STRING },
-                rating: { type: Type.NUMBER },
-                reviews: { type: Type.NUMBER },
-                isEstimated: { type: Type.BOOLEAN },
-              },
-              required: ['title', 'url', 'source', 'price', 'isEstimated'],
-            },
-          },
         },
       });
 
@@ -342,7 +339,15 @@ export class ServerCloudAIService implements ServerAIService {
       const parsed = this.parseShoppingOptions(response.text || '');
       const grounded = this.resolveUrlsFromChunks(parsed, chunks);
       const clean = this.filterShoppingOptions(grounded);
-      if (clean.length) return clean.slice(0, 8);
+      if (clean.length) {
+        // Verify links before surfacing: unwrap vertexaisearch redirect
+        // wrappers to their real destination, drop dead pages, flag the rest.
+        // Noise filtering runs AGAIN afterwards because a RESOLVED destination
+        // can itself be a forum/news/PDF that the redirect wrapper masked.
+        const verified = await validateShoppingOptions(clean);
+        const verifiedClean = this.filterShoppingOptions(verified);
+        if (verifiedClean.length) return verifiedClean.slice(0, 8);
+      }
 
       // Fallback: build options directly from grounding chunks.
       const supports = response.candidates?.[0]?.groundingMetadata?.groundingSupports ?? [];
@@ -352,7 +357,11 @@ export class ServerCloudAIService implements ServerAIService {
         title: chunk.web?.title || 'Unknown Retailer', url: chunk.web?.uri || '',
         source: chunk.web?.title || 'Unknown', isEstimated: (confidenceMap.get(idx) ?? 1.0) < 0.5,
       }));
-      const fallbackClean = this.filterShoppingOptions(options);
+      // Chunk URIs are vertexaisearch.cloud.google.com redirects too — resolve
+      // them to real destinations before the final noise filter/slice.
+      const fallbackFiltered = this.filterShoppingOptions(options);
+      const fallbackVerified = await validateShoppingOptions(fallbackFiltered);
+      const fallbackClean = this.filterShoppingOptions(fallbackVerified);
       return fallbackClean.length ? fallbackClean.slice(0, 5) : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
     } catch (e) { console.error("findPartSources error:", e); return null; }
   }

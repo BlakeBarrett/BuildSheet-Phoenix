@@ -4,9 +4,14 @@
  * Focus: the architect chat path must NEVER hard-fail when the verified-facts
  * enrichment (Firestore) is unavailable. Verified facts are an enhancement —
  * chat must degrade gracefully and still return the AI response.
+ *
+ * Also covers the hosted findPartSources pipeline: grounding without
+ * structured-output config, robust JSON extraction, and server-side URL
+ * validation (fetch is stubbed so tests never touch the network).
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ServerCloudAIService } from '../services/cloudAiService.js';
+import { resetUrlValidationCache } from '../services/urlValidator.js';
 import type { AiConfig } from '../services/types.js';
 
 const { mockGenerateContent } = vi.hoisted(() => ({ mockGenerateContent: vi.fn() }));
@@ -117,10 +122,38 @@ describe('ServerCloudAIService.askArchitect (openai-compat)', () => {
 });
 
 describe('ServerCloudAIService.findPartSources (hosted / Google Search grounding)', () => {
+  beforeEach(() => {
+    // findPartSources now probes every candidate URL server-side before
+    // returning it. Hand the validator a benign 200 responder and clear the
+    // module-level TTL cache so tests stay hermetic and offline.
+    resetUrlValidationCache();
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+    })));
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     mockGenerateContent.mockReset();
+  });
+
+  it('grounds with googleSearch but requests NO structured-output config (Gemini 400 workaround)', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: '[]',
+      candidates: [{ groundingMetadata: { groundingChunks: [] } }],
+    });
+    const service = new ServerCloudAIService(makeConfig({ provider: 'hosted' }));
+
+    await service.findPartSources('ATmega328P');
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    const config = mockGenerateContent.mock.calls[0][0].config;
+    expect(config.tools).toEqual([{ googleSearch: {} }]);
+    expect(config.responseMimeType).toBeUndefined();
+    expect(config.responseSchema).toBeUndefined();
   });
 
   it('parses grounded JSON options and keeps URLs that match grounding chunks', async () => {
@@ -209,9 +242,62 @@ describe('ServerCloudAIService.findPartSources (hosted / Google Search grounding
     expect(options![0].url).toBe('https://shop.example.com/buy');
     expect(options![0].isEstimated).toBe(true);
   });
+
+  it('parses options out of a markdown-fenced ```json block', async () => {
+    // Without structured output, Gemini often wraps the array in a code fence.
+    const option = {
+      title: 'ESP32 DevKit C', url: 'https://www.adafruit.com/product/3269',
+      source: 'Adafruit', price: '$9.95', isEstimated: false,
+    };
+    mockGenerateContent.mockResolvedValue({
+      text: '```json\n' + JSON.stringify([option], null, 2) + '\n```',
+      candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: option.url, title: 'Adafruit' } }] } }],
+    });
+    const service = new ServerCloudAIService(makeConfig({ provider: 'hosted' }));
+
+    const options = await service.findPartSources('ESP32');
+
+    expect(options).not.toBeNull();
+    expect(options).toHaveLength(1);
+    expect(options![0]).toMatchObject({
+      title: 'ESP32 DevKit C',
+      url: 'https://www.adafruit.com/product/3269',
+      source: 'Adafruit',
+      price: '$9.95',
+    });
+  });
+
+  it('extracts an embedded JSON array from surrounding prose', async () => {
+    // Free-form responses may bury the array in commentary — no schema to
+    // constrain output anymore.
+    const option = {
+      title: 'STM32 Blue Pill', url: 'https://www.sparkfun.com/products/15356',
+      source: 'SparkFun', price: '$8.50', isEstimated: false,
+    };
+    mockGenerateContent.mockResolvedValue({
+      text: `I searched the web and found these options:\n${JSON.stringify([option])}\nLet me know if you need alternatives.`,
+      candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: option.url, title: 'SparkFun' } }] } }],
+    });
+    const service = new ServerCloudAIService(makeConfig({ provider: 'hosted' }));
+
+    const options = await service.findPartSources('STM32');
+
+    expect(options).not.toBeNull();
+    expect(options).toHaveLength(1);
+    expect(options![0]).toMatchObject({
+      title: 'STM32 Blue Pill',
+      url: 'https://www.sparkfun.com/products/15356',
+      price: '$8.50',
+    });
+  });
 });
 
 describe('ServerCloudAIService.findPartSources (openai-compat)', () => {
+  beforeEach(() => {
+    // The parsed array now goes through URL validation (shared TTL cache).
+    resetUrlValidationCache();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

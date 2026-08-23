@@ -44,6 +44,8 @@ export interface ShoppingOption {
   rating?: number;
   reviews?: number;
   isEstimated?: boolean;
+  /** True when the server probed this URL and confirmed it resolves (2xx after redirects). */
+  validated?: boolean;
 }
 
 export interface LocalSupplier {
