@@ -239,3 +239,86 @@ describe('ServerCloudAIService.findPartSources (openai-compat)', () => {
     expect(options![0].title).toBe('Local Market Research Required');
   });
 });
+
+describe('ServerCloudAIService.generateAssemblyPlan (shape normalization)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('coerces plain-string steps into renderable step objects', async () => {
+    // Regression: Qwen3.6 returned `steps` as bare strings, leaving the
+    // assembly modal rendering blank rows (`step.description` undefined).
+    stubFetchOk(JSON.stringify({
+      steps: ['Pick and place Arduino Uno R3', 'Insert jumper wires into D2/D3'],
+      totalTime: 120,
+      difficulty: 'Low',
+      automationFeasibility: 'High',
+      notes: 'No soldering required.',
+    }));
+    const service = new ServerCloudAIService(makeConfig());
+
+    const plan = await service.generateAssemblyPlan([
+      { instanceId: 'a1', quantity: 1, part: { name: 'Arduino Uno R3', category: 'Microcontroller' } },
+    ]);
+
+    expect(plan).not.toBeNull();
+    expect(plan!.steps).toHaveLength(2);
+    expect(plan!.steps[0]).toEqual({ stepNumber: 1, description: 'Pick and place Arduino Uno R3', requiredTool: '', estimatedTime: '' });
+    expect(plan!.steps[1]!.stepNumber).toBe(2);
+    expect(plan!.steps[1]!.description).toContain('jumper wires');
+    // "High" must become a numeric feasibility percentage for the UI badge.
+    expect(plan!.automationFeasibility).toBe(85);
+  });
+
+  it('maps variant object key names into the canonical AssemblyStep shape', async () => {
+    stubFetchOk(JSON.stringify({
+      steps: [
+        { instruction: 'Align sensor on mount', tool: 'Parallel jaw gripper', duration: '2 min' },
+        { order: 5, action: 'Verify continuity', equipment: 'Multimeter', time: 3 },
+      ],
+      requiredEndEffectors: ['Gripper'],
+    }));
+    const service = new ServerCloudAIService(makeConfig());
+
+    const plan = await service.generateAssemblyPlan([
+      { instanceId: 's1', quantity: 1, part: { name: 'HC-SR04', category: 'Sensor' } },
+    ]);
+
+    expect(plan).not.toBeNull();
+    expect(plan!.steps[0]).toEqual({ stepNumber: 1, description: 'Align sensor on mount', requiredTool: 'Parallel jaw gripper', estimatedTime: '2 min' });
+    // Explicit order honored; numeric time coerced to string.
+    expect(plan!.steps[1]).toEqual({ stepNumber: 5, description: 'Verify continuity', requiredTool: 'Multimeter', estimatedTime: '3' });
+    expect(plan!.requiredEndEffectors).toEqual(['Gripper']);
+  });
+
+  it('passes through canonical plans unchanged (except generatedAt refresh)', async () => {
+    stubFetchOk(JSON.stringify({
+      steps: [{ stepNumber: 1, description: 'Do the thing', requiredTool: 'Wrench', estimatedTime: '5 min' }],
+      totalTime: 15,
+      difficulty: 'Medium',
+      requiredEndEffectors: ['Wrench'],
+      automationFeasibility: 42,
+      notes: 'ok',
+    }));
+    const service = new ServerCloudAIService(makeConfig());
+
+    const plan = await service.generateAssemblyPlan([]);
+
+    expect(plan).not.toBeNull();
+    expect(plan!.steps[0]).toEqual({ stepNumber: 1, description: 'Do the thing', requiredTool: 'Wrench', estimatedTime: '5 min' });
+    expect(plan!.automationFeasibility).toBe(42);
+    expect(plan!.totalTime).toBe(15);
+    expect(plan!.notes).toBe('ok');
+  });
+
+  it('clamps out-of-range feasibility and returns null for unparseable output', async () => {
+    stubFetchOk(JSON.stringify({ steps: [], automationFeasibility: '120%', difficulty: 7 }));
+    const clamped = await new ServerCloudAIService(makeConfig()).generateAssemblyPlan([]);
+    expect(clamped!.automationFeasibility).toBe(100);
+    expect(clamped!.difficulty).toBe('7');
+
+    stubFetchOk('garbage {{ no json');
+    expect(await new ServerCloudAIService(makeConfig()).generateAssemblyPlan([])).toBeNull();
+  });
+});

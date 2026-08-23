@@ -7,9 +7,10 @@ import { parseArchitectResponse } from './parseUtils.js';
 import { VerifiedFactService } from './verifiedFactService.js';
 import type {
   ServerAIService, AiConfig, AskArchitectResult, ArchitectResponse,
-  ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan,
+  ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, AssemblyStep,
   EnclosureSpec, ComponentIdentification, AuditAction, AdvancedValidationOption
 } from './types.js';
+import { validateShoppingOptions } from './urlValidator.js';
 
 // --- Sourcing quality filters ---
 const NOISY_DOMAINS = ['reddit.com', 'ebay.com', 'forums.'];
@@ -553,22 +554,74 @@ export class ServerCloudAIService implements ServerAIService {
     try {
       const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
       const prompt = `Generate a robotic assembly plan for:\n${bomDigest}`;
-      const system = 'You are a robotics assembly planner. Return JSON with: steps, totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.';
+      const system = 'You are a robotics assembly planner. Return JSON with: steps (array of objects, each {stepNumber: number, description: string, requiredTool: string, estimatedTime: string}), totalTime (minutes), difficulty (string), requiredEndEffectors (array of strings), automationFeasibility (number 0-100), notes (string).';
       if (this.config.provider === 'openai-compat') {
         // AssemblyPlan is a thinking-heavy task (multi-step planning with tool/robotics reasoning).
         // Keep thinking enabled for better planning quality; extractJson + openAiChat's
         // thinking-block stripping handles the JSON extraction cleanly.
         const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, maxTokens: 12288 });
-        const plan = this.extractJson<AssemblyPlan>(text);
-        if (plan) plan.generatedAt = new Date();
-        return plan;
+        return this.normalizeAssemblyPlan(this.extractJson<AssemblyPlan>(text));
       }
       const ai = this.getClient();
       const response = await ai.models.generateContent({ model: this.config.models.smart, contents: prompt, config: { systemInstruction: system, responseMimeType: "application/json" } });
-      const plan = JSON.parse(response.text || 'null');
-      if (plan) plan.generatedAt = new Date();
-      return plan;
+      return this.normalizeAssemblyPlan(JSON.parse(response.text || 'null'));
     } catch { return null; }
+  }
+
+  /**
+   * Coerce any plan shape into a stable AssemblyPlan. Models frequently return
+   * `steps` as an array of plain strings ("Pick and place...") or objects with
+   * variant key names — neither renders in the UI (`step.description` etc.).
+   * Also coerces automationFeasibility, which arrives as "High"/"85%" as often
+   * as a number.
+   */
+  private normalizeAssemblyPlan(plan: any): AssemblyPlan | null {
+    if (!plan || typeof plan !== 'object') return null;
+
+    const feasibilityFrom = (v: any): number => {
+      if (typeof v === 'number' && Number.isFinite(v)) return Math.min(100, Math.max(0, v));
+      if (typeof v === 'string') {
+        const pct = v.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (pct) return Math.min(100, Math.max(0, parseFloat(pct[1])));
+        const n = parseFloat(v);
+        if (Number.isFinite(n)) return Math.min(100, Math.max(0, n));
+        const word = v.trim().toLowerCase();
+        if (word === 'high' || word === 'full' || word === 'complete') return 85;
+        if (word === 'medium' || word === 'moderate' || word === 'partial') return 50;
+        if (word === 'low' || word === 'manual') return 20;
+      }
+      return 0;
+    };
+
+    const firstString = (o: Record<string, any>, keys: string[]): string =>
+      String(keys.map(k => o[k]).find(v => typeof v === 'string' && v.trim()) ?? '').trim();
+
+    const steps: AssemblyStep[] = (Array.isArray(plan.steps) ? plan.steps : []).map((s: any, i: number): AssemblyStep => {
+      if (s && typeof s === 'object') {
+        const description = firstString(s, ['description', 'instruction', 'action', 'task', 'text', 'step']);
+        const requiredTool = firstString(s, ['requiredTool', 'tool', 'equipment', 'endEffector']);
+        let estimatedTime = ['estimatedTime', 'time', 'duration', 'durationMinutes']
+          .map(k => s[k]).find(v => v !== undefined && v !== null && v !== '') ?? '';
+        if (typeof estimatedTime === 'number') estimatedTime = String(estimatedTime);
+        const stepNumber = typeof s.stepNumber === 'number' ? s.stepNumber
+          : typeof s.order === 'number' ? s.order
+          : typeof s.index === 'number' ? s.index + 1
+          : i + 1;
+        return { stepNumber: stepNumber > 0 ? stepNumber : i + 1, description, requiredTool, estimatedTime: String(estimatedTime).trim() };
+      }
+      // Plain-string step ("Pick and place the MCU") — the common failure mode.
+      return { stepNumber: i + 1, description: String(s ?? '').trim(), requiredTool: '', estimatedTime: '' };
+    });
+
+    return {
+      ...plan,
+      steps,
+      difficulty: typeof plan.difficulty === 'string' ? plan.difficulty : String(plan.difficulty ?? ''),
+      requiredEndEffectors: Array.isArray(plan.requiredEndEffectors) ? plan.requiredEndEffectors.map(String) : [],
+      automationFeasibility: feasibilityFrom(plan.automationFeasibility),
+      notes: typeof plan.notes === 'string' ? plan.notes : '',
+      generatedAt: new Date(),
+    };
   }
 
   async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {
