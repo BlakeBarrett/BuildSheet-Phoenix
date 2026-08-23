@@ -9,9 +9,13 @@ import { useTranslation } from 'react-i18next';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
+    /** Current user is in the server's ADMIN_UIDS allowlist — show admin tools. */
+    isAdminUser?: boolean;
+    /** Opens the AdminCorrectionReview surface (closes this modal first). */
+    onOpenAdminReview?: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isAdminUser = false, onOpenAdminReview }) => {
     const { updateLocalProvider } = useService();
     const { tier } = useTier();
     const isEnterprise = tier === 'enterprise';
@@ -408,6 +412,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         {isEnterprise && <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>{t('settings.refreshModels')}</Button>}
                         <Button variant="primary" onClick={handleSave}>{t('settings.save')}</Button>
                     </div>
+                    {isAdminUser && onOpenAdminReview && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.adminTools')}</p>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full transition-colors"
+                                    onClick={onOpenAdminReview}
+                                >
+                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">fact_check</span>
+                                    {t('settings.reviewCorrections')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <div className="border-t border-gray-200 pt-3">
                         <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.privacy')}</p>
                         <div className="flex gap-2">

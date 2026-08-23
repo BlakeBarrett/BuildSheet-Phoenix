@@ -241,6 +241,10 @@ export const architectApi = {
 
   applyAudit: (bom: any[], auditResult: string, requirements: string) =>
     post('/architect/apply-audit', { bom, auditResult, requirements }),
+
+  /** Submit a user correction for admin review. */
+  correct: (payload: { statement: string; category?: string; evidence?: string; tags?: string[] }) =>
+    post<{ message: string; factId: string; status: string }>('/architect/correct', payload),
 };
 
 // ---------------------------------------------------------------------------

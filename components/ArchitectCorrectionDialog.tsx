@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button, IconButton } from './Material3UI.tsx';
+import { architectApi } from '../services/apiClient.ts';
 
 interface ArchitectCorrectionDialogProps {
   isOpen: boolean;
@@ -21,12 +22,14 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string>('');
 
+  // MUST match the backend allowlist in /architect/correct — any other value
+  // receives HTTP 400 and the dialog can never submit.
   const categories = [
-    { value: 'factual_error', label: 'Factual Error' },
-    { value: 'outdated_info', label: 'Outdated Information' },
-    { value: 'missing_context', label: 'Missing Context' },
-    { value: 'misinterpretation', label: 'Misinterpretation' },
-    { value: 'other', label: 'Other' },
+    { value: 'component-specs', label: 'Component Specs' },
+    { value: 'compatibility', label: 'Compatibility' },
+    { value: 'requirements', label: 'Requirements' },
+    { value: 'procurement', label: 'Procurement' },
+    { value: 'general', label: 'General' },
   ];
 
   const handleSubmit = async () => {
@@ -39,23 +42,16 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
     setError('');
 
     try {
-      const payload = {
+      // `source` is server-controlled provenance ('user-correction') — the
+      // free-text evidence travels in its own field instead of masquerading
+      // as a trusted source. Routed through the shared client so the
+      // Firebase ID token is attached (createdBy attribution needs it).
+      await architectApi.correct({
         statement: correction,
         category,
-        source: evidence || 'user-correction',
+        evidence: evidence || undefined,
         tags: [messageId || 'unknown'],
-      };
-
-      const response = await fetch('/api/v1/architect/correct', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: 'Submission failed' }));
-        throw new Error(err.error || 'Failed to submit correction');
-      }
 
       setSubmitted(true);
       setTimeout(() => {

@@ -142,15 +142,15 @@ architectRouter.post('/apply-audit', requireAuth, apiRateLimit, async (req: Requ
 
 /**
  * POST /api/v1/architect/correct — User correction submission.
- * Body: { statement, category, tags?, source? }
+ * Body: { statement, category?, evidence?, tags? }
  * Creates a pending verified fact for admin review.
  */
 architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
-  const { statement, category, tags = [], source = 'user-correction' } = req.body;
-  
-  if (!statement) { 
-    res.status(400).json({ error: 'statement is required' }); 
-    return; 
+  const { statement, category, evidence, tags = [] } = req.body;
+
+  if (!statement) {
+    res.status(400).json({ error: 'statement is required' });
+    return;
   }
 
   // Validate category
@@ -161,18 +161,22 @@ architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request
   }
 
   try {
-    const userId = (req as any).user?.id;
+    // optionalAuth guarantees req.user is set; the field is `uid` (not `id`).
+    const userId = (req as any).user?.uid;
 
     // Only include createdBy when a user is authenticated — Firestore rejects
     // explicit `undefined` values, so anonymous corrections must omit the key.
     const factInput: Record<string, any> = {
       category: (category as any) || 'general',
       statement,
-      source: source as any,
+      // `source` is a provenance field — server-controlled so arbitrary user
+      // text can never masquerade as a trusted origin.
+      source: 'user-correction',
       confidence: 0.5, // Default confidence for user submissions
       tags,
       status: 'pending'
     };
+    if (typeof evidence === 'string' && evidence.trim()) factInput.evidence = evidence.trim();
     if (userId) factInput.createdBy = userId;
 
     const fact = await getFactService().storeFact(factInput as any);

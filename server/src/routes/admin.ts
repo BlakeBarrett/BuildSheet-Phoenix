@@ -76,17 +76,36 @@ adminRouter.get('/corrections', async (req: Request, res: Response) => {
   try {
     const db = getFirestore();
     const correctionsRef = db.collection('verified_facts');
-    
-    // Fetch pending corrections
+
+    // Fetch pending corrections. NOTE: equality + orderBy would require a
+    // composite index that isn't provisioned — filter server-side, sort in
+    // memory (pending volume is small and bounded).
     const snapshot = await correctionsRef
       .where('status', '==', 'pending')
-      .orderBy('createdAt', 'desc')
       .get();
 
-    const corrections = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    // Firestore returns Timestamp objects for Date fields; the admin UI
+    // expects ISO strings (`new Date(correction.createdAt)` on a raw
+    // Timestamp renders "Invalid Date"). Serialize before responding.
+    const toIso = (v: any): string => {
+      if (!v) return '';
+      if (typeof v === 'string') return v;
+      if (typeof v?.toDate === 'function') return v.toDate().toISOString();
+      if (typeof v === 'number') return new Date(v).toISOString();
+      return String(v);
+    };
+
+    const corrections = snapshot.docs
+      .map(doc => {
+        const data = doc.data() as Record<string, any>;
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: toIso(data.createdAt),
+          updatedAt: toIso(data.updatedAt),
+        };
+      })
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 
     res.json({ corrections });
   } catch (err: any) {

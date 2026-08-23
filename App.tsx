@@ -21,6 +21,8 @@ import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent, hasFullConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
+import { ArchitectCorrectionDialog } from './components/ArchitectCorrectionDialog.tsx';
+import { AdminCorrectionReview } from './components/AdminCorrectionReview.tsx';
 import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
@@ -1946,6 +1948,17 @@ const AppContent: React.FC = () => {
     const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
     const [preferredVendorsOpen, setPreferredVendorsOpen] = useState(false);
     const [isHydrating, setIsHydrating] = useState(false);
+    // User-correction flow: which assistant message is being reported.
+    const [correctionTarget, setCorrectionTarget] = useState<{ id: string; content: string } | null>(null);
+    // Admin surface visibility — ADMIN_UIDS is injected at runtime (env.sh).
+    const isAdminUser = (() => {
+        try {
+            const uids: string[] = (((typeof window !== 'undefined' && (window as any)._env_?.ADMIN_UIDS) || '') as string)
+                .split(',').map(s => s.trim()).filter(Boolean);
+            return !!currentUser?.id && uids.includes(currentUser.id);
+        } catch { return false; }
+    })();
+    const [adminReviewOpen, setAdminReviewOpen] = useState(false);
 
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -3291,7 +3304,16 @@ const AppContent: React.FC = () => {
             <ScanPartModal isOpen={scanPartOpen} onClose={() => { setScanPartOpen(false); setScanResult(null); }} result={scanResult} isScanning={isScanning} onScan={handleScanPart} onAddToBOM={handleAddFromScan} />
             <PortWarningsPanel isOpen={portWarningsOpen} onClose={() => setPortWarningsOpen(false)} warnings={draftingEngine.getPortWarnings()} />
 
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} isAdminUser={isAdminUser} onOpenAdminReview={() => { setIsSettingsOpen(false); setAdminReviewOpen(true); }} />
+            {correctionTarget && (
+                <ArchitectCorrectionDialog
+                    isOpen
+                    onClose={() => setCorrectionTarget(null)}
+                    messageContent={correctionTarget.content}
+                    messageId={correctionTarget.id}
+                />
+            )}
+            <AdminCorrectionReview isOpen={adminReviewOpen} onClose={() => setAdminReviewOpen(false)} />
             <CookieConsent />
             {currentUser && (
                 <UserProfileModal
@@ -3664,6 +3686,11 @@ const AppContent: React.FC = () => {
                                             }} title={i18n.t("aria.forkFromHere")} className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">call_split</span>
                                             </button>
+                                            {currentUser && (
+                                                <button onClick={() => setCorrectionTarget({ id: `msg-${i}`, content: m.content })} title={i18n.t("aria.reportInaccuracy")} className="text-slate-400 hover:text-amber-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">flag</span>
+                                                </button>
+                                            )}
 
                                             {m.metadata && (
                                                 <div className="flex bg-white/80 backdrop-blur-sm border border-slate-200/50 shadow-sm rounded-full px-3 py-1 items-center gap-3 text-[10px] text-slate-500 font-mono ml-1">

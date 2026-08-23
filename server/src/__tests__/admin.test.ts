@@ -9,6 +9,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Mock firebase-admin/firestore before importing routes
 // ---------------------------------------------------------------------------
 
+// Simulates a Firestore Timestamp (has .toDate()) vs plain strings.
+const timestampLike = {
+  toDate: () => new Date('2026-05-20T00:00:00.000Z'),
+};
+
 const mockCorrectionDoc = {
   exists: true,
   id: 'test-correction-1',
@@ -26,12 +31,33 @@ const mockCorrectionDoc = {
   }),
 };
 
+const mockTimestampCorrectionDoc = {
+  exists: true,
+  id: 'test-correction-2',
+  data: () => ({
+    factId: 'fact-2',
+    category: 'compatibility',
+    statement: 'Newer correction with Firestore Timestamp dates',
+    source: 'user-correction',
+    confidence: 0.5,
+    tags: ['test'],
+    evidence: 'https://datasheets.example/rn4870',
+    createdAt: timestampLike,
+    updatedAt: timestampLike,
+    status: 'pending',
+    createdBy: 'user-456',
+  }),
+};
+
 const mockPendingCorrections = {
-  docs: [mockCorrectionDoc],
+  docs: [mockCorrectionDoc, mockTimestampCorrectionDoc],
 };
 
 const mockCorrectionCollection = {
   where: vi.fn(() => ({
+    // Route filters by status server-side and sorts in memory — no
+    // composite-index orderBy chain required.
+    get: vi.fn(() => Promise.resolve(mockPendingCorrections)),
     orderBy: vi.fn(() => ({
       get: vi.fn(() => Promise.resolve(mockPendingCorrections)),
     })),
@@ -124,6 +150,19 @@ describe('Admin API', () => {
       expect(correction).toHaveProperty('tags');
       expect(correction).toHaveProperty('createdAt');
       expect(correction).toHaveProperty('status');
+
+      // Timestamps serialize to ISO strings — the UI does new Date(createdAt),
+      // which renders "Invalid Date" on raw Firestore Timestamp objects.
+      for (const c of data.corrections) {
+        expect(typeof c.createdAt).toBe('string');
+        expect(Number.isNaN(Date.parse(c.createdAt))).toBe(false);
+        expect(typeof c.updatedAt).toBe('string');
+      }
+
+      // Sorted newest-first (Timestamp-shaped doc is newer than the string one).
+      expect(data.corrections[0].id).toBe('test-correction-2');
+      // Evidence field survives serialization for admin display.
+      expect(data.corrections[0].evidence).toBe('https://datasheets.example/rn4870');
     });
   });
 
