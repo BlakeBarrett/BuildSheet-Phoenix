@@ -184,6 +184,102 @@ describe('SearchService', () => {
     });
   });
 
+  describe('findSourcesWithMeta()', () => {
+    it('should report fromCache=false on first call and true on repeat', async () => {
+      mockAI.findPartSources.mockResolvedValue([{
+        title: 'Meta Source', url: 'https://example.com',
+        source: 'Test', price: '$3.00',
+      } as ShoppingOption]);
+      mockAI.findLocalSuppliers.mockResolvedValue([]);
+
+      const first = searchService.findSourcesWithMeta('meta part', undefined, 'en-US');
+      await vi.runAllTimersAsync();
+      const firstMeta = await first;
+      expect(firstMeta.fromCache).toBe(false);
+      expect(firstMeta.result.options).toHaveLength(1);
+
+      // Same query + same locale → served straight from the TTL cache.
+      const second = searchService.findSourcesWithMeta('meta part', undefined, 'en-US');
+      await vi.runAllTimersAsync();
+      const secondMeta = await second;
+      expect(secondMeta.fromCache).toBe(true);
+      expect(mockAI.findPartSources).toHaveBeenCalledTimes(1);
+    });
+
+    it('should mark kill-switch results fromCache=true but NOT cache them', async () => {
+      process.env.GOOGLE_SEARCH_ENABLED = '0';
+      try {
+        const promise = searchService.findSourcesWithMeta('kill-switch meta', undefined, 'en-US');
+        await vi.runAllTimersAsync();
+        const killed = await promise;
+
+        // Kill-switch stubs count as "not freshly grounded" (quota-free)…
+        expect(killed.fromCache).toBe(true);
+        expect(killed.result.options).toEqual([]);
+        expect(mockAI.findPartSources).not.toHaveBeenCalled();
+
+        // …but they must not pin the query to emptiness: once the toggle is
+        // lifted, the very next call grounds for real (cache miss).
+        delete process.env.GOOGLE_SEARCH_ENABLED;
+        mockAI.findPartSources.mockResolvedValue([{
+          title: 'Fresh After Switch', url: 'https://example.com',
+          source: 'Test', price: '$5.00',
+        } as ShoppingOption]);
+        mockAI.findLocalSuppliers.mockResolvedValue([]);
+
+        const fresh = searchService.findSourcesWithMeta('kill-switch meta', undefined, 'en-US');
+        await vi.runAllTimersAsync();
+        const freshMeta = await fresh;
+
+        expect(mockAI.findPartSources).toHaveBeenCalledTimes(1);
+        expect(freshMeta.fromCache).toBe(false);
+        expect(freshMeta.result.options).toHaveLength(1);
+      } finally {
+        delete process.env.GOOGLE_SEARCH_ENABLED;
+      }
+    });
+
+    it('should report fromCache=false on the graceful error fallback', async () => {
+      mockAI.findPartSources.mockRejectedValue(new Error('API Error'));
+      mockAI.findLocalSuppliers.mockRejectedValue(new Error('API Error'));
+
+      const promise = searchService.findSourcesWithMeta('error meta part');
+      await vi.runAllTimersAsync();
+      const meta = await promise;
+
+      // Errors still burned a grounding attempt → quota-worthy, cache-empty.
+      expect(meta.fromCache).toBe(false);
+      expect(meta.result.options).toEqual([]);
+    });
+  });
+
+  describe('findLocalSuppliersOnly()', () => {
+    it('should return local suppliers without running findPartSources', async () => {
+      mockAI.findLocalSuppliers.mockResolvedValue([
+        { name: 'Ace Components', address: '42 Circuit Rd' } as LocalSupplier,
+      ]);
+
+      const promise = searchService.findLocalSuppliersOnly('nearby resistor');
+      await vi.runAllTimersAsync();
+      const suppliers = await promise;
+
+      expect(suppliers).toHaveLength(1);
+      expect(suppliers[0]).toMatchObject({ name: 'Ace Components' });
+      // The whole point of this path — no web-wide grounding leg.
+      expect(mockAI.findPartSources).not.toHaveBeenCalled();
+    });
+
+    it('should return [] when the AI service fails', async () => {
+      mockAI.findLocalSuppliers.mockRejectedValue(new Error('API Error'));
+
+      const promise = searchService.findLocalSuppliersOnly('doomed query');
+      await vi.runAllTimersAsync();
+      const suppliers = await promise;
+
+      expect(suppliers).toEqual([]);
+    });
+  });
+
   describe('hydratePart()', () => {
     it('should add jitter before API call', async () => {
       mockAI.hydratePartDetails.mockResolvedValue({

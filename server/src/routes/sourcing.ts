@@ -6,7 +6,12 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { generationRateLimit, searchRateLimit, searchQuota } from '../middleware/rateLimit.js';
+import {
+  generationRateLimit,
+  searchRateLimit,
+  searchQuota,
+  consumeSearchQuota,
+} from '../middleware/rateLimit.js';
 import type { ServerAIService } from '../services/types.js';
 import { SearchService } from '../services/searchService.js';
 
@@ -32,7 +37,10 @@ sourcingRouter.post('/find', optionalAuth, searchRateLimit, searchQuota, async (
 
   try {
     const search = getSearchService(req);
-    const result = await search.findSources(query, designContext, localeContext, preferredVendors);
+    const { result, fromCache } = await search.findSourcesWithMeta(query, designContext, localeContext, preferredVendors);
+    // Charge the daily quota only for real grounding work — TTL-cache hits
+    // (and kill-switch stubs) are free.
+    if (!fromCache) consumeSearchQuota(req);
     // Return flat arrays for backward compat with existing client code
     res.json({ results: result.options, localSuppliers: result.localSuppliers, groundedAt: result.groundedAt });
   } catch (err: any) {
@@ -54,7 +62,9 @@ sourcingRouter.post('/search', requireAuth, searchRateLimit, searchQuota, async 
 
   try {
     const search = getSearchService(req);
-    const result = await search.findSources(query, designContext, localeContext, preferredVendors);
+    const { result, fromCache } = await search.findSourcesWithMeta(query, designContext, localeContext, preferredVendors);
+    // Same contract as /find: cache-served responses never burn daily quota.
+    if (!fromCache) consumeSearchQuota(req);
     res.json({
       query,
       products: result.options,
@@ -75,6 +85,10 @@ sourcingRouter.post('/search', requireAuth, searchRateLimit, searchQuota, async 
 sourcingRouter.post('/hydrate', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { name, category, designContext, localeContext, preferredVendors } = req.body;
   if (!name || !category) { res.status(400).json({ error: 'name and category are required' }); return; }
+
+  // Hydration has no TTL cache — every validated request grounds for real,
+  // so the quota is charged unconditionally (validation already passed).
+  consumeSearchQuota(req);
 
   try {
     const search = getSearchService(req);
@@ -97,8 +111,11 @@ sourcingRouter.post('/local', optionalAuth, searchRateLimit, searchQuota, async 
 
   try {
     const search = getSearchService(req);
-    const result = await search.findSources(query);
-    res.json({ results: result.localSuppliers });
+    // Local-only grounding: skips findPartSources() entirely (no wasted
+    // web-wide grounding when the caller only wants nearby suppliers).
+    const suppliers = await search.findLocalSuppliersOnly(query);
+    consumeSearchQuota(req);
+    res.json({ results: suppliers });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -122,7 +139,11 @@ sourcingRouter.post('/batch', requireAuth, searchRateLimit, searchQuota, async (
 
   try {
     const search = getSearchService(req);
-    const result = await search.batchSearch(queries);
+    // batchSearchWithMeta reports how many queries needed FRESH grounding;
+    // cache-served (and kill-switch) items are free, the rest each cost one
+    // unit of daily quota — charged via a single consume call.
+    const { result, freshCount } = await search.batchSearchWithMeta(queries);
+    if (freshCount > 0) consumeSearchQuota(req, freshCount);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

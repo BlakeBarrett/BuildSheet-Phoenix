@@ -117,27 +117,34 @@ export class SearchService {
   }
 
   /**
-   * Search for sourcing options for a single part.
-   * Includes jitter delay before the API call.
+   * Search for sourcing options for a single part, reporting HOW the result
+   * was produced:
+   * - `fromCache: true`  → served from the TTL cache, OR produced by the
+   *   GOOGLE_SEARCH_ENABLED=0 kill-switch (neither performed real grounding).
+   * - `fromCache: false` → fresh grounding ran against the AI service (this
+   *   includes the graceful error fallback, which still burned an attempt).
+   *
+   * Routes use this flag to decide whether to charge the daily search quota.
    */
-  async findSources(
+  async findSourcesWithMeta(
     query: string,
     designContext?: string,
     localeContext?: string,
     preferredVendors?: string[]
-  ): Promise<SearchResult> {
+  ): Promise<{ result: SearchResult; fromCache: boolean }> {
     // Serve from cache when a grounded result for the same query/locale exists.
     // Cached hits skip the Google Search grounding API entirely.
     const key = cacheKey(query, localeContext);
     const cached = cacheGet(key);
-    if (cached) return cached;
+    if (cached) return { result: cached, fromCache: true };
 
     // Master toggle: when GOOGLE_SEARCH_ENABLED=0 the Google search grounding
     // is bypassed entirely so the app falls back to the verified pipeline.
+    // NOTE: deliberately NOT cached — empty kill-switch stubs must never evict
+    // real grounded results or pin a query to emptiness until the TTL lapses.
     if (process.env.GOOGLE_SEARCH_ENABLED === '0') {
       const result: SearchResult = { query, options: [], localSuppliers: [], groundedAt: new Date().toISOString() };
-      cacheSet(key, result);
-      return result;
+      return { result, fromCache: true };
     }
 
     const groundedAt = new Date().toISOString();
@@ -156,10 +163,44 @@ export class SearchService {
         groundedAt,
       };
       cacheSet(key, result);
-      return result;
+      return { result, fromCache: false };
     } catch (e: any) {
       console.error(`[SearchService] findSources failed for "${query}":`, e?.message || e);
-      return { query, options: [], localSuppliers: [], groundedAt };
+      return { result: { query, options: [], localSuppliers: [], groundedAt }, fromCache: false };
+    }
+  }
+
+  /**
+   * Search for sourcing options for a single part.
+   * Includes jitter delay before the API call.
+   * Thin convenience wrapper around {@link findSourcesWithMeta} — see that
+   * method for caching/kill-switch semantics.
+   */
+  async findSources(
+    query: string,
+    designContext?: string,
+    localeContext?: string,
+    preferredVendors?: string[]
+  ): Promise<SearchResult> {
+    const { result } = await this.findSourcesWithMeta(query, designContext, localeContext, preferredVendors);
+    return result;
+  }
+
+  /**
+   * Ground ONLY the local-supplier leg for a query.
+   * Used by the /local endpoint, which cares exclusively about nearby stores —
+   * running the full findSources() pipeline there would pay for a redundant
+   * findPartSources() web-grounding call on every request.
+   * Includes the usual jitter delay; failures degrade to an empty list.
+   */
+  async findLocalSuppliersOnly(query: string): Promise<LocalSupplier[]> {
+    await sleep(jitterMs());
+    try {
+      const suppliers = await this.ai.findLocalSuppliers(query);
+      return suppliers || [];
+    } catch (e: any) {
+      console.error(`[SearchService] findLocalSuppliersOnly failed for "${query}":`, e?.message || e);
+      return [];
     }
   }
 
@@ -193,8 +234,22 @@ export class SearchService {
   async batchSearch(
     queries: Array<{ query: string; designContext?: string; localeContext?: string; preferredVendors?: string[] }>
   ): Promise<BatchSearchResult> {
+    const { result } = await this.batchSearchWithMeta(queries);
+    return result;
+  }
+
+  /**
+   * Batch search that additionally reports `freshCount` — how many of the
+   * queries required FRESH grounding (i.e., were NOT served from the TTL
+   * cache and did not hit the kill-switch). Lets the /batch route charge the
+   * daily search quota once per genuinely-grounded query instead of per item.
+   */
+  async batchSearchWithMeta(
+    queries: Array<{ query: string; designContext?: string; localeContext?: string; preferredVendors?: string[] }>
+  ): Promise<{ result: BatchSearchResult; freshCount: number }> {
     const start = Date.now();
     const results: SearchResult[] = [];
+    let freshCount = 0;
 
     // Split into chunks
     const chunks: typeof queries[] = [];
@@ -205,9 +260,10 @@ export class SearchService {
     for (const chunk of chunks) {
       // Process items within a chunk concurrently (each has its own jitter)
       const chunkResults = await Promise.all(
-        chunk.map(q => this.findSources(q.query, q.designContext, q.localeContext, q.preferredVendors))
+        chunk.map(q => this.findSourcesWithMeta(q.query, q.designContext, q.localeContext, q.preferredVendors))
       );
-      results.push(...chunkResults);
+      results.push(...chunkResults.map(r => r.result));
+      freshCount += chunkResults.filter(r => !r.fromCache).length;
 
       // Extra jitter between chunks (if more chunks remain)
       if (chunks.indexOf(chunk) < chunks.length - 1) {
@@ -216,9 +272,12 @@ export class SearchService {
     }
 
     return {
-      results,
-      totalDurationMs: Date.now() - start,
-      batchCount: chunks.length,
+      result: {
+        results,
+        totalDurationMs: Date.now() - start,
+        batchCount: chunks.length,
+      },
+      freshCount,
     };
   }
 

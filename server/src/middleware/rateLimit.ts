@@ -81,28 +81,49 @@ export const searchRateLimit = rateLimit({
 // Daily search quota — a hard per-user cap on Google Search grounding calls.
 // Resets at midnight. In-memory (resets on restart); a Firestore-backed
 // counter can replace this if the server runs as multiple replicas.
+//
+// Split into two halves so cache-served requests are free:
+//   1. `searchQuota` middleware is a CHECK-ONLY gate. It rejects requests that
+//      are already over quota but never increments the counter — the counter
+//      is only bumped by `consumeSearchQuota()`.
+//   2. Route handlers call `consumeSearchQuota(req)` AFTER grounding actually
+//      ran (i.e., the response was NOT served from the SearchService TTL
+//      cache and the kill-switch did not short-circuit). Cache hits therefore
+//      never burn daily quota.
 // ---------------------------------------------------------------------------
 
 const DAILY_SEARCH_QUOTA = Number(process.env.GOOGLE_SEARCH_DAILY_QUOTA || 150);
 const dailyWindowMs = 24 * 60 * 60 * 1000;
+// Opportunistic cleanup: once the usage map grows past this many entries
+// (long-tail guest IPs, mostly), sweep out entries from previous days.
+const USAGE_PRUNE_THRESHOLD = 1000;
 const searchUsage = new Map<string, { day: number; count: number }>();
 
 function currentDay(): number {
   return Math.floor(Date.now() / dailyWindowMs);
 }
 
+/** Deletes usage entries belonging to a previous day (no-op below threshold). */
+function pruneStaleUsage(): void {
+  if (searchUsage.size <= USAGE_PRUNE_THRESHOLD) return;
+  const day = currentDay();
+  for (const [id, usage] of searchUsage) {
+    if (usage.day !== day) searchUsage.delete(id);
+  }
+}
+
+/**
+ * Check-only gate for the daily search quota. Rejects with 429 when the
+ * requester has already burned their daily grounding budget; otherwise
+ * stashes the quota id on the request for the matching `consumeSearchQuota()`
+ * call downstream and lets the request through WITHOUT counting it.
+ */
 export const searchQuota = (req: Request, res: Response, next: NextFunction): void => {
   const id = req.user?.uid || req.ip || 'unknown';
   const day = currentDay();
   const usage = searchUsage.get(id);
 
-  if (!usage || usage.day !== day) {
-    searchUsage.set(id, { day, count: 1 });
-    next();
-    return;
-  }
-
-  if (usage.count >= DAILY_SEARCH_QUOTA) {
+  if (usage && usage.day === day && usage.count >= DAILY_SEARCH_QUOTA) {
     res.status(429).json({
       error: 'Daily search quota exceeded — please try again tomorrow.',
       retryAfterMs: -1,
@@ -110,6 +131,49 @@ export const searchQuota = (req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  usage.count += 1;
+  pruneStaleUsage();
+
+  // First-ever requests create NO counted entry here — the counter only
+  // materializes when grounding actually happens (see consumeSearchQuota).
+  (req as any).searchQuotaId = id;
   next();
 };
+
+/**
+ * Charge grounding spend against the requester's daily search quota.
+ * Call once per fully-handled request, AFTER input validation passes and only
+ * for responses that required real grounding (not cache hits).
+ *
+ * `amount` lets the batch endpoint charge several fresh queries via a single
+ * call. Repeat invocations for the same request are ignored (idempotent via
+ * the `searchQuotaConsumed` marker), so accidental double-calls stay honest.
+ */
+export function consumeSearchQuota(req: Request, amount = 1): void {
+  const reqAny = req as any;
+  if (!reqAny.searchQuotaId || reqAny.searchQuotaConsumed || amount <= 0) return;
+  reqAny.searchQuotaConsumed = true;
+
+  const id: string = reqAny.searchQuotaId;
+  const day = currentDay();
+  const usage = searchUsage.get(id);
+
+  if (!usage || usage.day !== day) {
+    searchUsage.set(id, { day, count: Math.min(amount, DAILY_SEARCH_QUOTA) });
+  } else {
+    usage.count += amount;
+  }
+
+  pruneStaleUsage();
+}
+
+// --- Test-only visibility into the usage map (pure reads; do not abuse) ----
+
+/** @internal Exposed for unit tests: number of ids currently tracked. */
+export function _dailyUsageSizeForTests(): number {
+  return searchUsage.size;
+}
+
+/** @internal Exposed for unit tests: a single id's usage entry, if any. */
+export function _dailyUsageForTests(id: string): { day: number; count: number } | undefined {
+  return searchUsage.get(id);
+}
