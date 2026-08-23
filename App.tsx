@@ -13,6 +13,7 @@ import { ComponentIdentification } from './services/aiTypes.ts';
 import { sanitizeMarkdownTables } from './services/parseUtils.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder, PreferredVendor } from './types.ts';
+import type { ShoppingOption } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -615,7 +616,7 @@ const PreferredVendorsModal: React.FC<{
 
 interface KitSearchState {
     loading?: boolean;
-    products?: any[];
+    products?: ShoppingOption[];
     error?: string;
     groundedAt?: string;
 }
@@ -625,7 +626,8 @@ const KitSummaryModal: React.FC<{
     onClose: () => void;
     session: DraftingSession;
     onExport: () => void;
-}> = ({ isOpen, onClose, session, onExport }) => {
+    isGuest?: boolean;
+}> = ({ isOpen, onClose, session, onExport, isGuest = false }) => {
     const { t } = useTranslation();
     const [searchStates, setSearchStates] = useState<Record<string, KitSearchState>>({});
     const [searchingAll, setSearchingAll] = useState(false);
@@ -648,12 +650,12 @@ const KitSummaryModal: React.FC<{
             }));
         } catch (e) {
             console.error('AI product search failed:', e);
-            setSearchStates(prev => ({ ...prev, [instanceId]: { loading: false, products: [], error: 'Search failed — please try again.' } }));
+            setSearchStates(prev => ({ ...prev, [instanceId]: { loading: false, products: [], error: t('kit.searchFailed') } }));
         }
     };
 
     const runSearchAll = async () => {
-        if (searchingAll) return;
+        if (searchingAll || isGuest) return;
         setSearchingAll(true);
         for (const b of session.bom) {
             await runSearch(b.instanceId, b.part.name);
@@ -688,9 +690,16 @@ const KitSummaryModal: React.FC<{
                                             <div className="text-xs text-slate-500 mt-1">{b.part.description}</div>
                                         )}
                                         <div className="flex gap-2 mt-2 flex-wrap items-center">
-                                            <Button variant="tonal" className="!py-1 !px-3 !text-xs" icon={state?.loading ? "progress_activity" : "travel_explore"} disabled={state?.loading} onClick={() => runSearch(b.instanceId, b.part.name)}>
-                                                {state?.loading ? 'Searching...' : 'AI Product Search'}
-                                            </Button>
+                                            {isGuest ? (
+                                                <p className="text-[11px] text-slate-500 flex items-center gap-1 m-0" role="note">
+                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">lock</span>
+                                                    {t('kit.signInToSearch')}
+                                                </p>
+                                            ) : (
+                                                <Button variant="tonal" className="!py-1 !px-3 !text-xs" icon={state?.loading ? "progress_activity" : "travel_explore"} disabled={state?.loading} onClick={() => runSearch(b.instanceId, b.part.name)}>
+                                                    {state?.loading ? t('kit.searching') : t('kit.aiProductSearch')}
+                                                </Button>
+                                            )}
                                             <a
                                                 href={getAssemblySearchUrl(b.part.name)}
                                                 target="_blank"
@@ -710,7 +719,7 @@ const KitSummaryModal: React.FC<{
                                                                 {p.title || p.source}
                                                             </a>
                                                             <div className="text-[11px] text-slate-500 truncate">
-                                                                {p.source || '—'}{p.isEstimated ? ' (estimated)' : ''}
+                                                                {p.source || '—'}{p.isEstimated ? ` (${t('kit.estimated')})` : ''}
                                                             </div>
                                                         </div>
                                                         <div className="text-right shrink-0">
@@ -722,7 +731,7 @@ const KitSummaryModal: React.FC<{
                                                     </div>
                                                 ))}
                                                 {state?.groundedAt && (
-                                                    <div className="text-[10px] text-slate-400">Grounded {new Date(state.groundedAt).toLocaleTimeString()}</div>
+                                                    <div className="text-[10px] text-slate-400">{t('kit.groundedAt', { time: new Date(state.groundedAt).toLocaleTimeString() })}</div>
                                                 )}
                                             </div>
                                         )}
@@ -736,8 +745,8 @@ const KitSummaryModal: React.FC<{
                     </div>
                 </div>
                 <div className="p-6 pt-2 flex gap-3">
-                    <Button variant="ghost" onClick={runSearchAll} disabled={searchingAll} icon={searchingAll ? "progress_activity" : "manage_search"} className={searchingAll ? '[&_.material-symbols-rounded]:animate-spin' : ''}>
-                        {searchingAll ? 'Searching all parts...' : 'Search all parts'}
+                    <Button variant="ghost" onClick={runSearchAll} disabled={searchingAll || isGuest} icon={searchingAll ? "progress_activity" : "manage_search"} className={searchingAll ? '[&_.material-symbols-rounded]:animate-spin' : ''}>
+                        {searchingAll ? t('kit.searching') : t('kit.searchAllParts')}
                     </Button>
                     <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">{i18n.t("bom.exportData")}</Button>
                     <Button variant="primary" onClick={onClose} className="flex-1" icon="check">Done</Button>
@@ -2368,12 +2377,12 @@ const AppContent: React.FC = () => {
             // ("Local Market Research Required", url: ""). Treat that as empty.
             const hasRealResults = (results: any[]) => Array.isArray(results) && results.length > 0 && results.some(r => r && r.url);
 
-            // 1) Primary: server-side Google AI product search (structured web results)
+            // 1) Primary: server-side Google AI product search (structured web results).
+            // /sourcing/find already returns local suppliers — no separate /local round-trip.
             try {
                 const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
-                const localResp = await sourcingApi.local(entry.part.name);
                 if (hasRealResults(findResp?.results)) {
-                    draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], localResp?.results || []);
+                    draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], findResp?.localSuppliers || []);
                     refreshState();
                     return;
                 }
@@ -3210,7 +3219,7 @@ const AppContent: React.FC = () => {
                 onMoveToFolder={handleMoveToFolder}
                 onUpgrade={() => setUpgradeOpen(true)}
             />
-            <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
+            <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} isGuest={!currentUser} />
             <PreferredVendorsModal
                 isOpen={preferredVendorsOpen}
                 onClose={() => setPreferredVendorsOpen(false)}

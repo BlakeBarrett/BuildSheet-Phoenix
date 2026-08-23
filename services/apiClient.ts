@@ -5,6 +5,7 @@
  * and typed request/response wrappers for all API routes.
  */
 import { getFirebaseAuth } from './firebase.ts';
+import { LocalSupplier, ShoppingOption } from '../types.ts';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -248,10 +249,10 @@ export const architectApi = {
 
 export const sourcingApi = {
   find: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
-    post<{ results: any[] }>('/sourcing/find', { query, designContext, localeContext, preferredVendors }),
+    post<{ results: any[]; localSuppliers?: LocalSupplier[] }>('/sourcing/find', { query, designContext, localeContext, preferredVendors }),
 
   search: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
-    post<{ query: string; products: any[]; localSuppliers: any[]; groundedAt: string }>('/sourcing/search', { query, designContext, localeContext, preferredVendors }),
+    post<{ query: string; products: ShoppingOption[]; localSuppliers: LocalSupplier[]; groundedAt: string }>('/sourcing/search', { query, designContext, localeContext, preferredVendors }),
 
   hydrate: (name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
     post<{ result: any }>('/sourcing/hydrate', { name, category, designContext, localeContext, preferredVendors }),
