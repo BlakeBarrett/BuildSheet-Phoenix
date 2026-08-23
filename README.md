@@ -119,6 +119,9 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 | `GOOGLE_SEARCH_ENABLED` | No | Set `0` to disable Google Search grounding and force the verified procurement pipeline |
 | `GOOGLE_SEARCH_CACHE_TTL_MS` | No | TTL for grounded-result cache (default `3600000` = 1h) |
 | `GOOGLE_SEARCH_DAILY_QUOTA` | No | Per-user daily cap on grounding calls (default `150`) |
+| `GOOGLE_SEARCH_VALIDATE_URLS` | No | Validate product URLs server-side before display (`0` disables) |
+| `URL_VALIDATION_TIMEOUT_MS` | No | Per-request validation timeout ms (default `4000`) |
+| `URL_VALIDATION_CACHE_TTL_MS` | No | TTL for URL-validation cache (default `1800000`) |
 | `SEARXNG_BASE_URL` | No | SearXNG instance for procurement discovery |
 | `FIRECRAWL_BASE_URL` | No | Firecrawl instance for web page extraction |
 | `FIRECRAWL_API_KEY` | No | Firecrawl API key |

@@ -95,6 +95,14 @@ spec:
               value: "${GOOGLE_SEARCH_ENABLED}"
             - name: GOOGLE_SEARCH_DAILY_QUOTA
               value: "${GOOGLE_SEARCH_DAILY_QUOTA}"
+            - name: GOOGLE_SEARCH_CACHE_TTL_MS
+              value: "${GOOGLE_SEARCH_CACHE_TTL_MS}"
+            - name: GOOGLE_SEARCH_VALIDATE_URLS
+              value: "${GOOGLE_SEARCH_VALIDATE_URLS}"
+            - name: URL_VALIDATION_TIMEOUT_MS
+              value: "${URL_VALIDATION_TIMEOUT_MS}"
+            - name: URL_VALIDATION_CACHE_TTL_MS
+              value: "${URL_VALIDATION_CACHE_TTL_MS}"
             # ── Server config ────────────────────────────────────────────
             # NOTE: Do NOT set PORT here. nginx binds 8080 (the Cloud Run
             # container port). The Node API server uses its own default of 8081,
