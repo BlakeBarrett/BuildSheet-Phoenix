@@ -254,6 +254,13 @@ export const sourcingApi = {
   search: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
     post<{ query: string; products: ShoppingOption[]; localSuppliers: LocalSupplier[]; groundedAt: string }>('/sourcing/search', { query, designContext, localeContext, preferredVendors }),
 
+  batch: (queries: Array<{ query: string; designContext?: string; localeContext?: string; preferredVendors?: string[] }>) =>
+    post<{
+      results: Array<{ query: string; options: ShoppingOption[]; localSuppliers: LocalSupplier[]; groundedAt: string }>;
+      totalDurationMs: number;
+      batchCount: number;
+    }>('/sourcing/batch', { queries }),
+
   hydrate: (name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
     post<{ result: any }>('/sourcing/hydrate', { name, category, designContext, localeContext, preferredVendors }),
 

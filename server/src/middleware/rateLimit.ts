@@ -147,6 +147,19 @@ export const searchQuota = (req: Request, res: Response, next: NextFunction): vo
 };
 
 /**
+ * Remaining grounding budget for this requester today (0 at/over cap).
+ * Lets multi-unit endpoints (e.g. /sourcing/batch) REJECT up-front when a
+ * request would obviously exceed the remaining allowance instead of doing
+ * the work and discovering the overrun afterwards.
+ */
+export function searchQuotaRemaining(req: Request): number {
+  const id = (req as any).searchQuotaId ?? requesterId(req);
+  const usage = searchUsage.get(id);
+  if (!usage || usage.day !== currentDay()) return DAILY_SEARCH_QUOTA;
+  return Math.max(0, DAILY_SEARCH_QUOTA - usage.count);
+}
+
+/**
  * Charge grounding spend against the requester's daily search quota.
  * Call once per fully-handled request, AFTER input validation passes and only
  * for responses that required real grounding (not cache hits).

@@ -655,14 +655,37 @@ const KitSummaryModal: React.FC<{
     };
 
     const runSearchAll = async () => {
-        if (searchingAll || isGuest) return;
+        if (searchingAll || isGuest || session.bom.length === 0) return;
         setSearchingAll(true);
-        for (const b of session.bom) {
-            await runSearch(b.instanceId, b.part.name);
-            // Pace requests to stay inside the server search rate limit.
-            await new Promise(r => setTimeout(r, 350));
+        try {
+            // ONE batched request: the server chunks, jitters and rate-limits
+            // internally, and the daily quota gate rejects up-front when the
+            // kit can't fit in today's remaining allowance. A client-side
+            // pacing loop can't do either (429s for kits > 20 parts).
+            const resp = await sourcingApi.batch(session.bom.map(b => ({ query: b.part.name })));
+            const byQuery = new Map((resp?.results || []).map(r => [r.query.trim().toLowerCase(), r]));
+            setSearchStates(prev => {
+                const next = { ...prev };
+                for (const b of session.bom) {
+                    const hit = byQuery.get(b.part.name.trim().toLowerCase());
+                    next[b.instanceId] = hit
+                        ? { loading: false, products: hit.options || [], groundedAt: hit.groundedAt }
+                        : { loading: false, products: [], error: t('kit.searchFailed') };
+                }
+                return next;
+            });
+        } catch (e) {
+            console.error('Batch AI product search failed:', e);
+            setSearchStates(prev => {
+                const next = { ...prev };
+                for (const b of session.bom) {
+                    next[b.instanceId] = { ...prev[b.instanceId], loading: false, products: [], error: t('kit.searchFailed') };
+                }
+                return next;
+            });
+        } finally {
+            setSearchingAll(false);
         }
-        setSearchingAll(false);
     };
 
     return (
@@ -678,7 +701,7 @@ const KitSummaryModal: React.FC<{
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6">
                     {/* Part list */}
                     <div>
-                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">Components</h4>
+                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">{t('kit.components')}</h4>
                         <div className="space-y-2">
                             {session.bom.map((b, i) => {
                                 const state = searchStates[b.instanceId];
@@ -707,7 +730,7 @@ const KitSummaryModal: React.FC<{
                                                 className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1"
                                             >
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span>
-                                                Search Assembly
+                                                {t('kit.searchAssembly')}
                                             </a>
                                         </div>
                                         {products.length > 0 && (
@@ -715,9 +738,16 @@ const KitSummaryModal: React.FC<{
                                                 {products.slice(0, 5).map((p, pi) => (
                                                     <div key={pi} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
                                                         <div className="min-w-0">
-                                                            <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-800 hover:text-emerald-700 truncate block">
-                                                                {p.title || p.source}
-                                                            </a>
+                                                            {/* Placeholders (e.g. "Local Market Research
+                                                                Required") carry url:"" — render as plain
+                                                                text so we never emit href="" reloads. */}
+                                                            {p.url ? (
+                                                                <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-800 hover:text-emerald-700 truncate block">
+                                                                    {p.title || p.source}
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-xs font-bold text-slate-800 truncate block">{p.title || p.source}</span>
+                                                            )}
                                                             <div className="text-[11px] text-slate-500 truncate">
                                                                 {p.source || '—'}{p.isEstimated ? ` (${t('kit.estimated')})` : ''}
                                                             </div>
@@ -749,7 +779,7 @@ const KitSummaryModal: React.FC<{
                         {searchingAll ? t('kit.searching') : t('kit.searchAllParts')}
                     </Button>
                     <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">{i18n.t("bom.exportData")}</Button>
-                    <Button variant="primary" onClick={onClose} className="flex-1" icon="check">Done</Button>
+                    <Button variant="primary" onClick={onClose} className="flex-1" icon="check">{t('kit.done')}</Button>
                 </div>
             </div>
         </div>

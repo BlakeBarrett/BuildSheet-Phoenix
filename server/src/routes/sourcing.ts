@@ -10,6 +10,7 @@ import {
   generationRateLimit,
   searchRateLimit,
   searchQuota,
+  searchQuotaRemaining,
   consumeSearchQuota,
 } from '../middleware/rateLimit.js';
 import type { ServerAIService } from '../services/types.js';
@@ -138,6 +139,20 @@ sourcingRouter.post('/batch', requireAuth, searchRateLimit, searchQuota, async (
   }
   if (queries.length > 50) {
     res.status(400).json({ error: 'Maximum 50 queries per batch' }); return;
+  }
+
+  // Up-front quota reservation for multi-unit requests: without this, a
+  // 50-item batch would run ALL its grounding and only then discover the
+  // requester's daily allowance was already spent (work done, results
+  // unusable, budget blown past the cap). Worst-case fresh count is bounded
+  // by queries.length since cache/kill-switch hits are free.
+  const remaining = searchQuotaRemaining(req);
+  if (!Array.isArray(queries) || remaining < queries.length) {
+    res.status(429).json({
+      error: `Daily search quota exceeded — ${remaining} of ${queries.length} required searches remain today.`,
+      retryAfterMs: -1,
+    });
+    return;
   }
 
   try {

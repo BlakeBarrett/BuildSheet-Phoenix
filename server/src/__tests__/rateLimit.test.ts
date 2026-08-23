@@ -19,6 +19,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import {
   searchQuota,
+  searchQuotaRemaining,
   consumeSearchQuota,
   _dailyUsageForTests,
   _dailyUsageSizeForTests,
@@ -152,6 +153,21 @@ describe('searchQuota / consumeSearchQuota', () => {
       consumeSearchQuota(bare as any);
 
       expect(_dailyUsageSizeForTests()).toBe(before);
+    });
+
+    it('searchQuotaRemaining reports the budget consumed so far today', () => {
+      const uid = 'remaining-user';
+      expect(searchQuotaRemaining(makeReq({ user: { uid } })))
+        .toBe(searchQuotaRemaining(makeReq({ user: { uid: 'never-seen-user' } })));
+
+      const req = makeReq({ user: { uid } });
+      searchQuota(req, makeRes() as unknown as Response, vi.fn() as unknown as NextFunction);
+      consumeSearchQuota(req as any, 5);
+
+      const fresh = makeReq({ user: { uid: 'remaining-fresh' } });
+      expect(searchQuotaRemaining(makeReq({ user: { uid } }))).toBe(
+        searchQuotaRemaining(fresh) - 5,
+      );
     });
   });
 
