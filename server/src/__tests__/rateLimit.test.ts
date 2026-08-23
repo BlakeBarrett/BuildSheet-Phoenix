@@ -91,6 +91,26 @@ describe('searchQuota / consumeSearchQuota', () => {
 
       expect((req as any).searchQuotaId).toBe('198.51.100.77');
     });
+
+    it('should NOT collapse guests onto the shared "guest" uid — key by IP instead', () => {
+      // Regression: optionalAuth assigns EVERY unauthenticated caller
+      // uid='guest'; keying on uid put all guests worldwide into one bucket.
+      const guestA = makeReq({ user: undefined, ip: '198.51.100.10' });
+      (guestA as any).user = { uid: 'guest', isGuest: true };
+      const guestB = makeReq({ user: undefined, ip: '198.51.100.20' });
+      (guestB as any).user = { uid: 'guest', isGuest: true };
+
+      searchQuota(guestA, makeRes() as unknown as Response, vi.fn() as unknown as NextFunction);
+      searchQuota(guestB, makeRes() as unknown as Response, vi.fn() as unknown as NextFunction);
+
+      expect((guestA as any).searchQuotaId).toBe('198.51.100.10');
+      expect((guestB as any).searchQuotaId).toBe('198.51.100.20');
+
+      // And consuming against one guest does not touch the other.
+      consumeSearchQuota(guestA as any);
+      expect(_dailyUsageForTests('198.51.100.10')?.count).toBe(1);
+      expect(_dailyUsageForTests('198.51.100.20')).toBeUndefined();
+    });
   });
 
   describe('consumeSearchQuota', () => {

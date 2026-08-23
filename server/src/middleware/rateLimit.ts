@@ -8,6 +8,20 @@ import rateLimit from 'express-rate-limit';
 import { type Request, type Response, type NextFunction } from 'express';
 
 /**
+ * Stable per-requester identity for limiters/quota maps.
+ *
+ * IMPORTANT: guests must NOT collapse onto a single key. `optionalAuth`
+ * assigns every unauthenticated caller uid 'guest' — keying on that would
+ * put all guests on Earth into one shared bucket (one abusive guest could
+ * exhaust everyone's budget). Guests are isolated by client IP instead;
+ * only verified users key on their uid.
+ */
+export function requesterId(req: Request): string {
+  if (req.user && !req.user.isGuest) return req.user.uid;
+  return req.ip || 'unknown';
+}
+
+/**
  * Creates a rate limiter for API routes.
  * Free users: 30 requests per minute
  * Authenticated users: 120 requests per minute
@@ -21,10 +35,7 @@ export const apiRateLimit = rateLimit({
     // Authenticated users get a generous limit
     return 120;
   },
-  keyGenerator: (req: Request) => {
-    // Use authenticated UID if available, otherwise fall back to IP
-    return req.user?.uid || req.ip || 'unknown';
-  },
+  keyGenerator: (req: Request) => requesterId(req),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: {
@@ -43,9 +54,7 @@ export const generationRateLimit = rateLimit({
     if (!req.user || req.user.isGuest) return 10;
     return 30;
   },
-  keyGenerator: (req: Request) => {
-    return req.user?.uid || req.ip || 'unknown';
-  },
+  keyGenerator: (req: Request) => requesterId(req),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: {
@@ -66,9 +75,7 @@ export const searchRateLimit = rateLimit({
     if (!req.user || req.user.isGuest) return 5;
     return 20;
   },
-  keyGenerator: (req: Request) => {
-    return req.user?.uid || req.ip || 'unknown';
-  },
+  keyGenerator: (req: Request) => requesterId(req),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: {
@@ -119,7 +126,7 @@ function pruneStaleUsage(): void {
  * call downstream and lets the request through WITHOUT counting it.
  */
 export const searchQuota = (req: Request, res: Response, next: NextFunction): void => {
-  const id = req.user?.uid || req.ip || 'unknown';
+  const id = requesterId(req);
   const day = currentDay();
   const usage = searchUsage.get(id);
 
