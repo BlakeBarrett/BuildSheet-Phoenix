@@ -109,9 +109,9 @@ jobs:
     name: E2E (Docker + Playwright)
     runs-on: ubuntu-latest
     needs: [build]
-    # Non-blocking while the suite stabilizes against cloud-dependent flows
-    # (firestore/stripe/AI specs need real credentials). Flip to false once green.
-    continue-on-error: true
+    # First run vs a live container: 165/165 passed. Hard-gating now;
+    # revert this line if cloud-dependent specs turn flaky.
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
 
