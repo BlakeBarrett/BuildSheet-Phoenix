@@ -3686,11 +3686,11 @@ const AppContent: React.FC = () => {
                                             }} title={i18n.t("aria.forkFromHere")} className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">call_split</span>
                                             </button>
-                                            {currentUser && (
-                                                <button onClick={() => setCorrectionTarget({ id: `msg-${i}`, content: m.content })} title={i18n.t("aria.reportInaccuracy")} className="text-slate-400 hover:text-amber-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500">
-                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">flag</span>
-                                                </button>
-                                            )}
+                                            {/* Anonymous reports are allowed server-side
+                                                (optionalAuth) — no sign-in gate here. */}
+                                            <button onClick={() => setCorrectionTarget({ id: `msg-${i}`, content: m.content })} title={i18n.t("aria.reportInaccuracy")} className="text-slate-400 hover:text-amber-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">flag</span>
+                                            </button>
 
                                             {m.metadata && (
                                                 <div className="flex bg-white/80 backdrop-blur-sm border border-slate-200/50 shadow-sm rounded-full px-3 py-1 items-center gap-3 text-[10px] text-slate-500 font-mono ml-1">

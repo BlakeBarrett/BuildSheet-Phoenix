@@ -4,67 +4,117 @@ import { test, expect } from '@playwright/test';
  * ArchitectCorrectionDialog — end-to-end coverage of the user-correction flow.
  *
  * The dialog is reachable from the assistant-message hover toolbar (flag
- * icon) in the live chat feed. These tests mock the backend so they run
- * against the container without real Firebase/LLM credentials, and verify:
- *   1. the entry point actually opens the dialog (the old spec only checked
- *      that a JS bundle loaded — it passed even with no dialog in the app),
+ * icon) in the live chat feed. A full project session (including one
+ * assistant message) is seeded into localStorage so these tests need no
+ * LLM/Firebase round-trip, and the /architect/correct endpoint is mocked to
+ * capture the submitted payload.
+ *
+ * Coverage:
+ *   1. the entry point actually opens the dialog (the original spec only
+ *      asserted a JS bundle existed and could never fail),
  *   2. required-field validation,
- *   3. submission payload shape (category enum + separate evidence field,
- *      NO client-controlled `source`).
+ *   3. submission payload shape: backend-valid category enum, evidence in
+ *      its own field, and NO client-controlled `source` key.
  */
 
+const PROJECT_ID = 'e2e-correction-project';
+
+const seedSession = {
+  id: PROJECT_ID,
+  slug: PROJECT_ID,
+  ownerId: 'e2e-user',
+  name: 'Correction Flow Test',
+  designRequirements: 'LED blinker with current limiting resistor',
+  bom: [],
+  generatedImages: [],
+  messages: [
+    {
+      role: 'assistant',
+      content: 'Your LED blinker circuit is complete: an ATmega328P drives an LED through a 220 ohm resistor.',
+      timestamp: new Date().toISOString(),
+    },
+  ],
+  createdAt: new Date().toISOString(),
+  lastModified: new Date().toISOString(),
+};
+
+const seedIndex = [
+  {
+    id: PROJECT_ID,
+    name: seedSession.name,
+    lastModified: seedSession.lastModified,
+    preview: 'Empty Draft',
+    archived: false,
+  },
+];
+
 test.describe('ArchitectCorrectionDialog', () => {
+  let captured: Array<{ body: any }>;
+
   test.beforeEach(async ({ page }) => {
-    // Skip the consent gate.
-    await page.addInitScript(() => {
+    captured = [];
+
+    await page.addInitScript(({ pid, session, index }: any) => {
       localStorage.setItem('buildsheet_consent', 'full');
-    });
+      localStorage.setItem('buildsheet_project_' + pid, JSON.stringify(session));
+      localStorage.setItem('buildsheet_projects_index', JSON.stringify(index));
+      localStorage.setItem('buildsheet_active_project_id', pid);
+    }, { pid: PROJECT_ID, session: seedSession, index: seedIndex });
 
-    // Mock architect chat SSE so an assistant message exists to flag.
-    await page.route('**/api/v1/architect/chat', async route => {
-      await route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-        body: 'data: {"type":"text","content":"Build complete."}\n\ndata: [DONE]\n\n',
-      });
-    });
-
-    // Capture correction submissions.
-    const corrections: Array<{ body: any; auth: string | null }> = [];
+    // Capture correction submissions against the container API.
     await page.route('**/api/v1/architect/correct', async route => {
-      const request = route.request();
-      corrections.push({ body: request.postDataJSON(), auth: request.headers()['authorization'] ?? null });
+      captured.push({ body: route.request().postDataJSON() });
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({ message: 'Correction submitted for review', factId: 'fact-1', status: 'pending' }),
+        body: JSON.stringify({ message: 'Correction submitted for review', factId: 'fact-e2e', status: 'pending' }),
       });
     });
+
+    await page.goto('/app/');
   });
 
-  test('opens from the assistant-message flag button and validates required fields', async ({ page }) => {
-    await page.goto('/app/');
-    await expect(page.getByRole('dialog', { name: /kit/i })).toHaveCount(0);
-
-    // Start a project so the chat feed is active; type a prompt and send it.
-    const input = page.locator('textarea, input[type="text"]').first();
-    if (!await input.isVisible().catch(() => false)) {
-      test.skip(true, 'App requires project initialization flow not covered here');
-      return;
-    }
-    await input.fill('LED blinker with 220 ohm resistor');
-    await input.press('Enter');
-
-    // Assistant message hover reveals the flag button.
-    const flag = page.getByTitle(/report inaccuracy/i).first();
-    await flag.hover();
+  async function openDialog(page: import('@playwright/test').Page) {
+    const feed = page.getByRole('log');
+    await expect(feed.getByText(/LED blinker circuit is complete/i)).toBeVisible();
+    const group = feed.locator('.group', { hasText: 'LED blinker circuit is complete' }).first();
+    await group.hover();
+    const flag = group.getByTitle(/report inaccuracy/i);
     await flag.click();
+    return page.getByRole('dialog', { name: /report inaccurate information/i });
+  }
 
-    const dialog = page.getByRole('dialog', { name: /report inaccurate information/i });
+  test('opens from the assistant-message flag action', async ({ page }) => {
+    const dialog = await openDialog(page);
     await expect(dialog).toBeVisible();
+    await expect(dialog.locator('#correction-category')).toBeVisible();
+  });
 
-    // Required-field validation: submit with nothing filled.
+  test('validates required fields before submission', async ({ page }) => {
+    const dialog = await openDialog(page);
     await dialog.getByRole('button', { name: /submit correction/i }).click();
     await expect(dialog.getByText(/fill in the category/i)).toBeVisible();
+    expect(captured).toHaveLength(0);
+  });
+
+  test('submits a backend-shaped payload without a client-controlled source', async ({ page }) => {
+    const dialog = await openDialog(page);
+
+    // Category values MUST be from the backend allowlist.
+    const options = await dialog.locator('#correction-category option').allTextContents();
+    expect(options.join(' ')).toContain('Component Specs');
+
+    await dialog.locator('#correction-category').selectOption('component-specs');
+    await dialog.locator('#correction-text').fill('The resistor should be 220 ohms, not 330.');
+    await dialog.locator('#correction-evidence').fill('ATmega328P datasheet, section 13');
+    await dialog.getByRole('button', { name: /submit correction/i }).click();
+
+    await expect(dialog.getByText(/thank you/i)).toBeVisible();
+    expect(captured).toHaveLength(1);
+    expect(captured[0].body.category).toBe('component-specs');
+    expect(captured[0].body.statement).toContain('220 ohms');
+    expect(captured[0].body.evidence).toBe('ATmega328P datasheet, section 13');
+    // `source` is server-controlled provenance — never sent by the client.
+    expect(captured[0].body.source).toBeUndefined();
   });
 });
