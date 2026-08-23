@@ -11,6 +11,7 @@
  * All Google Search grounding now goes exclusively through this service.
  * The client receives fully-formed JSON — no parsing on the frontend.
  */
+import { createHash } from 'node:crypto';
 import type { ServerAIService, ShoppingOption, LocalSupplier } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -34,8 +35,21 @@ interface CacheEntry {
 
 const resultCache = new Map<string, CacheEntry>();
 
-function cacheKey(query: string, localeContext?: string): string {
-  return `${(localeContext || 'en').toLowerCase()}:${query.trim().toLowerCase()}`;
+/**
+ * Cache key includes the FULL grounding context. designContext and
+ * preferredVendors change what the model is asked (and therefore what it
+ * returns), so a query-only key would serve one request's vendor-specific
+ * results to an incompatible lookup for the entire TTL hour.
+ */
+function cacheKey(
+  query: string,
+  localeContext?: string,
+  designContext?: string,
+  preferredVendors?: string[]
+): string {
+  const ctxHash = createHash('sha1').update(designContext || '').digest('hex').slice(0, 10);
+  const vendors = (preferredVendors || []).map(v => v.trim().toLowerCase()).sort().join('|');
+  return `${(localeContext || 'en').toLowerCase()}:${ctxHash}:${vendors}:${query.trim().toLowerCase()}`;
 }
 
 function cacheGet(key: string): SearchResult | null {
@@ -134,7 +148,7 @@ export class SearchService {
   ): Promise<{ result: SearchResult; fromCache: boolean }> {
     // Serve from cache when a grounded result for the same query/locale exists.
     // Cached hits skip the Google Search grounding API entirely.
-    const key = cacheKey(query, localeContext);
+    const key = cacheKey(query, localeContext, designContext, preferredVendors);
     const cached = cacheGet(key);
     if (cached) return { result: cached, fromCache: true };
 
