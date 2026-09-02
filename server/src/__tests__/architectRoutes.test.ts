@@ -121,7 +121,7 @@ describe('Architect routes — resilience', () => {
       });
 
       expect(res.status).toBe(503);
-      const data = await res.json();
+      const data = await res.json() as { syncUnavailable?: boolean };
       expect(data.syncUnavailable).toBe(true);
     });
 

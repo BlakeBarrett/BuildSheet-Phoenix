@@ -64,16 +64,21 @@ export class VerifiedFactService {
       q = q.where('category', '==', query.category);
     }
     
-    // Bound the read: without a limit every approved fact is pulled (and
-    // billed) on each search even though callers use small result windows.
-    const snapshot: QuerySnapshot<DocumentData> = await q.limit(Number(process.env.VERIFIED_FACTS_SCAN_LIMIT || 200)).get();
+    // Bound the read with a hard server-side cap. Verified facts are queried
+    // per architect chat, so an unbounded scan would make every chat message
+    // load the entire approved collection. The limit is read at request time
+    // so .env changes are picked up after dotenv.config().
+    const scanLimit = Number(process.env.VERIFIED_FACTS_SCAN_LIMIT || 200);
+    const snapshot: QuerySnapshot<DocumentData> = await q.limit(scanLimit).get();
     
     // Apply additional filters in-memory (tags, searchTerm, minConfidence)
     snapshot.forEach((docSnap) => {
       const fact = docSnap.data() as VerifiedFact;
       
       if (query.minConfidence && fact.confidence < query.minConfidence) return;
-      if (query.tags && !query.tags.some(t => fact.tags.includes(t))) return;
+      // Empty tag array means "no tag filter" — otherwise every fact would be
+      // rejected because .some() on [] is always false.
+      if (query.tags && query.tags.length > 0 && !query.tags.some(t => fact.tags.includes(t))) return;
       if (query.searchTerm && !fact.statement.toLowerCase().includes(query.searchTerm.toLowerCase())) return;
       
       facts.push(fact);

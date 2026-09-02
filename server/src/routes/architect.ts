@@ -148,7 +148,7 @@ architectRouter.post('/apply-audit', requireAuth, apiRateLimit, async (req: Requ
 architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
   const { statement, category, evidence, tags = [] } = req.body;
 
-  if (!statement) {
+  if (typeof statement !== 'string' || !statement.trim()) {
     res.status(400).json({ error: 'statement is required' });
     return;
   }
@@ -162,13 +162,13 @@ architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request
 
   try {
     // optionalAuth guarantees req.user is set; the field is `uid` (not `id`).
-    const userId = (req as any).user?.uid;
+    const userId = req.user?.uid;
 
     // Only include createdBy when a user is authenticated — Firestore rejects
     // explicit `undefined` values, so anonymous corrections must omit the key.
     const factInput: Record<string, any> = {
-      category: (category as any) || 'general',
-      statement,
+      category: category || 'general',
+      statement: statement.trim(),
       // `source` is a provenance field — server-controlled so arbitrary user
       // text can never masquerade as a trusted origin.
       source: 'user-correction',
@@ -190,10 +190,11 @@ architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request
     // Corrections are best-effort persistence. Firestore credential/outage
     // failures degrade gracefully (503) instead of leaking raw errors.
     const msg = err?.message || String(err);
-    const isCredError = msg.includes('credentials')
+    const isServiceUnavailable = msg.includes('VerifiedFactService unavailable')
+      || msg.includes('credentials')
       || msg.includes('Could not load the default')
       || msg.includes('Failed to connect to Firestore');
-    if (isCredError) {
+    if (isServiceUnavailable) {
       console.warn('[architect/correct] Firestore unavailable — returning 503:', msg);
       res.status(503).json({
         error: 'Sync service unavailable. Your correction will not be persisted until the server has valid cloud credentials.',

@@ -696,7 +696,7 @@ const KitSummaryModal: React.FC<{
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
                         <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h3>
-                        <p className="text-base text-slate-600 font-medium mt-1">Your hardware kit — {session.bom.length} component{session.bom.length !== 1 ? 's' : ''}</p>
+                        <p className="text-base text-slate-600 font-medium mt-1">{t('kit.componentCount', { count: session.bom.length })}</p>
                     </div>
                     <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} />
                 </div>
@@ -721,7 +721,7 @@ const KitSummaryModal: React.FC<{
                                                     {t('kit.signInToSearch')}
                                                 </p>
                                             ) : (
-                                                <Button variant="tonal" className="!py-1 !px-3 !text-xs" icon={state?.loading ? "progress_activity" : "travel_explore"} disabled={state?.loading} onClick={() => runSearch(b.instanceId, b.part.name)}>
+                                                <Button variant="tonal" className="!py-1 !px-3 !text-xs" icon={state?.loading ? "progress_activity" : "travel_explore"} disabled={state?.loading || searchingAll} onClick={() => runSearch(b.instanceId, b.part.name)}>
                                                     {state?.loading ? t('kit.searching') : t('kit.aiProductSearch')}
                                                 </Button>
                                             )}
@@ -737,7 +737,7 @@ const KitSummaryModal: React.FC<{
                                         </div>
                                         {products.length > 0 && (
                                             <div className="mt-3 space-y-1.5">
-                                                {products.slice(0, 5).map((p, pi) => (
+                                                {products.filter(p => p.title || p.source).slice(0, 5).map((p, pi) => (
                                                     <div key={pi} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
                                                         <div className="min-w-0">
                                                             {/* Placeholders (e.g. "Local Market Research

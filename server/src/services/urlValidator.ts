@@ -245,13 +245,22 @@ export async function validateShoppingOptions(options: ShoppingOption[]): Promis
     return options.filter(opt => isHttpUrl(opt.url));
   }
 
-  // Dedupe: options often repeat a URL or differ only by case/whitespace.
+  // Dedupe: options often repeat a URL. Normalization must preserve path/query
+  // casing — only the hostname is case-insensitive. Lowercasing the whole URL
+  // would make `/Part` and `/part` collide, hiding a valid listing or keeping
+  // an invalid one.
   const unique = new Map<string, string>(); // normalized -> representative URL
   for (const opt of options) {
     const url = (opt.url || '').trim();
     if (!/^https?:\/\//i.test(url)) continue; // Not probeable; flagged below.
-    const key = url.toLowerCase();
-    if (!unique.has(key)) unique.set(key, url);
+    try {
+      const parsed = new URL(url);
+      const key = `${parsed.protocol}//${parsed.hostname.toLowerCase()}${parsed.pathname}${parsed.search}`;
+      if (!unique.has(key)) unique.set(key, url);
+    } catch {
+      // Unparseable but http(s)-ish — fall back to the trimmed URL as its own key.
+      unique.set(url, url);
+    }
   }
 
   // Bounded-concurrency worker pool over the unique URLs.
@@ -271,7 +280,14 @@ export async function validateShoppingOptions(options: ShoppingOption[]): Promis
     const url = (opt.url || '').trim();
     // Scheme safety is absolute: never emit a non-http(s) href to the client.
     if (!isHttpUrl(url)) return [];
-    const result = verdicts.get(url.toLowerCase());
+    let key: string;
+    try {
+      const parsed = new URL(url);
+      key = `${parsed.protocol}//${parsed.hostname.toLowerCase()}${parsed.pathname}${parsed.search}`;
+    } catch {
+      key = url;
+    }
+    const result = verdicts.get(key);
     if (!result || result.verdict === 'inconclusive') {
       return [{ ...opt, validated: false, isEstimated: true }];
     }

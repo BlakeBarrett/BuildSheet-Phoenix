@@ -99,7 +99,12 @@ export const searchRateLimit = rateLimit({
 //      never burn daily quota.
 // ---------------------------------------------------------------------------
 
-const DAILY_SEARCH_QUOTA = Number(process.env.GOOGLE_SEARCH_DAILY_QUOTA || 150);
+function dailySearchQuota(): number {
+  // Read the quota at request time, not module-load time, so that
+  // `cd server && npm run dev` picks up GOOGLE_SEARCH_DAILY_QUOTA from .env
+  // after index.ts calls dotenv.config().
+  return Number(process.env.GOOGLE_SEARCH_DAILY_QUOTA || 150);
+}
 const dailyWindowMs = 24 * 60 * 60 * 1000;
 // Opportunistic cleanup: once the usage map grows past this many entries
 // (long-tail guest IPs, mostly), sweep out entries from previous days.
@@ -130,7 +135,7 @@ export const searchQuota = (req: Request, res: Response, next: NextFunction): vo
   const day = currentDay();
   const usage = searchUsage.get(id);
 
-  if (usage && usage.day === day && usage.count >= DAILY_SEARCH_QUOTA) {
+  if (usage && usage.day === day && usage.count >= dailySearchQuota()) {
     res.status(429).json({
       error: 'Daily search quota exceeded — please try again tomorrow.',
       retryAfterMs: -1,
@@ -155,8 +160,9 @@ export const searchQuota = (req: Request, res: Response, next: NextFunction): vo
 export function searchQuotaRemaining(req: Request): number {
   const id = (req as any).searchQuotaId ?? requesterId(req);
   const usage = searchUsage.get(id);
-  if (!usage || usage.day !== currentDay()) return DAILY_SEARCH_QUOTA;
-  return Math.max(0, DAILY_SEARCH_QUOTA - usage.count);
+  const quota = dailySearchQuota();
+  if (!usage || usage.day !== currentDay()) return quota;
+  return Math.max(0, quota - usage.count);
 }
 
 /**
@@ -177,8 +183,9 @@ export function consumeSearchQuota(req: Request, amount = 1): void {
   const day = currentDay();
   const usage = searchUsage.get(id);
 
+  const quota = dailySearchQuota();
   if (!usage || usage.day !== day) {
-    searchUsage.set(id, { day, count: Math.min(amount, DAILY_SEARCH_QUOTA) });
+    searchUsage.set(id, { day, count: Math.min(amount, quota) });
   } else {
     usage.count += amount;
   }

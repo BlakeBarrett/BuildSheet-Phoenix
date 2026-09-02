@@ -75,6 +75,9 @@ jobs:
       - name: Typecheck server (strict)
         run: cd server && npx tsc --noEmit
 
+      - name: Typecheck server tests
+        run: cd server && npx tsc --noEmit -p tsconfig.tests.json
+
   test:
     name: Unit tests (server vitest)
     runs-on: ubuntu-latest

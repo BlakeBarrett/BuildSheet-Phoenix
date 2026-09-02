@@ -138,7 +138,9 @@ adminRouter.post('/corrections/approve', async (req: Request, res: Response) => 
       return;
     }
 
-    const now = new Date().toISOString();
+    // Use a Firestore Timestamp consistently with VerifiedFactService so the
+    // updatedAt field has the same type regardless of which path last wrote it.
+    const now = new Date();
     const updates: any = {
       status: action === 'approve' ? 'approved' : 'rejected',
       updatedAt: now,

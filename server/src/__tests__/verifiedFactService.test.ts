@@ -386,8 +386,9 @@ describe('VerifiedFactService', () => {
   describe('edge cases', () => {
     it('should handle empty tag filter correctly', async () => {
       const results = await service.searchFacts({ tags: [] });
-      // Empty tags array should match facts with any tags (or no filter applied)
-      expect(Array.isArray(results)).toBe(true);
+      // Empty tags array means "no tag filter" — every approved fact matches.
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every(f => f.status === 'approved')).toBe(true);
     });
 
     it('should handle case-insensitive search', async () => {

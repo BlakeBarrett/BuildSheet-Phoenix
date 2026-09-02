@@ -44,6 +44,11 @@ AI_MODEL_IMAGE="${AI_MODEL_IMAGE:-}"
 AI_MODEL_AUDIO="${AI_MODEL_AUDIO:-}"
 SEARCH_API_KEY="${SEARCH_API_KEY:-}"
 ADMIN_UIDS="${ADMIN_UIDS:-}"
+# Kill-switch and quota defaults. They are exported via envsubst below, so
+# provide fallback values here to keep `set -u` from aborting when they are
+# absent from the env file.
+GOOGLE_SEARCH_ENABLED="${GOOGLE_SEARCH_ENABLED:-1}"
+GOOGLE_SEARCH_DAILY_QUOTA="${GOOGLE_SEARCH_DAILY_QUOTA:-150}"
 GOOGLE_SEARCH_CACHE_TTL_MS="${GOOGLE_SEARCH_CACHE_TTL_MS:-}"
 GOOGLE_SEARCH_VALIDATE_URLS="${GOOGLE_SEARCH_VALIDATE_URLS:-}"
 URL_VALIDATION_TIMEOUT_MS="${URL_VALIDATION_TIMEOUT_MS:-}"

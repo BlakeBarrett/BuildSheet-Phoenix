@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, IconButton } from './Material3UI.tsx';
 import { architectApi } from '../services/apiClient.ts';
 
@@ -21,20 +22,21 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string>('');
+  const { t } = useTranslation();
 
   // MUST match the backend allowlist in /architect/correct — any other value
   // receives HTTP 400 and the dialog can never submit.
   const categories = [
-    { value: 'component-specs', label: 'Component Specs' },
-    { value: 'compatibility', label: 'Compatibility' },
-    { value: 'requirements', label: 'Requirements' },
-    { value: 'procurement', label: 'Procurement' },
-    { value: 'general', label: 'General' },
+    { value: 'component-specs', label: t('correction.categoryComponentSpecs') },
+    { value: 'compatibility', label: t('correction.categoryCompatibility') },
+    { value: 'requirements', label: t('correction.categoryRequirements') },
+    { value: 'procurement', label: t('correction.categoryProcurement') },
+    { value: 'general', label: t('correction.categoryGeneral') },
   ];
 
   const handleSubmit = async () => {
     if (!category || !correction) {
-      setError('Please fill in the category and correction fields.');
+      setError(t('correction.fillRequired'));
       return;
     }
 
@@ -58,7 +60,7 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
         handleClose();
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to submit correction');
+      setError(err.message || t('correction.submitFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -70,6 +72,7 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
     setEvidence('');
     setSubmitted(false);
     setError('');
+    // Focus restoration is handled by the caller (the report-inaccuracy button).
     onClose();
   };
 
@@ -90,7 +93,7 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
         {/* Header */}
         <div className="p-6 pb-3 flex justify-between items-center border-b border-gray-100">
           <h3 id="correction-dialog-title" className="text-xl font-bold text-slate-800 tracking-tight">
-            Report Inaccurate Information
+            {t('correction.title')}
           </h3>
           <IconButton icon="close" onClick={handleClose} title="Close" />
         </div>
@@ -102,9 +105,9 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
               <span className="material-symbols-rounded text-green-600 text-5xl mb-4" aria-hidden="true">
                 check_circle
               </span>
-              <h4 className="text-lg font-bold text-slate-800 mb-2">Thank you!</h4>
+              <h4 className="text-lg font-bold text-slate-800 mb-2">{t('correction.thankYou')}</h4>
               <p className="text-sm text-slate-600">
-                Your correction has been submitted. We appreciate your feedback.
+                {t('correction.submitted')}
               </p>
             </div>
           ) : (
@@ -112,7 +115,7 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
               {/* Category Select */}
               <div>
                 <label htmlFor="correction-category" className="block text-sm font-bold text-slate-700 mb-2">
-                  Category <span className="text-red-500">*</span>
+                  {t('correction.category')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="correction-category"
@@ -120,7 +123,7 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                 >
-                  <option value="">Select a category</option>
+                  <option value="">{t('correction.selectCategory')}</option>
                   {categories.map((cat) => (
                     <option key={cat.value} value={cat.value}>
                       {cat.label}
@@ -132,13 +135,13 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
               {/* Correction TextField */}
               <div>
                 <label htmlFor="correction-text" className="block text-sm font-bold text-slate-700 mb-2">
-                  Your Correction <span className="text-red-500">*</span>
+                  {t('correction.yourCorrection')} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   id="correction-text"
                   value={correction}
                   onChange={(e) => setCorrection(e.target.value)}
-                  placeholder="Please provide the correct information..."
+                  placeholder={t('correction.correctionPlaceholder')}
                   rows={4}
                   className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
                 />
@@ -147,13 +150,13 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
               {/* Evidence TextField */}
               <div>
                 <label htmlFor="correction-evidence" className="block text-sm font-bold text-slate-700 mb-2">
-                  Supporting Evidence (optional)
+                  {t('correction.evidence')}
                 </label>
                 <textarea
                   id="correction-evidence"
                   value={evidence}
                   onChange={(e) => setEvidence(e.target.value)}
-                  placeholder="Links, references, or additional context..."
+                  placeholder={t('correction.evidencePlaceholder')}
                   rows={3}
                   className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
                 />
@@ -173,16 +176,16 @@ export const ArchitectCorrectionDialog: React.FC<ArchitectCorrectionDialogProps>
         {!submitted && (
           <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-slate-50">
             <Button variant="ghost" onClick={handleClose}>
-              Cancel
+              {t('modal.cancel')}
             </Button>
             <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
               {submitting ? (
                 <span className="flex items-center gap-2">
                   <span className="material-symbols-rounded animate-spin">progress_activity</span>
-                  Submitting...
+                  {t('correction.submitting')}
                 </span>
               ) : (
-                'Submit Correction'
+                t('correction.submit')
               )}
             </Button>
           </div>

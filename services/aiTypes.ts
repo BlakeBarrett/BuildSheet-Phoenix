@@ -1,6 +1,6 @@
 
-import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, AdvancedValidationOption } from '../types.ts';
-import { ProcurementResult } from './procurementTypes.ts';
+import { Part, ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, EnclosureSpec, AdvancedValidationOption } from '../types.js';
+import { ProcurementResult } from './procurementTypes.js';
 
 export interface ArchitectResponse {
   reasoning: string;

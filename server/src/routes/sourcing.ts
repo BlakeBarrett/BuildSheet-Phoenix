@@ -34,7 +34,9 @@ function getSearchService(req: Request): SearchService {
  */
 sourcingRouter.post('/find', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { query, designContext, localeContext, preferredVendors } = req.body;
-  if (!query) { res.status(400).json({ error: 'query is required' }); return; }
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    res.status(400).json({ error: 'query is required' }); return;
+  }
 
   try {
     const search = getSearchService(req);
@@ -59,7 +61,9 @@ sourcingRouter.post('/find', optionalAuth, searchRateLimit, searchQuota, async (
  */
 sourcingRouter.post('/search', requireAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { query, designContext, localeContext, preferredVendors } = req.body;
-  if (!query) { res.status(400).json({ error: 'query is required' }); return; }
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    res.status(400).json({ error: 'query is required' }); return;
+  }
 
   try {
     const search = getSearchService(req);
@@ -85,15 +89,17 @@ sourcingRouter.post('/search', requireAuth, searchRateLimit, searchQuota, async 
  */
 sourcingRouter.post('/hydrate', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { name, category, designContext, localeContext, preferredVendors } = req.body;
-  if (!name || !category) { res.status(400).json({ error: 'name and category are required' }); return; }
-
-  // Hydration has no TTL cache — every validated request grounds for real,
-  // so the quota is charged unconditionally (validation already passed).
-  consumeSearchQuota(req);
+  if (!name || typeof name !== 'string' || !name.trim() || !category || typeof category !== 'string' || !category.trim()) {
+    res.status(400).json({ error: 'name and category are required' }); return;
+  }
 
   try {
     const search = getSearchService(req);
-    const result = await search.hydratePart(name, category, designContext, localeContext, preferredVendors);
+    const result = await search.hydratePart(name.trim(), category.trim(), designContext, localeContext, preferredVendors);
+    // Hydration only consumes quota when fresh grounding actually happened.
+    // The openai-compat branch does not use Google Search grounding, and any
+    // provider failure returns { details: null } without grounding.
+    if (result.details !== null) consumeSearchQuota(req);
     res.json({ result: result.details, groundedAt: result.groundedAt });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -108,13 +114,15 @@ sourcingRouter.post('/hydrate', optionalAuth, searchRateLimit, searchQuota, asyn
  */
 sourcingRouter.post('/local', optionalAuth, searchRateLimit, searchQuota, async (req: Request, res: Response) => {
   const { query } = req.body;
-  if (!query) { res.status(400).json({ error: 'query is required' }); return; }
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    res.status(400).json({ error: 'query is required' }); return;
+  }
 
   try {
     const search = getSearchService(req);
     // Local-only grounding: skips findPartSources() entirely (no wasted
     // web-wide grounding when the caller only wants nearby suppliers).
-    const suppliers = await search.findLocalSuppliersOnly(query);
+    const suppliers = await search.findLocalSuppliersOnly(query.trim());
     // No quota charge under the kill-switch: nothing touched Google.
     if (process.env.GOOGLE_SEARCH_ENABLED !== '0') {
       consumeSearchQuota(req);
@@ -140,6 +148,9 @@ sourcingRouter.post('/batch', requireAuth, searchRateLimit, searchQuota, async (
   if (queries.length > 50) {
     res.status(400).json({ error: 'Maximum 50 queries per batch' }); return;
   }
+  if (!queries.every(q => q && typeof q.query === 'string' && q.query.trim())) {
+    res.status(400).json({ error: 'every query must be a non-empty string' }); return;
+  }
 
   // Up-front quota reservation for multi-unit requests: without this, a
   // 50-item batch would run ALL its grounding and only then discover the
@@ -147,7 +158,7 @@ sourcingRouter.post('/batch', requireAuth, searchRateLimit, searchQuota, async (
   // unusable, budget blown past the cap). Worst-case fresh count is bounded
   // by queries.length since cache/kill-switch hits are free.
   const remaining = searchQuotaRemaining(req);
-  if (!Array.isArray(queries) || remaining < queries.length) {
+  if (remaining < queries.length) {
     res.status(429).json({
       error: `Daily search quota exceeded — ${remaining} of ${queries.length} required searches remain today.`,
       retryAfterMs: -1,
@@ -175,7 +186,9 @@ sourcingRouter.post('/batch', requireAuth, searchRateLimit, searchQuota, async (
  */
 sourcingRouter.post('/procure', requireAuth, generationRateLimit, async (req: Request, res: Response) => {
   const { query, category, designContext, localeContext, preferredVendors } = req.body;
-  if (!query || !category) { res.status(400).json({ error: 'query and category are required' }); return; }
+  if (!query || typeof query !== 'string' || !query.trim() || !category || typeof category !== 'string' || !category.trim()) {
+    res.status(400).json({ error: 'query and category are required' }); return;
+  }
 
   try {
     // Import procurement engine dynamically (heavy dependency)

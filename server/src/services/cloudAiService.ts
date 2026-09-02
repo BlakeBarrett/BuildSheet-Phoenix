@@ -454,7 +454,11 @@ export class ServerCloudAIService implements ServerAIService {
 
   /** Filter out noisy/irrelevant sources (forums, news, docs, social, etc.). */
   private filterShoppingOptions(options: ShoppingOption[]): ShoppingOption[] {
-    return options.filter(opt => opt.url && !NOISY_DOMAINS.some(d => opt.url.includes(d)) && !NOISY_URL_PATTERNS.some(p => p.test(opt.url)));
+    return options.filter(opt => {
+      if (!opt.url) return false;
+      const lowerUrl = opt.url.toLowerCase();
+      return !NOISY_DOMAINS.some(d => lowerUrl.includes(d)) && !NOISY_URL_PATTERNS.some(p => p.test(opt.url));
+    });
   }
 
   async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {

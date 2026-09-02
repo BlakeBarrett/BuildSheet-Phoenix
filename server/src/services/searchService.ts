@@ -25,8 +25,15 @@ const JITTER_MAX_MS = 700;
 // In-memory response cache. Reusing a grounded result within the TTL window
 // avoids re-hitting the Google Search grounding API, which is both costly and
 // the primary cause of API key throttling/blacklisting.
-const CACHE_TTL_MS = Number(process.env.GOOGLE_SEARCH_CACHE_TTL_MS || 60 * 60 * 1000);
+const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 500;
+
+function cacheTtlMs(): number {
+  // Read the TTL at request time, not module-load time, so that
+  // `cd server && npm run dev` picks up GOOGLE_SEARCH_CACHE_TTL_MS from .env
+  // after index.ts calls dotenv.config().
+  return Number(process.env.GOOGLE_SEARCH_CACHE_TTL_MS || DEFAULT_CACHE_TTL_MS);
+}
 
 interface CacheEntry {
   at: number;
@@ -55,7 +62,7 @@ function cacheKey(
 function cacheGet(key: string): SearchResult | null {
   const hit = resultCache.get(key);
   if (!hit) return null;
-  if (Date.now() - hit.at > CACHE_TTL_MS) {
+  if (Date.now() - hit.at > cacheTtlMs()) {
     resultCache.delete(key);
     return null;
   }
