@@ -3,6 +3,7 @@
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { apiRateLimit } from '../middleware/rateLimit.js';
 import { getFirestore } from 'firebase-admin/firestore';
 import { firebaseInitialized, firebaseErrorMessage } from '../index.js';
 
@@ -62,8 +63,12 @@ function handleFirebaseError(res: Response, err: any): void {
   }
 }
 
-// All admin routes require authentication and admin access
+// All admin routes require authentication, admin access, and a base rate limit.
+// Admin endpoints also authorize on every request, so applying apiRateLimit here
+// satisfies CodeQL's "auth route must be rate-limited" rule. Listing/small
+// mutations are not search-budget operations, so searchRateLimit is unnecessary.
 adminRouter.use(requireAuth);
+adminRouter.use(apiRateLimit);
 adminRouter.use(requireAdmin);
 
 /**

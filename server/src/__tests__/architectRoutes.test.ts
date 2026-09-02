@@ -28,6 +28,11 @@ vi.mock('../services/verifiedFactService.js', () => ({
 
 vi.mock('../middleware/auth.js', () => ({
   requireAuth: (_req: any, _res: any, next: any) => {
+    // x-anon header simulates an unauthenticated (guest) user
+    if (_req.get('x-anon') === '1') {
+      _res.status(401).json({ error: 'Missing or invalid Authorization header' });
+      return;
+    }
     _req.user = { id: 'user-1', uid: 'user-1' };
     next();
   },
@@ -159,15 +164,7 @@ describe('Architect routes — resilience', () => {
       expect(res.status).toBe(400);
     });
 
-    it('omits createdBy for anonymous (guest) corrections', async () => {
-      mockStoreFact.mockResolvedValue({
-        factId: 'fact-anon',
-        status: 'pending',
-        category: 'general',
-        statement: 'x',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+    it('rejects anonymous (guest) corrections', async () => {
       const ai = new MockAI();
       const baseUrl = await startServer(createTestApp(ai), '/api/v1/architect');
 
@@ -177,10 +174,8 @@ describe('Architect routes — resilience', () => {
         body: JSON.stringify({ statement: 'Guest correction' }),
       });
 
-      expect(res.status).toBe(201);
-      expect(mockStoreFact).toHaveBeenCalledTimes(1);
-      const payload = mockStoreFact.mock.calls[0][0] as any;
-      expect(payload).not.toHaveProperty('createdBy');
+      expect(res.status).toBe(401);
+      expect(mockStoreFact).not.toHaveBeenCalled();
     });
   });
 });

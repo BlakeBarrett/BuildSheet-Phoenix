@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, dev, refactor-backend-thin-client]
@@ -13,6 +16,8 @@ jobs:
   build:
     name: Build (frontend + server)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +50,8 @@ jobs:
   lint:
     name: Typecheck (client + server, strict)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -81,6 +88,8 @@ jobs:
   test:
     name: Unit tests (server vitest)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -112,6 +121,8 @@ jobs:
     name: E2E (Docker + Playwright)
     runs-on: ubuntu-latest
     needs: [build]
+    permissions:
+      contents: read
     # First run vs a live container: 165/165 passed. Hard-gating now;
     # revert this line if cloud-dependent specs turn flaky.
     continue-on-error: false

@@ -145,7 +145,7 @@ architectRouter.post('/apply-audit', requireAuth, apiRateLimit, async (req: Requ
  * Body: { statement, category?, evidence?, tags? }
  * Creates a pending verified fact for admin review.
  */
-architectRouter.post('/correct', optionalAuth, apiRateLimit, async (req: Request, res: Response) => {
+architectRouter.post('/correct', requireAuth, apiRateLimit, async (req: Request, res: Response) => {
   const { statement, category, evidence, tags = [] } = req.body;
 
   if (typeof statement !== 'string' || !statement.trim()) {

@@ -186,7 +186,8 @@ export class SearchService {
       cacheSet(key, result);
       return { result, fromCache: false };
     } catch (e: any) {
-      console.error(`[SearchService] findSources failed for "${query}":`, e?.message || e);
+      const msg = e?.message || String(e);
+      console.error('[SearchService] findSources failed for query:', msg);
       return { result: { query, options: [], localSuppliers: [], groundedAt }, fromCache: false };
     }
   }
@@ -224,7 +225,8 @@ export class SearchService {
       const suppliers = await this.ai.findLocalSuppliers(query);
       return suppliers || [];
     } catch (e: any) {
-      console.error(`[SearchService] findLocalSuppliersOnly failed for "${query}":`, e?.message || e);
+      const msg = e?.message || String(e);
+      console.error('[SearchService] findLocalSuppliersOnly failed for query:', msg);
       return [];
     }
   }

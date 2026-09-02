@@ -11,6 +11,7 @@ import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
 import { sanitizeMarkdownTables } from './services/parseUtils.ts';
+import { isHttpUrl } from './services/urlUtils.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder, PreferredVendor } from './types.ts';
 import type { ShoppingOption } from './types.ts';
@@ -743,7 +744,7 @@ const KitSummaryModal: React.FC<{
                                                             {/* Placeholders (e.g. "Local Market Research
                                                                 Required") carry url:"" — render as plain
                                                                 text so we never emit href="" reloads. */}
-                                                            {p.url ? (
+                                                            {p.url && isHttpUrl(p.url) ? (
                                                                 <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-800 hover:text-emerald-700 truncate block">
                                                                     {p.title || p.source}
                                                                 </a>

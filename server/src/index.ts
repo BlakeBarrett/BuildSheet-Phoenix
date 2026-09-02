@@ -83,6 +83,10 @@ console.log(`[Server] AI Service: ${aiService.name} (offline=${aiService.isOffli
 // ---------------------------------------------------------------------------
 const app = express();
 
+// Trust the proxy (nginx/Cloud Run) so req.ip reflects the real client IP
+// for rate-limit keys instead of the internal load-balancer address.
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   // Allow the SPA to load assets; adjust as needed
