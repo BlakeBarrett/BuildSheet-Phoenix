@@ -44,5 +44,4 @@ patch-*.cjs
 runner.sh
 test-*.mjs
 test-*.js
-!test-results/
 TODO.md
