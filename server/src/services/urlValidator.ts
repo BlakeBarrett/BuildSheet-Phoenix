@@ -25,7 +25,7 @@
  */
 import { lookup as systemDnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { isHttpUrl } from '../../../services/urlUtils.js';
+import { isHttpUrl } from './urlUtils.js';
 import type { ShoppingOption } from './types.js';
 
 /** Public shape of a single URL probe (also what lands in the cache). */
@@ -70,7 +70,7 @@ export function _setDnsResolverForTests(fn?: (host: string) => Promise<DnsEntry[
 }
 
 // Re-export the shared helper so callers can import it from this module.
-export { isHttpUrl } from '../../../services/urlUtils.js';
+export { isHttpUrl } from './urlUtils.js';
 
 function ipv4ToInt(ip: string): number | null {
   const parts = ip.split('.');
