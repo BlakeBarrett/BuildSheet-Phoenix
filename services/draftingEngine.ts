@@ -577,6 +577,17 @@ export class DraftingEngine {
     localStorage.removeItem(this.ACTIVE_ID_KEY);
   }
 
+  private findSimilarPart(part: Part): BOMEntry | null {
+    const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const targetName = normalized(part.name);
+    const targetCategory = normalized(part.category);
+    
+    return this.session.bom.find(entry => 
+      normalized(entry.part.name) === targetName && 
+      normalized(entry.part.category) === targetCategory
+    ) || null;
+  }
+
   public async addPart(partId: string, name?: string, category?: string, quantity: number = 1) {
     this.pushUndo();
 
@@ -604,7 +615,7 @@ export class DraftingEngine {
       };
     }
 
-    const existingEntry = this.session.bom.find(b => b.part.id === part?.id);
+    const existingEntry = this.findSimilarPart(part!) || this.session.bom.find(b => b.part.id === part?.id);
     if (existingEntry) {
       this.updatePartQuantity(existingEntry.instanceId, existingEntry.quantity + quantity);
     } else {
@@ -1265,7 +1276,12 @@ export class DraftingEngine {
         isCompatible: true
       };
 
-      this.session.bom.push(entry);
+      const dup = this.findSimilarPart(part);
+      if (dup) {
+        this.updatePartQuantity(dup.instanceId, dup.quantity + quantity);
+      } else {
+        this.session.bom.push(entry);
+      }
       imported++;
     }
 
@@ -1350,7 +1366,12 @@ export class DraftingEngine {
         isCompatible: true
       };
 
-      this.session.bom.push(entry);
+      const dup = this.findSimilarPart(part);
+      if (dup) {
+        this.updatePartQuantity(dup.instanceId, dup.quantity + quantity);
+      } else {
+        this.session.bom.push(entry);
+      }
       imported++;
     }
 

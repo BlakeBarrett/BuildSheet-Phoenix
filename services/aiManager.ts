@@ -2,6 +2,7 @@ import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
 import { ServerAiService } from './serverAiService.ts';
 import { healthApi } from './apiClient.ts';
+import { isPlaywrightTestEnv } from './procurementTypes.ts';
 
 const INVALID_PLACEHOLDER = 'UNUSED_PLACEHOLDER_FOR_API_KEY';
 
@@ -112,7 +113,9 @@ export class AIManager {
       const health = await healthApi.check();
       return { service: new ServerAiService(health.service ?? 'BuildSheet AI', health.offline) };
     } catch (err: any) {
-      console.warn('AIManager: Server not reachable. Using Mock Service.', err);
+      if (!isPlaywrightTestEnv()) {
+        console.warn('AIManager: Server not reachable. Using Mock Service.', err);
+      }
       return {
         service: new MockService(),
         error: 'Server not reachable. Using Offline Simulation.',

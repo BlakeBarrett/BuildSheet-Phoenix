@@ -2747,6 +2747,9 @@ const AppContent: React.FC = () => {
         // Snapshot existing instance IDs so we can identify which parts are newly added
         const existingIds = new Set(currentSession.bom.map(e => e.instanceId));
 
+        // Helper for fuzzy matching (same logic as draftingEngine.findSimilarPart)
+        const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
         setIsApplyingAudit(true);
         try {
             let changesApplied = 0;
@@ -2754,8 +2757,15 @@ const AppContent: React.FC = () => {
             // new entries are committed to the BOM.
             for (const action of actions) {
                 if (action.type === 'addPart' && action.partId && action.name && action.category) {
-                    await draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
-                    changesApplied++;
+                    // Pre-filter: skip if equivalent part already exists in BOM
+                    const exists = currentSession.bom.some(e => 
+                      normalized(e.part.name) === normalized(action.name!) && 
+                      normalized(e.part.category) === normalized(action.category!)
+                    );
+                    if (!exists) {
+                      await draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
+                      changesApplied++;
+                    }
                 } else if (action.type === 'removePart' && action.instanceId) {
                     draftingEngine.removePart(action.instanceId);
                     changesApplied++;

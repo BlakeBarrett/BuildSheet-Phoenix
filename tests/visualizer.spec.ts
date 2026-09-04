@@ -127,7 +127,7 @@ test('performVisualGeneration builds BOM-rich prompt from session', {
         });
     });
 
-    // Also route any /image-generation or /generate-image endpoints
+// Also route any /image-generation or /generate-image endpoints
     await page.route('**/image-generation', async route => {
         const postData = route.request().postData() || '{}';
         try {
@@ -145,6 +145,15 @@ test('performVisualGeneration builds BOM-rich prompt from session', {
         });
     });
     
+    // Mock the internal API endpoint used by generationApi.image
+    await page.route('**/api/v1/generate/image**', async route => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ url: 'data:image/png;base64,iVBORw0KGgo' }),
+        });
+    });
+
     await page.route('**/generate-image', async route => {
         await route.fulfill({
             status: 200,

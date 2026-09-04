@@ -10,11 +10,18 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:8080/app/',
     trace: 'on-first-retry',
+    // Set test flag on all pages to enable test-safe defaults (e.g., fast-fail URLs)
+    initScript: 'window.__PLAYWRIGHT_TEST__ = true;',
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: ['--disable-web-security'],
+        },
+      },
     },
   ],
   // Our container serves everything; skip the local webServer.

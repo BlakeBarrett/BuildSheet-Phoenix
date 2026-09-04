@@ -1,0 +1,22 @@
+# Minimal SearXNG config for BuildSheet procurement discovery
+use_default_settings: true
+server:
+  secret_key: "buildsheet-local-dev-secret"
+  limiter: false
+  public_instance: false
+search:
+  formats:
+    - html
+    - json
+  default_lang: auto
+  safe_search: 0
+  categories:
+    general: google, bing, duckduckgo
+    shopping: google, bing, duckduckgo
+  engines:
+    google:
+      disabled: false
+    bing:
+      disabled: false
+    duckduckgo:
+      disabled: false

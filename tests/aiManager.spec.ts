@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AIManager } from '../services/aiManager';
+import { healthApi } from '../services/apiClient';
 
 // ---------------------------------------------------------------------------
 // AIManager key resolution — unit tests
@@ -25,6 +26,8 @@ function setWindowEnv(env: Record<string, string>) {
 function clearWindowEnv() {
     (globalThis as any).window = { _env_: {} };
 }
+
+let originalHealthCheck: typeof healthApi.check;
 
 test.describe('AIManager — getApiKey() resolution', () => {
 
@@ -121,14 +124,20 @@ test.describe('AIManager — getApiKey() resolution', () => {
 
 test.describe('AIManager — createService()', () => {
 
+    test.beforeEach(() => {
+        // Mock health check to simulate unreachable server
+        originalHealthCheck = healthApi.check;
+        healthApi.check = async () => {
+            throw new Error('Server not reachable');
+        };
+    });
+
     test.afterEach(() => {
         clearWindowEnv();
+        healthApi.check = originalHealthCheck;
     });
 
     test('returns MockService when backend server is unreachable', async () => {
-        // In the new architecture, createService() pings /api/v1/health.
-        // In the test worker context (Node.js, no running backend), the
-        // relative URL fails and graceful fallback to MockService occurs.
         setWindowEnv({ AI_KEY: VALID_KEY });
         const { service, error } = await AIManager.createService();
         // Server is not running in tests — expect offline fallback
