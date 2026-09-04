@@ -1,6 +1,7 @@
 import React, { Component, useState, useRef, useEffect, useCallback, ErrorInfo } from 'react';
 import heic2any from 'heic2any';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import i18n from './services/i18n.ts';
 import { getDraftingEngine, DraftingEngine, ProjectIndexEntry } from './services/draftingEngine.ts';
@@ -9,8 +10,11 @@ import { UserService } from './services/userService.ts';
 import { isFirebaseConfigured } from './services/firebase.ts';
 import { ActivityLogService } from './services/activityLogService.ts';
 import { ComponentIdentification } from './services/aiTypes.ts';
+import { sanitizeMarkdownTables } from './services/parseUtils.ts';
+import { isHttpUrl } from './services/urlUtils.ts';
 import { formatPrice, getUserLocale } from './services/locale.ts';
 import { DraftingSession, UserMessage, User, BOMEntry, Part, AssemblyPlan, EnclosureSpec, AdvancedValidationOption, DEFAULT_ADVANCED_VALIDATIONS, ProjectFolder, PreferredVendor } from './types.ts';
+import type { ShoppingOption } from './types.ts';
 import { Button, Chip, Card, GoogleSignInButton, IconButton, UserAvatar } from './components/Material3UI.tsx';
 import { ChiltonVisualizer } from './components/ChiltonVisualizer.tsx';
 import { useService } from './contexts/ServiceContext.tsx';
@@ -18,6 +22,8 @@ import { ARGuideView } from './components/ARGuideView.tsx';
 import { TestSuite, TestResult } from './services/testSuite.ts';
 import { CookieConsent, hasFullConsent } from './components/CookieConsent.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
+import { ArchitectCorrectionDialog } from './components/ArchitectCorrectionDialog.tsx';
+import { AdminCorrectionReview } from './components/AdminCorrectionReview.tsx';
 import UserProfileModal from './components/UserProfileModal.tsx';
 import { useTier } from './hooks/useTier.tsx';
 import { UpgradeModal } from './components/UpgradeModal.tsx';
@@ -611,13 +617,23 @@ const PreferredVendorsModal: React.FC<{
     );
 };
 
+interface KitSearchState {
+    loading?: boolean;
+    products?: ShoppingOption[];
+    error?: string;
+    groundedAt?: string;
+}
+
 const KitSummaryModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     session: DraftingSession;
     onExport: () => void;
-}> = ({ isOpen, onClose, session, onExport }) => {
+    isGuest?: boolean;
+}> = ({ isOpen, onClose, session, onExport, isGuest = false }) => {
     const { t } = useTranslation();
+    const [searchStates, setSearchStates] = useState<Record<string, KitSearchState>>({});
+    const [searchingAll, setSearchingAll] = useState(false);
     if (!isOpen) return null;
 
     // Build a Google search URL for assembling a specific part
@@ -626,46 +642,147 @@ const KitSummaryModal: React.FC<{
         return `https://www.google.com/search?q=${query}`;
     };
 
+    // Server-side Google AI product search — the key never leaves the backend.
+    const runSearch = async (instanceId: string, partName: string) => {
+        setSearchStates(prev => ({ ...prev, [instanceId]: { loading: true } }));
+        try {
+            const resp = await sourcingApi.search(partName);
+            setSearchStates(prev => ({
+                ...prev,
+                [instanceId]: { loading: false, products: resp?.products || [], groundedAt: resp?.groundedAt },
+            }));
+        } catch (e) {
+            console.error('AI product search failed:', e);
+            setSearchStates(prev => ({ ...prev, [instanceId]: { loading: false, products: [], error: t('kit.searchFailed') } }));
+        }
+    };
+
+    const runSearchAll = async () => {
+        if (searchingAll || isGuest || session.bom.length === 0) return;
+        setSearchingAll(true);
+        try {
+            // ONE batched request: the server chunks, jitters and rate-limits
+            // internally, and the daily quota gate rejects up-front when the
+            // kit can't fit in today's remaining allowance. A client-side
+            // pacing loop can't do either (429s for kits > 20 parts).
+            const resp = await sourcingApi.batch(session.bom.map(b => ({ query: b.part.name })));
+            const byQuery = new Map((resp?.results || []).map(r => [r.query.trim().toLowerCase(), r]));
+            setSearchStates(prev => {
+                const next = { ...prev };
+                for (const b of session.bom) {
+                    const hit = byQuery.get(b.part.name.trim().toLowerCase());
+                    next[b.instanceId] = hit
+                        ? { loading: false, products: hit.options || [], groundedAt: hit.groundedAt }
+                        : { loading: false, products: [], error: t('kit.searchFailed') };
+                }
+                return next;
+            });
+        } catch (e) {
+            console.error('Batch AI product search failed:', e);
+            setSearchStates(prev => {
+                const next = { ...prev };
+                for (const b of session.bom) {
+                    next[b.instanceId] = { ...prev[b.instanceId], loading: false, products: [], error: t('kit.searchFailed') };
+                }
+                return next;
+            });
+        } finally {
+            setSearchingAll(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="kit-title">
             <div className="bg-[#F0F4F9] rounded-[32px] shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="p-8 pb-4 flex justify-between items-start">
                     <div>
                         <h3 id="kit-title" className="text-3xl font-bold text-slate-900 tracking-tight">{i18n.t("bom.yourKit")}</h3>
-                        <p className="text-base text-slate-600 font-medium mt-1">Your hardware kit — {session.bom.length} component{session.bom.length !== 1 ? 's' : ''}</p>
+                        <p className="text-base text-slate-600 font-medium mt-1">{t('kit.componentCount', { count: session.bom.length })}</p>
                     </div>
                     <IconButton icon="close" onClick={onClose} title={i18n.t('modal.close')} />
                 </div>
                 <div className="flex-1 overflow-y-auto px-8 py-4 space-y-6">
                     {/* Part list */}
                     <div>
-                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">Components</h4>
+                        <h4 className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-4 px-1">{t('kit.components')}</h4>
                         <div className="space-y-2">
-                            {session.bom.map((b, i) => (
-                                <div key={i} className="p-4 bg-white rounded-[20px] shadow-sm">
-                                    <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
-                                    {b.part.description && (
-                                        <div className="text-xs text-slate-500 mt-1">{b.part.description}</div>
-                                    )}
-                                    <div className="flex gap-2 mt-2">
-                                        <a
-                                            href={getAssemblySearchUrl(b.part.name)}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1"
-                                        >
-                                            <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span>
-                                            Search Assembly
-                                        </a>
+                            {session.bom.map((b, i) => {
+                                const state = searchStates[b.instanceId];
+                                const products = state?.products || [];
+                                return (
+                                    <div key={i} className="p-4 bg-white rounded-[20px] shadow-sm">
+                                        <div className="font-bold text-slate-800 text-base">{b.part.name} <span className="text-slate-500 font-medium ml-2">x{b.quantity}</span></div>
+                                        {b.part.description && (
+                                            <div className="text-xs text-slate-500 mt-1">{b.part.description}</div>
+                                        )}
+                                        <div className="flex gap-2 mt-2 flex-wrap items-center">
+                                            {isGuest ? (
+                                                <p className="text-[11px] text-slate-500 flex items-center gap-1 m-0" role="note">
+                                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">lock</span>
+                                                    {t('kit.signInToSearch')}
+                                                </p>
+                                            ) : (
+                                                <Button variant="tonal" className="!py-1 !px-3 !text-xs" icon={state?.loading ? "progress_activity" : "travel_explore"} disabled={state?.loading || searchingAll} onClick={() => runSearch(b.instanceId, b.part.name)}>
+                                                    {state?.loading ? t('kit.searching') : t('kit.aiProductSearch')}
+                                                </Button>
+                                            )}
+                                            <a
+                                                href={getAssemblySearchUrl(b.part.name)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                                            >
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">build</span>
+                                                {t('kit.searchAssembly')}
+                                            </a>
+                                        </div>
+                                        {products.length > 0 && (
+                                            <div className="mt-3 space-y-1.5">
+                                                {products.filter(p => p.title || p.source).slice(0, 5).map((p, pi) => (
+                                                    <div key={pi} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
+                                                        <div className="min-w-0">
+                                                            {/* Placeholders (e.g. "Local Market Research
+                                                                Required") carry url:"" — render as plain
+                                                                text so we never emit href="" reloads. */}
+                                                            {p.url && isHttpUrl(p.url) ? (
+                                                                <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-800 hover:text-emerald-700 truncate block">
+                                                                    {p.title || p.source}
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-xs font-bold text-slate-800 truncate block">{p.title || p.source}</span>
+                                                            )}
+                                                            <div className="text-[11px] text-slate-500 truncate">
+                                                                {p.source || '—'}{p.isEstimated ? ` (${t('kit.estimated')})` : ''}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-xs font-bold text-slate-800">{p.price || '—'}</div>
+                                                            {typeof p.rating === 'number' && p.rating > 0 && (
+                                                                <div className="text-[11px] text-amber-600">★ {p.rating}</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {state?.groundedAt && (
+                                                    <div className="text-[10px] text-slate-400">{t('kit.groundedAt', { time: new Date(state.groundedAt).toLocaleTimeString() })}</div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {state?.error && (
+                                            <div className="mt-2 text-[11px] text-red-500">{state.error}</div>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
                 <div className="p-6 pt-2 flex gap-3">
+                    <Button variant="ghost" onClick={runSearchAll} disabled={searchingAll || isGuest} icon={searchingAll ? "progress_activity" : "manage_search"} className={searchingAll ? '[&_.material-symbols-rounded]:animate-spin' : ''}>
+                        {searchingAll ? t('kit.searching') : t('kit.searchAllParts')}
+                    </Button>
                     <Button variant="tonal" onClick={onExport} className="flex-1" icon="download">{i18n.t("bom.exportData")}</Button>
-                    <Button variant="primary" onClick={onClose} className="flex-1" icon="check">Done</Button>
+                    <Button variant="primary" onClick={onClose} className="flex-1" icon="check">{t('kit.done')}</Button>
                 </div>
             </div>
         </div>
@@ -841,7 +958,7 @@ const PartDetailModal: React.FC<{
                             </div>
                         </div>
 
-                        {entry.part.ports && entry.part.ports.length > 0 && (
+                        {Array.isArray(entry.part.ports) && entry.part.ports.length > 0 && (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <span className="material-symbols-rounded text-violet-600 text-[18px]" aria-hidden="true">cable</span>
@@ -1249,7 +1366,7 @@ const AuditModal: React.FC<{
                     ) : result ? (
                         <div className="space-y-6">
                             <div className="prose prose-sm max-w-none text-slate-600">
-                                <ReactMarkdown>{result}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeMarkdownTables(result)}</ReactMarkdown>
                             </div>
 
                             {/* Structured Changelist */}
@@ -1531,7 +1648,7 @@ const ScanPartModal: React.FC<{
                                 </div>
                             )}
 
-                            {result.ports.length > 0 && (
+                            {Array.isArray(result.ports) && result.ports.length > 0 && (
                                 <div>
                                     <p className="text-[11px] font-bold text-violet-900 uppercase tracking-widest mb-2">Detected Ports</p>
                                     <div className="space-y-1">
@@ -1832,6 +1949,17 @@ const AppContent: React.FC = () => {
     const [kitSummaryOpen, setKitSummaryOpen] = useState(false);
     const [preferredVendorsOpen, setPreferredVendorsOpen] = useState(false);
     const [isHydrating, setIsHydrating] = useState(false);
+    // User-correction flow: which assistant message is being reported.
+    const [correctionTarget, setCorrectionTarget] = useState<{ id: string; content: string } | null>(null);
+    // Admin surface visibility — ADMIN_UIDS is injected at runtime (env.sh).
+    const isAdminUser = (() => {
+        try {
+            const uids: string[] = (((typeof window !== 'undefined' && (window as any)._env_?.ADMIN_UIDS) || '') as string)
+                .split(',').map(s => s.trim()).filter(Boolean);
+            return !!currentUser?.id && uids.includes(currentUser.id);
+        } catch { return false; }
+    })();
+    const [adminReviewOpen, setAdminReviewOpen] = useState(false);
 
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -2289,8 +2417,25 @@ const AppContent: React.FC = () => {
         try {
             const designReqs = draftingEngine.getSession().designRequirements;
             const vendorUrls = (draftingEngine.getPreferredVendors() || []).map(v => v.url);
+            // The Google grounding fallback can return a single placeholder item
+            // ("Local Market Research Required", url: ""). Treat that as empty.
+            const hasRealResults = (results: any[]) => Array.isArray(results) && results.length > 0 && results.some(r => r && r.url);
 
-            // Try Verified Procurement Engine first (SearXNG → Firecrawl → Mini-Gemma pipeline)
+            // 1) Primary: server-side Google AI product search (structured web results).
+            // /sourcing/find already returns local suppliers — no separate /local round-trip.
+            try {
+                const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
+                if (hasRealResults(findResp?.results)) {
+                    draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], findResp?.localSuppliers || []);
+                    refreshState();
+                    return;
+                }
+                // Google returned nothing usable — fall through to the verified pipeline
+            } catch (e) {
+                console.warn('[Sourcing] Google AI product search failed, falling back to verified pipeline', e);
+            }
+
+            // 2) Fallback: Verified Procurement Engine (SearXNG → Firecrawl → Mini-Gemma pipeline)
             try {
                 const procResult = await sourcingApi.procure(entry.part.name, entry.part.category, designReqs, getUserLocale(), vendorUrls);
 
@@ -2318,15 +2463,13 @@ const AppContent: React.FC = () => {
                     refreshState();
                     return;
                 }
-                // Pipeline failed — fall through to server-side search
+                // Pipeline failed — fall through
             } catch (e) {
-                console.warn('[ProcurementEngine] Server-side pipeline failed, falling back to Google Grounding', e);
+                console.warn('[Sourcing] Verified pipeline failed, clearing sourcing data', e);
             }
 
-            // Server-side Google Search grounding via backend API
-            const findResp = await sourcingApi.find(entry.part.name, designReqs, getUserLocale(), vendorUrls);
-            const localResp = await sourcingApi.local(entry.part.name);
-            draftingEngine.updatePartSourcing(entry.instanceId, findResp?.results || [], localResp?.results || []);
+            // 3) Last resort: clear sourcing state for this part
+            draftingEngine.updatePartSourcing(entry.instanceId, [], []);
             refreshState();
         } catch (e) {
             console.error(e);
@@ -2604,6 +2747,9 @@ const AppContent: React.FC = () => {
         // Snapshot existing instance IDs so we can identify which parts are newly added
         const existingIds = new Set(currentSession.bom.map(e => e.instanceId));
 
+        // Helper for fuzzy matching (same logic as draftingEngine.findSimilarPart)
+        const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
         setIsApplyingAudit(true);
         try {
             let changesApplied = 0;
@@ -2611,8 +2757,15 @@ const AppContent: React.FC = () => {
             // new entries are committed to the BOM.
             for (const action of actions) {
                 if (action.type === 'addPart' && action.partId && action.name && action.category) {
-                    await draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
-                    changesApplied++;
+                    // Pre-filter: skip if equivalent part already exists in BOM
+                    const exists = currentSession.bom.some(e => 
+                      normalized(e.part.name) === normalized(action.name!) && 
+                      normalized(e.part.category) === normalized(action.category!)
+                    );
+                    if (!exists) {
+                      await draftingEngine.addPart(action.partId, action.name, action.category, action.quantity || 1);
+                      changesApplied++;
+                    }
                 } else if (action.type === 'removePart' && action.instanceId) {
                     draftingEngine.removePart(action.instanceId);
                     changesApplied++;
@@ -2875,13 +3028,13 @@ const AppContent: React.FC = () => {
                 brand: result.brand,
                 description: result.description + (result.condition !== 'Unknown' ? ` (Condition: ${result.condition})` : ''),
                 price: result.estimatedPrice,
-                ports: result.ports.map((p, i) => ({
+                ports: Array.isArray(result.ports) ? result.ports.map((p, i) => ({
                     id: `port-${i}`,
                     name: p.name,
                     type: p.type as any,
                     gender: p.gender as any,
                     spec: p.spec
-                }))
+                })) : [],
             });
         }
         refreshState();
@@ -3120,7 +3273,7 @@ const AppContent: React.FC = () => {
                 onMoveToFolder={handleMoveToFolder}
                 onUpgrade={() => setUpgradeOpen(true)}
             />
-            <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} />
+            <KitSummaryModal isOpen={kitSummaryOpen} onClose={() => setKitSummaryOpen(false)} session={session} onExport={handleExport} isGuest={!currentUser} />
             <PreferredVendorsModal
                 isOpen={preferredVendorsOpen}
                 onClose={() => setPreferredVendorsOpen(false)}
@@ -3162,7 +3315,16 @@ const AppContent: React.FC = () => {
             <ScanPartModal isOpen={scanPartOpen} onClose={() => { setScanPartOpen(false); setScanResult(null); }} result={scanResult} isScanning={isScanning} onScan={handleScanPart} onAddToBOM={handleAddFromScan} />
             <PortWarningsPanel isOpen={portWarningsOpen} onClose={() => setPortWarningsOpen(false)} warnings={draftingEngine.getPortWarnings()} />
 
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} isAdminUser={isAdminUser} onOpenAdminReview={() => { setIsSettingsOpen(false); setAdminReviewOpen(true); }} />
+            {correctionTarget && (
+                <ArchitectCorrectionDialog
+                    isOpen
+                    onClose={() => setCorrectionTarget(null)}
+                    messageContent={correctionTarget.content}
+                    messageId={correctionTarget.id}
+                />
+            )}
+            <AdminCorrectionReview isOpen={adminReviewOpen} onClose={() => setAdminReviewOpen(false)} />
             <CookieConsent />
             {currentUser && (
                 <UserProfileModal
@@ -3509,7 +3671,7 @@ const AppContent: React.FC = () => {
                                                 <img src={m.attachment} alt={i18n.t("aria.uploadedAttachment")} className="max-w-full sm:max-w-xs rounded-[12px] border border-white/20 shadow-sm" />
                                             </div>
                                         )}
-                                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeMarkdownTables(m.content)}</ReactMarkdown>
                                     </div>
                                     {m.role === 'user' && (
                                         <div className="absolute top-full right-0 mt-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex gap-2 pr-2 z-10 items-center">
@@ -3534,6 +3696,11 @@ const AppContent: React.FC = () => {
                                                 draftingEngine.loadProject(newId).then(refreshState);
                                             }} title={i18n.t("aria.forkFromHere")} className="text-slate-400 hover:text-indigo-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                                 <span className="material-symbols-rounded text-[14px]" aria-hidden="true">call_split</span>
+                                            </button>
+                                            {/* Anonymous reports are allowed server-side
+                                                (optionalAuth) — no sign-in gate here. */}
+                                            <button onClick={() => setCorrectionTarget({ id: `msg-${i}`, content: m.content })} title={i18n.t("aria.reportInaccuracy")} className="text-slate-400 hover:text-amber-600 bg-white shadow-sm border border-slate-100 p-1.5 flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                                <span className="material-symbols-rounded text-[14px]" aria-hidden="true">flag</span>
                                             </button>
 
                                             {m.metadata && (

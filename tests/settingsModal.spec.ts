@@ -1,12 +1,31 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Settings Modal — Debranding Verification', () => {
-    test('should display cloud-agnostic terminology instead of Gemini', async ({ page }) => {
+    test.beforeEach(async ({ page }) => {
         // Pre-set consent to skip Privacy & Data Control modal
         await page.addInitScript(() => {
             localStorage.setItem('buildsheet_consent', 'full');
         });
 
+        // Mock the LM Studio / Ollama scans so the model selectors render
+        // immediately (the modal otherwise waits on real LAN hosts).
+        await page.route('http://192.168.1.41:1234/v1/models', async route => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ data: [{ id: 'gemma-4-26b', object: 'model' }] })
+            });
+        });
+        await page.route('http://192.168.1.41:11434/api/tags', async route => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ models: [{ name: 'phi-3' }] })
+            });
+        });
+    });
+
+    test('should display cloud-agnostic terminology instead of Gemini', async ({ page }) => {
         await page.goto('/app/');
         await page.waitForTimeout(1000);
 

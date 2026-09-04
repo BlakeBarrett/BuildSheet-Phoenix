@@ -13,7 +13,7 @@ import {
   ProcurementResult,
   ProcurementStatus,
   ProcurementEngineConfig,
-  DEFAULT_PROCUREMENT_CONFIG,
+  getDefaultConfig,
   DiscoveryResult,
   ExtractedPageData,
   VerifiedPartData,
@@ -24,6 +24,7 @@ import {
   DEFAULT_CATEGORY_BASELINES,
   CategoryPriceHistory,
   VerificationBackend,
+  isPlaywrightTestEnv,
 } from './procurementTypes.ts';
 import { ShoppingOption } from '../types.ts';
 import { getLocalProvider, LocalModelProvider } from './localAiService.ts';
@@ -79,7 +80,7 @@ export class VerifiedProcurementEngine {
   private aiClient: AIVerificationClient | null;
 
   constructor(config?: Partial<ProcurementEngineConfig>, aiClient?: AIVerificationClient | null) {
-    this.config = { ...DEFAULT_PROCUREMENT_CONFIG, ...config };
+    this.config = { ...getDefaultConfig(), ...config };
     this.aiClient = aiClient ?? null;
 
     // Allow localStorage override for verification backend
@@ -250,7 +251,9 @@ export class VerifiedProcurementEngine {
 
       return results;
     } catch (err) {
-      console.warn('[ProcurementEngine] Discovery stage failed, falling back empty:', err);
+      if (!isPlaywrightTestEnv()) {
+        console.warn('[ProcurementEngine] Discovery stage failed, falling back empty:', err);
+      }
       return [];
     } finally {
       clearTimeout(timeout);

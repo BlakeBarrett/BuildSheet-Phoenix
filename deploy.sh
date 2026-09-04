@@ -19,12 +19,16 @@ SERVICE_NAME="buildsheet"
 REPO_NAME="buildsheet"  # Artifact Registry repository name
 IMAGE_NAME="buildsheet"
 
-# load .env variables if file is present
-if [ -f .env ]; then
+# load env variables if file is present (default .env.prod; override with ENV_FILE)
+ENV_FILE="${ENV_FILE:-.env.prod}"
+if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1091
   set -a
-  source .env
+  source "$ENV_FILE"
   set +a
+  echo "📦 Loading env from $ENV_FILE"
+else
+  echo "⚠️  Warning: $ENV_FILE not found — using exported/shell env vars."
 fi
 
 # API keys and Firebase config — set these as env vars or they'll be read from the current env
@@ -39,6 +43,16 @@ AI_MODEL_STRUCTURED="${AI_MODEL_STRUCTURED:-}"
 AI_MODEL_IMAGE="${AI_MODEL_IMAGE:-}"
 AI_MODEL_AUDIO="${AI_MODEL_AUDIO:-}"
 SEARCH_API_KEY="${SEARCH_API_KEY:-}"
+ADMIN_UIDS="${ADMIN_UIDS:-}"
+# Kill-switch and quota defaults. They are exported via envsubst below, so
+# provide fallback values here to keep `set -u` from aborting when they are
+# absent from the env file.
+GOOGLE_SEARCH_ENABLED="${GOOGLE_SEARCH_ENABLED:-1}"
+GOOGLE_SEARCH_DAILY_QUOTA="${GOOGLE_SEARCH_DAILY_QUOTA:-150}"
+GOOGLE_SEARCH_CACHE_TTL_MS="${GOOGLE_SEARCH_CACHE_TTL_MS:-}"
+GOOGLE_SEARCH_VALIDATE_URLS="${GOOGLE_SEARCH_VALIDATE_URLS:-}"
+URL_VALIDATION_TIMEOUT_MS="${URL_VALIDATION_TIMEOUT_MS:-}"
+URL_VALIDATION_CACHE_TTL_MS="${URL_VALIDATION_CACHE_TTL_MS:-}"
 # Legacy backward-compat aliases
 API_KEY="${API_KEY:-}"
 GEMINI_API_KEY="${GEMINI_API_KEY:-}"
@@ -179,6 +193,9 @@ fi
 export IMAGE_URI AI_KEY AI_PROVIDER AI_BASE_URL AI_IMAGE_BASE_URL AI_DISPLAY_NAME \
        AI_MODEL_FAST AI_MODEL_SMART AI_MODEL_STRUCTURED AI_MODEL_IMAGE AI_MODEL_AUDIO \
        SEARCH_API_KEY SEARXNG_BASE_URL FIRECRAWL_BASE_URL FIRECRAWL_API_KEY \
+       ADMIN_UIDS \
+       GOOGLE_SEARCH_ENABLED GOOGLE_SEARCH_DAILY_QUOTA GOOGLE_SEARCH_CACHE_TTL_MS \
+       GOOGLE_SEARCH_VALIDATE_URLS URL_VALIDATION_TIMEOUT_MS URL_VALIDATION_CACHE_TTL_MS \
        VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID \
        VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID \
        VITE_FIREBASE_APP_ID VITE_FIREBASE_MEASUREMENT_ID \

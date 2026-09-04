@@ -76,7 +76,7 @@ A comprehensive analysis of every external dependency that would need to be addr
 ---
 
 #### 4. Google Search Grounding & Procurement Pipeline
-**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts`. The pipeline exclusively uses Gemini's native Google Grounding Search API.
+**Current**: Sourcing and procurement now run **server-side** via `server/src/routes/sourcing.ts`. The pipeline exclusively uses Gemini's native Google Grounding Search API. All keys live server-side (`SEARCH_API_KEY` / `AI_KEY`), and grounding volume is guarded by a TTL result cache (`GOOGLE_SEARCH_CACHE_TTL_MS`), a per-minute rate limit, and a per-user daily quota (`GOOGLE_SEARCH_DAILY_QUOTA`) to prevent API-key throttling/blacklisting. Set `GOOGLE_SEARCH_ENABLED=0` to bypass Google entirely.
 
 **On-prem impact**: The Gemini Search Grounding functions require `generativelanguage.googleapis.com`. This functionality is **not available** in strictly air-gapped environments.
 

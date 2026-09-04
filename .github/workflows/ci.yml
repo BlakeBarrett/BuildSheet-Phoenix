@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, dev, refactor-backend-thin-client]
@@ -11,7 +14,10 @@ env:
 
 jobs:
   build:
+    name: Build (frontend + server)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -32,11 +38,8 @@ jobs:
 
       - name: Install deps
         run: |
-          npm install
-          cd server && npm install
-
-      - name: TypeScript check (frontend)
-        run: npx tsc --noEmit || true  # frontend uses Vite, skip if no tsconfig
+          npm ci
+          cd server && npm ci
 
       - name: Build frontend
         run: npm run build
@@ -44,9 +47,11 @@ jobs:
       - name: Build server
         run: cd server && npm run build
 
-  test:
+  lint:
+    name: Typecheck (client + server, strict)
     runs-on: ubuntu-latest
-    needs: build
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -67,19 +72,24 @@ jobs:
 
       - name: Install deps
         run: |
-          npm install
-          cd server && npm install
+          npm ci
+          cd server && npm ci
 
-      - name: Playwright install
-        run: npx playwright install --with-deps chromium
+      # Strict (no `|| true`): the two pre-existing client errors are fixed.
+      - name: Typecheck client (strict)
+        run: npx tsc --noEmit
 
-      - name: Run Playwright tests
-        run: npx playwright test --reporter=dot
-        continue-on-error: true  # Temporarily allow failures for hackathon prep
+      - name: Typecheck server (strict)
+        run: cd server && npx tsc --noEmit
 
+      - name: Typecheck server tests
+        run: cd server && npx tsc --noEmit -p tsconfig.tests.json
 
-  lint:
+  test:
+    name: Unit tests (server vitest)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -88,14 +98,89 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-  docker-build:
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            server/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install deps
+        run: |
+          npm ci
+          cd server && npm ci
+
+      # Hard gate: all server unit/integration tests must pass.
+      - name: Run server tests
+        run: cd server && npm test
+
+  e2e:
+    name: E2E (Docker + Playwright)
     runs-on: ubuntu-latest
-    needs: [build, test]
+    needs: [build]
+    permissions:
+      contents: read
+    # First run vs a live container: 165/165 passed. Hard-gating now;
+    # revert this line if cloud-dependent specs turn flaky.
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t buildsheet:test .
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Verify image sizes
-        run: docker images buildsheet:test
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install client deps (playwright runner)
+        run: npm ci
+
+      - name: Build Docker image
+        run: |
+          docker build -t buildsheet:test .
+          docker images buildsheet:test
+
+      # The app is served by the container itself (nginx :8080 -> API + /app).
+      # Dummy creds are fine: pages render and the API reports degraded mode.
+      - name: Start container
+        run: |
+          docker run -d --name buildsheet-ci \
+            -p 8080:8080 \
+            -e AI_KEY=ci-dummy-key \
+            -e AI_PROVIDER=openai-compat \
+            -e VITE_FIREBASE_PROJECT_ID=ci-dummy \
+            buildsheet:test
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api/v1/health; then
+              echo "container healthy after ~$((i*3))s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Container did not become healthy in time"
+          docker logs buildsheet-ci | tail -50
+          exit 1
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=line
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs buildsheet-ci | tail -100

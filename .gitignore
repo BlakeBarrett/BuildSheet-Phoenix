@@ -25,9 +25,9 @@ dist-ssr
 .claude 
 .hermes
 
-# Local environment
+# Local environment (contains real secrets — never commit)
 .env
-.env.local
+.env*
 
 # Playwright artifacts
 .last-run.json
@@ -44,5 +44,4 @@ patch-*.cjs
 runner.sh
 test-*.mjs
 test-*.js
-!test-results/
 TODO.md

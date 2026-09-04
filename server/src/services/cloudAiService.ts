@@ -2,13 +2,15 @@
  * Server-side CloudAIService — lifted from the client-side version.
  * Runs in Node.js with direct API key access. No browser dependencies.
  */
-import { GoogleGenAI, GenerateContentResponse, Type, Modality, GroundingSupport } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality, GroundingSupport } from "@google/genai";
 import { parseArchitectResponse } from './parseUtils.js';
+import { VerifiedFactService } from './verifiedFactService.js';
 import type {
   ServerAIService, AiConfig, AskArchitectResult, ArchitectResponse,
-  ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan,
+  ShoppingOption, LocalSupplier, InspectionProtocol, AssemblyPlan, AssemblyStep,
   EnclosureSpec, ComponentIdentification, AuditAction, AdvancedValidationOption
 } from './types.js';
+import { validateShoppingOptions } from './urlValidator.js';
 
 // --- Sourcing quality filters ---
 const NOISY_DOMAINS = ['reddit.com', 'ebay.com', 'forums.'];
@@ -69,11 +71,45 @@ export class ServerCloudAIService implements ServerAIService {
   public name: string;
   public isOffline = false;
   private config: AiConfig;
+  private factService?: VerifiedFactService;
 
-  constructor(config: AiConfig) {
+  constructor(config: AiConfig, factService?: VerifiedFactService) {
     this.config = config;
     this.name = config.displayName;
     this.isOffline = !config.apiKey;
+    this.factService = factService;
+  }
+
+  private async injectVerifiedFacts(prompt: string): Promise<string> {
+    if (!this.factService) return '';
+    try {
+      // Query the strongest keywords SEPARATELY: searchFacts matches
+      // statement.includes(searchTerm), so one joined string only ever hit
+      // facts containing the exact phrase — effectively nothing.
+      const keywords = Array.from(new Set(
+        prompt.split(/\s+/).map(w => w.replace(/[^\w-]/g, '')).filter(w => w.length > 3)
+      )).slice(0, 4);
+      const seen = new Set<string>();
+      const facts: Awaited<ReturnType<VerifiedFactService['searchFacts']>> = [];
+      for (const term of keywords) {
+        const hits = await this.factService.searchFacts({ searchTerm: term, minConfidence: 0.8, limit: 5 });
+        for (const f of hits) {
+          if (seen.has(f.factId)) continue;
+          seen.add(f.factId);
+          facts.push(f);
+        }
+        if (facts.length >= 10) break;
+      }
+      if (facts.length === 0) return '';
+      const factContext = facts.map(f => `- VERIFIED: ${f.statement} (source: ${f.source}, confidence: ${f.confidence})`).join('\n');
+      return `\n\n=== VERIFIED FACTS ===\n${factContext}\n=========================\n`;
+    } catch (err: any) {
+      // Verified facts are an enrichment, never a hard dependency. If Firestore
+      // is unavailable (missing/misconfigured credentials, outage), continue
+      // without them so chat always works.
+      console.warn('[cloudAi] Verified facts unavailable, continuing without them:', err?.message || err);
+      return '';
+    }
   }
 
   private getClient(): GoogleGenAI {
@@ -152,6 +188,9 @@ export class ServerCloudAIService implements ServerAIService {
   // --- Core methods ---
 
   async askArchitect(prompt: string, history: any[], image?: string): Promise<AskArchitectResult> {
+    const factContext = await this.injectVerifiedFacts(prompt);
+    const enhancedSystemInstruction = SYSTEM_INSTRUCTION + factContext;
+    
     if (this.config.provider === 'openai-compat') {
       let userContent: any = prompt;
       if (image) {
@@ -159,7 +198,7 @@ export class ServerCloudAIService implements ServerAIService {
         const imageData = this.cleanBase64(image);
         if (imageData) userContent.unshift({ type: 'image_url', image_url: { url: image } });
       }
-      const text = await this.openAiChat({ model: this.config.models.fast, system: SYSTEM_INSTRUCTION, history, userContent, temperature: 0.7, maxTokens: 4096 });
+      const text = await this.openAiChat({ model: this.config.models.fast, system: enhancedSystemInstruction, history, userContent, temperature: 0.7, maxTokens: 4096 });
       return { text: text || 'AI service provided no output.', metadata: { model: this.config.models.fast } };
     }
     const ai = this.getClient();
@@ -171,7 +210,7 @@ export class ServerCloudAIService implements ServerAIService {
     const contents = [...history, { role: 'user', parts: userParts }];
     const response = await ai.models.generateContent({
       model: this.config.models.fast, contents,
-      config: { systemInstruction: SYSTEM_INSTRUCTION, temperature: 0.7 },
+      config: { systemInstruction: enhancedSystemInstruction, temperature: 0.7 },
     });
     return { text: response.text || "AI service provided no output.", metadata: { model: this.config.models.fast, tokens: response.usageMetadata?.totalTokenCount } };
   }
@@ -193,27 +232,41 @@ export class ServerCloudAIService implements ServerAIService {
   async generateProductImage(description: string, referenceImage?: string): Promise<string | null> {
     try {
       if (this.config.provider === 'openai-compat') {
-        // DashScope async generation
-        const submitUrl = `${this.config.imageBaseUrl}/services/aigc/image-generation/generation`;
-        const resp = await fetch(submitUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}`, 'X-DashScope-Async': 'enable' },
-          body: JSON.stringify({ model: this.config.models.image, input: { messages: [{ role: 'user', content: [{ text: description }] }] }, parameters: { n: 1, size: '1024*1024' } }),
-        });
-        const data: any = await resp.json();
-        if (!resp.ok) {
-            console.error('[DashScope] Failed to submit image generation:', data);
-            throw new Error(`DashScope Error: ${data.message || data.code || 'Unknown error'}`);
+        // DashScope async image generation.
+        // Endpoints are tried in order: the legacy image-generation path (used
+        // by wanx / wan2.x-pro models AND local LAN image servers) first, then
+        // the newer text2image path (wan2.2/wan2.5 flash models). Response
+        // parsing accepts both result shapes.
+        const endpoints = [
+          `${this.config.imageBaseUrl}/services/aigc/image-generation/generation`,
+          `${this.config.imageBaseUrl}/services/aigc/text2image/image-synthesis`,
+        ];
+        let taskId: string | null = null;
+        for (const submitUrl of endpoints) {
+          const resp = await fetch(submitUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}`, 'X-DashScope-Async': 'enable' },
+            body: JSON.stringify({ model: this.config.models.image, input: { messages: [{ role: 'user', content: [{ text: description }] }] }, parameters: { n: 1, size: '1024*1024' } }),
+          });
+          let data: any = null;
+          try { data = await resp.json(); } catch { data = null; }
+          if (resp.ok && data?.output?.task_id) {
+            taskId = data.output.task_id;
+            break;
+          }
+          console.warn(`[DashScope] Image submission failed (${submitUrl}):`, data?.message || data?.code || `HTTP ${resp.status}`);
         }
-        const taskId = data.output?.task_id;
-        if (!taskId) return null;
-        for (let i = 0; i < 20; i++) {
+        if (!taskId) {
+          throw new Error('DashScope image generation submission failed on all endpoints');
+        }
+        for (let i = 0; i < 45; i++) {
           await new Promise(r => setTimeout(r, 3000));
           const pollResp = await fetch(`${this.config.imageBaseUrl}/tasks/${taskId}`, { headers: { 'Authorization': `Bearer ${this.config.apiKey}` } });
           const pollData: any = await pollResp.json();
           const status = pollData.output?.task_status;
           if (status === 'SUCCEEDED') {
-            const imageUrl = pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
+            const imageUrl = pollData.output?.results?.[0]?.url
+              || pollData.output?.choices?.[0]?.message?.content?.[0]?.image;
             if (!imageUrl) throw new Error('DashScope returned SUCCEEDED but no image URL was found');
             return imageUrl;
           }
@@ -238,6 +291,19 @@ export class ServerCloudAIService implements ServerAIService {
     } catch (e: any) { throw new Error(e.cause ? `DashScope request failed: ${e.cause.message}` : e.message); }
   }
 
+  /**
+   * Web product search using Gemini Google Search grounding. Returns
+   * real-world purchase options (title, price, source, url) — the closest
+   * Google offers to a web-wide "AI product search".
+   *
+   * NOTE: structured output (responseMimeType/responseSchema) is deliberately
+   * NOT requested here — combined with googleSearch grounding it returns HTTP
+   * 400 INVALID_ARGUMENT on Gemini 2.x and silently drops grounding metadata
+   * on Gemini 3.x. We parse JSON out of free-form text instead, then verify
+   * every URL server-side before surfacing it.
+   *
+   * Server-side only: the key never leaves this process.
+   */
   async findPartSources(query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]): Promise<ShoppingOption[] | null> {
     try {
       if (this.config.provider === 'openai-compat') {
@@ -250,28 +316,149 @@ export class ServerCloudAIService implements ServerAIService {
         try {
           const parsed = JSON.parse(text);
           const arr = (Array.isArray(parsed) ? parsed : parsed.results ?? []).map((r: any) => ({ ...r, isEstimated: true }));
-          return arr.length ? arr : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+          // No grounding chunks exist on this path — every URL here is pure
+          // model hallucination risk, so verify each one before returning.
+          const verified = arr.length ? await validateShoppingOptions(arr) : [];
+          return verified.length ? verified : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
         } catch { return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }]; }
       }
+
       const ai = this.getSearchClient();
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      const prompt = `The current date is ${today}. Find real-world purchase options and actual prices for: ${query}.`;
+      const designHint = designContext ? ` Design context: ${designContext}.` : '';
+      const localeHint = localeContext ? ` Shipping region: ${localeContext}.` : '';
+      const vendorHint = preferredVendors?.length ? ` Prefer these vendors: ${preferredVendors.join(', ')}.` : '';
+      const prompt = `The current date is ${today}. Find real-world purchase options and actual prices for: ${query}.${designHint}${localeHint}${vendorHint}`;
+
       const response = await ai.models.generateContent({
-        model: this.config.models.fast, contents: prompt,
-        config: { systemInstruction: 'You are a hardware sourcing specialist. Search for real-world purchase options.', tools: [{ googleSearch: {} }] }
+        model: this.config.models.fast,
+        contents: prompt,
+        // No responseMimeType/responseSchema here: structured output plus
+        // googleSearch grounding is rejected by Gemini 2.x (HTTP 400
+        // INVALID_ARGUMENT — "Tool use with a response mime type:
+        // 'application/json' is unsupported") and silently disables the
+        // grounding metadata on Gemini 3.x. parseShoppingOptions below
+        // handles fences/prose-wrapped JSON robustly instead.
+        config: {
+          systemInstruction: 'You are a hardware sourcing specialist. Search the web for real-world purchase options. Return a JSON array of objects, each with: title (string, product name), url (string, real product page URL), source (string, retailer/merchant name), price (string, e.g. "$12.99"), currency (string, e.g. "USD"), rating (number or null), reviews (number or null), isEstimated (boolean). Return 4-8 options when possible. Return ONLY the JSON array, no commentary.',
+          tools: [{ googleSearch: {} }],
+        },
       });
-      const candidate = response.candidates?.[0];
-      const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
-      const supports = candidate?.groundingMetadata?.groundingSupports ?? [];
+
+      // Ground the extracted options in real URLs returned by Google.
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+      const parsed = this.parseShoppingOptions(response.text || '');
+      const grounded = this.resolveUrlsFromChunks(parsed, chunks);
+      const clean = this.filterShoppingOptions(grounded);
+      if (clean.length) {
+        // Verify links before surfacing: unwrap vertexaisearch redirect
+        // wrappers to their real destination, drop dead pages, flag the rest.
+        // Noise filtering runs AGAIN afterwards because a RESOLVED destination
+        // can itself be a forum/news/PDF that the redirect wrapper masked.
+        const verified = await validateShoppingOptions(clean);
+        const verifiedClean = this.filterShoppingOptions(verified);
+        if (verifiedClean.length) return verifiedClean.slice(0, 8);
+      }
+
+      // Fallback: build options directly from grounding chunks.
+      const supports = response.candidates?.[0]?.groundingMetadata?.groundingSupports ?? [];
       if (chunks.length === 0) return [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
       const confidenceMap = buildChunkConfidenceMap(supports);
       const options: ShoppingOption[] = chunks.map((chunk, idx) => ({
         title: chunk.web?.title || 'Unknown Retailer', url: chunk.web?.uri || '',
         source: chunk.web?.title || 'Unknown', isEstimated: (confidenceMap.get(idx) ?? 1.0) < 0.5,
       }));
-      const clean = options.filter(opt => opt.url && !NOISY_DOMAINS.some(d => opt.url.includes(d)) && !NOISY_URL_PATTERNS.some(p => p.test(opt.url)));
-      return clean.length ? clean.slice(0, 5) : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
+      // Chunk URIs are vertexaisearch.cloud.google.com redirects too — resolve
+      // them to real destinations before the final noise filter/slice.
+      const fallbackFiltered = this.filterShoppingOptions(options);
+      const fallbackVerified = await validateShoppingOptions(fallbackFiltered);
+      const fallbackClean = this.filterShoppingOptions(fallbackVerified);
+      return fallbackClean.length ? fallbackClean.slice(0, 5) : [{ title: 'Local Market Research Required', url: '', source: 'BuildSheet' }];
     } catch (e) { console.error("findPartSources error:", e); return null; }
+  }
+
+  /**
+   * Coerce any `ports` value from an openai-compat model into a stable
+   * PortDefinition[] array. Models frequently return a string list ("USB-C,
+   * HDMI") or an object — neither is safe for `entry.part.ports.map(...)`.
+   */
+  private normalizePorts(value: any): { name: string; type: string; gender: string; spec: string }[] {
+    // Non-array / empty -> []
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((p: any) => p != null)
+      .map((p: any) => {
+        // Object-shaped port
+        if (typeof p === 'object') {
+          const name = typeof p.name === 'string' ? p.name
+            : typeof p.id === 'string' ? p.id
+            : typeof p.spec === 'string' ? p.spec : 'Port';
+          return {
+            name,
+            type: typeof p.type === 'string' ? p.type : '',
+            gender: typeof p.gender === 'string' ? p.gender : '',
+            spec: typeof p.spec === 'string' ? p.spec : '',
+          };
+        }
+        // String port ("USB-C") -> name only
+        return { name: String(p), type: '', gender: '', spec: '' };
+      })
+      .filter((p: any) => p.name);
+  }
+
+  /** Parse a JSON array of shopping options from the model's response text. */
+  private parseShoppingOptions(text: string): ShoppingOption[] {
+    if (!text) return [];
+    let cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    let data: any = null;
+    try { data = JSON.parse(cleaned); } catch { /* fall through */ }
+    if (!data) {
+      const match = cleaned.match(/\[[\s\S]*\]/);
+      if (match) { try { data = JSON.parse(match[0]); } catch { /* give up */ } }
+    }
+    const arr = Array.isArray(data) ? data : (data?.results ?? []);
+    return arr
+      .filter((r: any) => r && typeof r === 'object')
+      .map((r: any) => ({
+        title: typeof r.title === 'string' ? r.title : 'Unknown Retailer',
+        url: typeof r.url === 'string' ? r.url : '',
+        source: typeof r.source === 'string' ? r.source : 'Unknown',
+        price: typeof r.price === 'string' ? r.price : (r.price != null ? String(r.price) : undefined),
+        currency: typeof r.currency === 'string' ? r.currency : undefined,
+        rating: typeof r.rating === 'number' ? r.rating : undefined,
+        reviews: typeof r.reviews === 'number' ? r.reviews : undefined,
+        isEstimated: r.isEstimated === true,
+      }))
+      .filter((r: ShoppingOption) => r.url);
+  }
+
+  /** Replace hallucinated URLs with real URLs from Google's grounding chunks. */
+  private resolveUrlsFromChunks(options: ShoppingOption[], chunks: any[]): ShoppingOption[] {
+    if (chunks.length === 0) return options; // No grounding metadata to verify against
+    const realUrls = new Set<string>();
+    for (const chunk of chunks) {
+      const uri = chunk.web?.uri || chunk.maps?.uri;
+      if (uri) realUrls.add(uri);
+    }
+    return options.map(opt => {
+      if (realUrls.has(opt.url)) return opt;
+      const match = chunks.find(c => {
+        const title = c.web?.title || '';
+        return title && (title.toLowerCase().includes(opt.title.toLowerCase()) || opt.title.toLowerCase().includes(title.toLowerCase()));
+      });
+      const resolvedUrl = match?.web?.uri || match?.maps?.uri;
+      if (resolvedUrl) return { ...opt, url: resolvedUrl, source: match?.web?.title || opt.source };
+      return { ...opt, isEstimated: true };
+    });
+  }
+
+  /** Filter out noisy/irrelevant sources (forums, news, docs, social, etc.). */
+  private filterShoppingOptions(options: ShoppingOption[]): ShoppingOption[] {
+    return options.filter(opt => {
+      if (!opt.url) return false;
+      const lowerUrl = opt.url.toLowerCase();
+      return !NOISY_DOMAINS.some(d => lowerUrl.includes(d)) && !NOISY_URL_PATTERNS.some(p => p.test(opt.url));
+    });
   }
 
   async findLocalSuppliers(query: string): Promise<LocalSupplier[] | null> {
@@ -292,22 +479,35 @@ export class ServerCloudAIService implements ServerAIService {
       if (this.config.provider === 'openai-compat') {
         const text = await this.openAiChat({
           model: this.config.models.structured,
-          system: 'You are a hardware research specialist. Return JSON with keys: brand, description, price (number, USD), sku, ports.',
+          system: 'You are a hardware research specialist. Return JSON with keys: brand, description, price (number, USD), sku, ports (array of {name, type, gender, spec}).',
           userContent: `Look up hardware component: "${name}" (category: ${category}). Return JSON only.`,
           jsonMode: true, maxTokens: 1024,
         });
-        return JSON.parse(text || 'null');
+        const parsed = JSON.parse(text || 'null');
+        // Normalize ports — openai-compat models often return strings or
+        // malformed shapes. Coerce to a stable PortDefinition[] so the
+        // frontend never crashes on `entry.part.ports.map(...)`.
+        if (parsed && parsed.ports !== undefined) {
+          parsed.ports = this.normalizePorts(parsed.ports);
+        }
+        return parsed;
       }
       const ai = this.getSearchClient();
       const response = await ai.models.generateContent({
         model: this.config.models.fast, contents: `Look up the real-world hardware component: "${name}" (category: ${category}).`,
         config: {
-          systemInstruction: 'You are a hardware research specialist.', tools: [{ googleSearch: {} }],
-          responseMimeType: "application/json",
-          responseSchema: { type: Type.OBJECT, properties: { brand: { type: Type.STRING }, description: { type: Type.STRING }, price: { type: Type.NUMBER }, sku: { type: Type.STRING }, ports: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, type: { type: Type.STRING }, gender: { type: Type.STRING }, spec: { type: Type.STRING } }, required: ['id', 'name', 'type', 'gender', 'spec'] } } }, required: ['brand', 'description', 'price', 'ports'] }
+          // No responseMimeType/responseSchema here — structured output is
+          // rejected with googleSearch grounding (see findPartSources note).
+          systemInstruction: 'You are a hardware research specialist. Return ONLY a JSON object with keys: brand (string), description (string), price (number, USD), sku (string), ports (array of {name, type, gender, spec} strings).',
+          tools: [{ googleSearch: {} }],
         }
       });
-      return JSON.parse(response.text || 'null');
+      const parsed = this.extractJson<any>(response.text || '');
+      if (!parsed) return null;
+      if (parsed.ports !== undefined) {
+        parsed.ports = this.normalizePorts(parsed.ports);
+      }
+      return parsed;
     } catch { return null; }
   }
 
@@ -384,22 +584,74 @@ export class ServerCloudAIService implements ServerAIService {
     try {
       const bomDigest = bom.map(b => `${b.quantity}x ${b.part.name}`).join('\n');
       const prompt = `Generate a robotic assembly plan for:\n${bomDigest}`;
-      const system = 'You are a robotics assembly planner. Return JSON with: steps, totalTime, difficulty, requiredEndEffectors, automationFeasibility, notes.';
+      const system = 'You are a robotics assembly planner. Return JSON with: steps (array of objects, each {stepNumber: number, description: string, requiredTool: string, estimatedTime: string}), totalTime (minutes), difficulty (string), requiredEndEffectors (array of strings), automationFeasibility (number 0-100), notes (string).';
       if (this.config.provider === 'openai-compat') {
         // AssemblyPlan is a thinking-heavy task (multi-step planning with tool/robotics reasoning).
         // Keep thinking enabled for better planning quality; extractJson + openAiChat's
         // thinking-block stripping handles the JSON extraction cleanly.
         const text = await this.openAiChat({ model: this.config.models.smart, system, userContent: prompt, maxTokens: 12288 });
-        const plan = this.extractJson<AssemblyPlan>(text);
-        if (plan) plan.generatedAt = new Date();
-        return plan;
+        return this.normalizeAssemblyPlan(this.extractJson<AssemblyPlan>(text));
       }
       const ai = this.getClient();
       const response = await ai.models.generateContent({ model: this.config.models.smart, contents: prompt, config: { systemInstruction: system, responseMimeType: "application/json" } });
-      const plan = JSON.parse(response.text || 'null');
-      if (plan) plan.generatedAt = new Date();
-      return plan;
+      return this.normalizeAssemblyPlan(JSON.parse(response.text || 'null'));
     } catch { return null; }
+  }
+
+  /**
+   * Coerce any plan shape into a stable AssemblyPlan. Models frequently return
+   * `steps` as an array of plain strings ("Pick and place...") or objects with
+   * variant key names — neither renders in the UI (`step.description` etc.).
+   * Also coerces automationFeasibility, which arrives as "High"/"85%" as often
+   * as a number.
+   */
+  private normalizeAssemblyPlan(plan: any): AssemblyPlan | null {
+    if (!plan || typeof plan !== 'object') return null;
+
+    const feasibilityFrom = (v: any): number => {
+      if (typeof v === 'number' && Number.isFinite(v)) return Math.min(100, Math.max(0, v));
+      if (typeof v === 'string') {
+        const pct = v.match(/(\d+(?:\.\d+)?)\s*%/);
+        if (pct) return Math.min(100, Math.max(0, parseFloat(pct[1])));
+        const n = parseFloat(v);
+        if (Number.isFinite(n)) return Math.min(100, Math.max(0, n));
+        const word = v.trim().toLowerCase();
+        if (word === 'high' || word === 'full' || word === 'complete') return 85;
+        if (word === 'medium' || word === 'moderate' || word === 'partial') return 50;
+        if (word === 'low' || word === 'manual') return 20;
+      }
+      return 0;
+    };
+
+    const firstString = (o: Record<string, any>, keys: string[]): string =>
+      String(keys.map(k => o[k]).find(v => typeof v === 'string' && v.trim()) ?? '').trim();
+
+    const steps: AssemblyStep[] = (Array.isArray(plan.steps) ? plan.steps : []).map((s: any, i: number): AssemblyStep => {
+      if (s && typeof s === 'object') {
+        const description = firstString(s, ['description', 'instruction', 'action', 'task', 'text', 'step']);
+        const requiredTool = firstString(s, ['requiredTool', 'tool', 'equipment', 'endEffector']);
+        let estimatedTime = ['estimatedTime', 'time', 'duration', 'durationMinutes']
+          .map(k => s[k]).find(v => v !== undefined && v !== null && v !== '') ?? '';
+        if (typeof estimatedTime === 'number') estimatedTime = String(estimatedTime);
+        const stepNumber = typeof s.stepNumber === 'number' ? s.stepNumber
+          : typeof s.order === 'number' ? s.order
+          : typeof s.index === 'number' ? s.index + 1
+          : i + 1;
+        return { stepNumber: stepNumber > 0 ? stepNumber : i + 1, description, requiredTool, estimatedTime: String(estimatedTime).trim() };
+      }
+      // Plain-string step ("Pick and place the MCU") — the common failure mode.
+      return { stepNumber: i + 1, description: String(s ?? '').trim(), requiredTool: '', estimatedTime: '' };
+    });
+
+    return {
+      ...plan,
+      steps,
+      difficulty: typeof plan.difficulty === 'string' ? plan.difficulty : String(plan.difficulty ?? ''),
+      requiredEndEffectors: Array.isArray(plan.requiredEndEffectors) ? plan.requiredEndEffectors.map(String) : [],
+      automationFeasibility: feasibilityFrom(plan.automationFeasibility),
+      notes: typeof plan.notes === 'string' ? plan.notes : '',
+      generatedAt: new Date(),
+    };
   }
 
   async generateEnclosure(context: string, bom: any[]): Promise<EnclosureSpec | null> {

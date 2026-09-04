@@ -13,7 +13,7 @@ export type AiProvider = 'hosted' | 'openai-compat';
 function readEnv(key: string): string | undefined {
     // 1. Runtime injection via env-config.js (Cloud Run)
     // @ts-ignore
-    const runtimeVal = (typeof window !== 'undefined' && window._env_) ? (window._env_ as any)[key] : undefined;
+    const runtimeVal = (typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window._env_) ? (globalThis as any).window._env_[key] : undefined;
     if (runtimeVal && runtimeVal !== '' && runtimeVal !== 'undefined') return runtimeVal;
 
     // 2. process.env (Vite define or Node)

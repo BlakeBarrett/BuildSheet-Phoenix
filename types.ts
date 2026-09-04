@@ -46,8 +46,12 @@ export interface ShoppingOption {
   price?: string;
   currency?: string;
   thumbnail?: string;
+  rating?: number;
+  reviews?: number;
   /** True when the grounding confidence score for this result was below 0.5. */
   isEstimated?: boolean;
+  /** True when the server probed this URL and confirmed it resolves (200-299 after redirects). */
+  validated?: boolean;
 }
 
 export interface PreferredVendor {

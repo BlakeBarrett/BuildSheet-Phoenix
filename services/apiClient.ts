@@ -5,6 +5,7 @@
  * and typed request/response wrappers for all API routes.
  */
 import { getFirebaseAuth } from './firebase.ts';
+import { LocalSupplier, ShoppingOption } from '../types.ts';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -240,6 +241,10 @@ export const architectApi = {
 
   applyAudit: (bom: any[], auditResult: string, requirements: string) =>
     post('/architect/apply-audit', { bom, auditResult, requirements }),
+
+  /** Submit a user correction for admin review. */
+  correct: (payload: { statement: string; category?: string; evidence?: string; tags?: string[] }) =>
+    post<{ message: string; factId: string; status: string }>('/architect/correct', payload),
 };
 
 // ---------------------------------------------------------------------------
@@ -248,7 +253,17 @@ export const architectApi = {
 
 export const sourcingApi = {
   find: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
-    post<{ results: any[] }>('/sourcing/find', { query, designContext, localeContext, preferredVendors }),
+    post<{ results: any[]; localSuppliers?: LocalSupplier[] }>('/sourcing/find', { query, designContext, localeContext, preferredVendors }),
+
+  search: (query: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
+    post<{ query: string; products: ShoppingOption[]; localSuppliers: LocalSupplier[]; groundedAt: string }>('/sourcing/search', { query, designContext, localeContext, preferredVendors }),
+
+  batch: (queries: Array<{ query: string; designContext?: string; localeContext?: string; preferredVendors?: string[] }>) =>
+    post<{
+      results: Array<{ query: string; options: ShoppingOption[]; localSuppliers: LocalSupplier[]; groundedAt: string }>;
+      totalDurationMs: number;
+      batchCount: number;
+    }>('/sourcing/batch', { queries }),
 
   hydrate: (name: string, category: string, designContext?: string, localeContext?: string, preferredVendors?: string[]) =>
     post<{ result: any }>('/sourcing/hydrate', { name, category, designContext, localeContext, preferredVendors }),

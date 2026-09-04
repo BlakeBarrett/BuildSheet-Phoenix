@@ -2,6 +2,7 @@ import { AIService } from './aiTypes.ts';
 import { MockService } from './mockService.ts';
 import { ServerAiService } from './serverAiService.ts';
 import { healthApi } from './apiClient.ts';
+import { isPlaywrightTestEnv } from './procurementTypes.ts';
 
 const INVALID_PLACEHOLDER = 'UNUSED_PLACEHOLDER_FOR_API_KEY';
 
@@ -37,9 +38,9 @@ export class AIManager {
 
     // 1. Priority: Runtime injection — AI_KEY preferred (provider-agnostic)
     // @ts-ignore
-    if (typeof window !== 'undefined' && window._env_ && window._env_.AI_KEY) {
+    if (typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window._env_ && (globalThis as any).window._env_.AI_KEY) {
       // @ts-ignore
-      const runtimeAiKey = window._env_.AI_KEY;
+      const runtimeAiKey = (globalThis as any).window._env_.AI_KEY;
       if (this.isValidKey(runtimeAiKey)) {
         key = runtimeAiKey;
       }
@@ -47,9 +48,9 @@ export class AIManager {
 
     // 1b. Runtime injection: API_KEY (legacy fallback)
     // @ts-ignore
-    if (!key && typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
+    if (!key && typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window._env_ && (globalThis as any).window._env_.API_KEY) {
       // @ts-ignore
-      const runtimeKey = window._env_.API_KEY;
+      const runtimeKey = (globalThis as any).window._env_.API_KEY;
       if (this.isValidKey(runtimeKey)) {
         key = runtimeKey;
       }
@@ -103,47 +104,6 @@ export class AIManager {
   }
 
   /**
-   * Safe access to the Search/Grounding API Key.
-   * Allows customers to use a separate key for search operations (Google Search,
-   * Google Maps, part hydration). Falls back to the main API key if not set.
-   *
-   * This abstraction exists so that Enterprise customers can:
-   *   1. Use their own Gemini API key for grounding, separate from generation
-   *   2. Eventually swap to VertexAI Products API with a different credential
-   */
-  public static getSearchApiKey(): string | undefined {
-    let key: any = undefined;
-
-    // 1. Runtime injection via env-config.js
-    // @ts-ignore
-    if (typeof window !== 'undefined' && window._env_ && window._env_.SEARCH_API_KEY) {
-      // @ts-ignore
-      const runtimeKey = window._env_.SEARCH_API_KEY;
-      if (this.isValidKey(runtimeKey)) key = runtimeKey;
-    }
-
-    // 2. process.env
-    if (!key) {
-      // @ts-ignore
-      const processKey = (typeof process !== 'undefined' && process.env) ? process.env.SEARCH_API_KEY : undefined;
-      if (this.isValidKey(processKey)) key = processKey;
-    }
-
-    // 3. localStorage override (set via Settings Modal)
-    if (!key) {
-      try {
-        const saved = localStorage.getItem('searchApiKey');
-        if (saved && this.isValidKey(saved)) key = saved;
-      } catch { /* noop */ }
-    }
-
-    // 4. Fall back to the main API key
-    if (!key) return this.getApiKey();
-
-    return key.trim().replace(/^['"](.*)['"]$/, '$1');
-  }
-
-  /**
    * Initializes the AI Service.
    * All AI calls are routed through the BuildSheet backend API — no keys in the browser.
    * Falls back to MockService if the server health check fails.
@@ -153,7 +113,9 @@ export class AIManager {
       const health = await healthApi.check();
       return { service: new ServerAiService(health.service ?? 'BuildSheet AI', health.offline) };
     } catch (err: any) {
-      console.warn('AIManager: Server not reachable. Using Mock Service.', err);
+      if (!isPlaywrightTestEnv()) {
+        console.warn('AIManager: Server not reachable. Using Mock Service.', err);
+      }
       return {
         service: new MockService(),
         error: 'Server not reachable. Using Offline Simulation.',

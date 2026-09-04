@@ -9,7 +9,10 @@ spec:
     metadata:
       annotations:
         autoscaling.knative.dev/minScale: "1"
-        autoscaling.knative.dev/maxScale: "10"
+        # maxScale=1: the search rate-limit and daily quota are in-process
+        # maps — N instances would multiply every guest/user budget by N.
+        # Revisit (with a shared counter) only when one instance saturates.
+        autoscaling.knative.dev/maxScale: "1"
         run.googleapis.com/cpu-throttling: "true"
         run.googleapis.com/startupGCD: "true"
         run.googleapis.com/cpu: "2"
@@ -85,12 +88,26 @@ spec:
             # ── Search & Procurement ──────────────────────────────────────────
             - name: SEARCH_API_KEY
               value: "${SEARCH_API_KEY}"
+            - name: ADMIN_UIDS
+              value: "${ADMIN_UIDS}"
             - name: SEARXNG_BASE_URL
               value: "${SEARXNG_BASE_URL}"
             - name: FIRECRAWL_BASE_URL
               value: "${FIRECRAWL_BASE_URL}"
             - name: FIRECRAWL_API_KEY
               value: "${FIRECRAWL_API_KEY}"
+            - name: GOOGLE_SEARCH_ENABLED
+              value: "${GOOGLE_SEARCH_ENABLED}"
+            - name: GOOGLE_SEARCH_DAILY_QUOTA
+              value: "${GOOGLE_SEARCH_DAILY_QUOTA}"
+            - name: GOOGLE_SEARCH_CACHE_TTL_MS
+              value: "${GOOGLE_SEARCH_CACHE_TTL_MS}"
+            - name: GOOGLE_SEARCH_VALIDATE_URLS
+              value: "${GOOGLE_SEARCH_VALIDATE_URLS}"
+            - name: URL_VALIDATION_TIMEOUT_MS
+              value: "${URL_VALIDATION_TIMEOUT_MS}"
+            - name: URL_VALIDATION_CACHE_TTL_MS
+              value: "${URL_VALIDATION_CACHE_TTL_MS}"
             # ── Server config ────────────────────────────────────────────
             # NOTE: Do NOT set PORT here. nginx binds 8080 (the Cloud Run
             # container port). The Node API server uses its own default of 8081,

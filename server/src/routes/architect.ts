@@ -1,12 +1,43 @@
 /**
- * Architect routes — chat (SSE streaming), verify, assembly plan, apply-audit.
+ * Architect routes — chat (SSE streaming), verify, assembly plan, apply-audit, correction.
  */
 import { Router, type Request, type Response } from 'express';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { apiRateLimit, generationRateLimit } from '../middleware/rateLimit.js';
 import type { ServerAIService } from '../services/types.js';
+import { VerifiedFactService } from '../services/verifiedFactService.js';
+import { getFirestore } from 'firebase-admin/firestore';
 
 export const architectRouter = Router();
+
+/**
+ * The public fact-service surface used by these routes. Defined structurally so
+ * both VerifiedFactService and the degraded-mode stub satisfy it without casts.
+ */
+type FactServiceLike = Pick<VerifiedFactService,
+  'storeFact' | 'getFact' | 'searchFacts' | 'updateFact' | 'deleteFact'>;
+
+// Lazy-initialize factService to avoid Firebase errors at module load time
+let _factService: FactServiceLike | null = null;
+function getFactService(): FactServiceLike {
+  if (!_factService) {
+    try {
+      _factService = new VerifiedFactService(getFirestore());
+    } catch (err: any) {
+      console.warn('[architect] VerifiedFactService unavailable:', err.message);
+      // Return a stub service that fails gracefully. Method names mirror
+      // VerifiedFactService's real API so callers never hit a TypeError.
+      _factService = {
+        storeFact: async () => { throw new Error('VerifiedFactService unavailable'); },
+        getFact: async () => null,
+        searchFacts: async () => [],
+        updateFact: async () => null,
+        deleteFact: async () => false,
+      };
+    }
+  }
+  return _factService;
+}
 
 function getAI(req: Request): ServerAIService {
   return (req as any).aiService;
@@ -106,5 +137,72 @@ architectRouter.post('/apply-audit', requireAuth, apiRateLimit, async (req: Requ
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/architect/correct — User correction submission.
+ * Body: { statement, category?, evidence?, tags? }
+ * Creates a pending verified fact for admin review.
+ */
+architectRouter.post('/correct', requireAuth, apiRateLimit, async (req: Request, res: Response) => {
+  const { statement, category, evidence, tags = [] } = req.body;
+
+  if (typeof statement !== 'string' || !statement.trim()) {
+    res.status(400).json({ error: 'statement is required' });
+    return;
+  }
+
+  // Validate category
+  const validCategories = ['component-specs', 'compatibility', 'requirements', 'procurement', 'general'];
+  if (category && !validCategories.includes(category)) {
+    res.status(400).json({ error: `Invalid category. Must be one of: ${validCategories.join(', ')}` });
+    return;
+  }
+
+  try {
+    // optionalAuth guarantees req.user is set; the field is `uid` (not `id`).
+    const userId = req.user?.uid;
+
+    // Only include createdBy when a user is authenticated — Firestore rejects
+    // explicit `undefined` values, so anonymous corrections must omit the key.
+    const factInput: Record<string, any> = {
+      category: category || 'general',
+      statement: statement.trim(),
+      // `source` is a provenance field — server-controlled so arbitrary user
+      // text can never masquerade as a trusted origin.
+      source: 'user-correction',
+      confidence: 0.5, // Default confidence for user submissions
+      tags,
+      status: 'pending'
+    };
+    if (typeof evidence === 'string' && evidence.trim()) factInput.evidence = evidence.trim();
+    if (userId) factInput.createdBy = userId;
+
+    const fact = await getFactService().storeFact(factInput as any);
+
+    res.status(201).json({
+      message: 'Correction submitted for review',
+      factId: fact.factId,
+      status: fact.status
+    });
+  } catch (err: any) {
+    // Corrections are best-effort persistence. Firestore credential/outage
+    // failures degrade gracefully (503) instead of leaking raw errors.
+    const msg = err?.message || String(err);
+    const isServiceUnavailable = msg.includes('VerifiedFactService unavailable')
+      || msg.includes('credentials')
+      || msg.includes('Could not load the default')
+      || msg.includes('Failed to connect to Firestore');
+    if (isServiceUnavailable) {
+      console.warn('[architect/correct] Firestore unavailable — returning 503:', msg);
+      res.status(503).json({
+        error: 'Sync service unavailable. Your correction will not be persisted until the server has valid cloud credentials.',
+        syncUnavailable: true,
+      });
+      return;
+    }
+    console.error('[architect/correct] Error:', msg);
+    res.status(500).json({ error: msg });
   }
 });

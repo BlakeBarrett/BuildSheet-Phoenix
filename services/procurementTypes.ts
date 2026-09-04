@@ -164,12 +164,23 @@ export interface ProcurementEngineConfig {
   verification_backend: VerificationBackend;
 }
 
-export const DEFAULT_PROCUREMENT_CONFIG: ProcurementEngineConfig = {
-  searxng_base_url: 'http://localhost:8888',
-  firecrawl_base_url: 'http://localhost:3002',
-  anomaly_threshold_pct: 50,
-  max_discovery_results: 5,
-  verification_timeout_ms: 15000,
-  enable_logistics_risk: true,
-  verification_backend: 'cloud',
-};
+function isPlaywrightTestEnv(): boolean {
+  if (typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window.__PLAYWRIGHT_TEST__) return true;
+  if (typeof process !== 'undefined' && process.env?.PLAYWRIGHT_TEST) return true;
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.PLAYWRIGHT_TEST) return true;
+  return false;
+}
+
+function getDefaultConfig(): ProcurementEngineConfig {
+  return {
+    searxng_base_url: isPlaywrightTestEnv() ? 'http://0.0.0.0:1' : 'http://localhost:8888',
+    firecrawl_base_url: isPlaywrightTestEnv() ? 'http://0.0.0.0:1' : 'http://localhost:3002',
+    anomaly_threshold_pct: 50,
+    max_discovery_results: 5,
+    verification_timeout_ms: 15000,
+    enable_logistics_risk: true,
+    verification_backend: 'cloud',
+  };
+}
+
+export { getDefaultConfig, isPlaywrightTestEnv };

@@ -19,12 +19,22 @@ CONTAINER_NAME="buildsheet-local-run"
 HOST_PORT=8080
 CONTAINER_PORT=8080
 
-# load .env variables if file is present (export them for use below)
-if [ -f .env ]; then
+# load env variables if file is present (export them for use below)
+# Prefer .env.local (machine-specific overrides) when present; fall back to
+# .env. Override with ENV_FILE=/path/to/file.
+if [ -z "${ENV_FILE:-}" ]; then
+  if [ -f .env.local ]; then
+    ENV_FILE=.env.local
+  else
+    ENV_FILE=.env
+  fi
+fi
+if [ -f "$ENV_FILE" ]; then
   # shellcheck disable=SC1091
   set -a
-  . .env
+  . "$ENV_FILE"
   set +a
+  echo "📦 Loading env from $ENV_FILE"
 fi
 
 # allow overrides from environment (after loading .env)
@@ -51,6 +61,13 @@ VITE_STRIPE_PRO_ANNUAL_PRICE_ID="${VITE_STRIPE_PRO_ANNUAL_PRICE_ID:-}"
 LOCAL_ARCHITECT_URL="${LOCAL_ARCHITECT_URL:-}"
 LOCAL_ARCHITECT_MODEL="${LOCAL_ARCHITECT_MODEL:-}"
 SEARCH_API_KEY="${SEARCH_API_KEY:-}"
+ADMIN_UIDS="${ADMIN_UIDS:-}"
+GOOGLE_SEARCH_ENABLED="${GOOGLE_SEARCH_ENABLED:-}"
+GOOGLE_SEARCH_DAILY_QUOTA="${GOOGLE_SEARCH_DAILY_QUOTA:-}"
+GOOGLE_SEARCH_CACHE_TTL_MS="${GOOGLE_SEARCH_CACHE_TTL_MS:-}"
+GOOGLE_SEARCH_VALIDATE_URLS="${GOOGLE_SEARCH_VALIDATE_URLS:-}"
+URL_VALIDATION_TIMEOUT_MS="${URL_VALIDATION_TIMEOUT_MS:-}"
+URL_VALIDATION_CACHE_TTL_MS="${URL_VALIDATION_CACHE_TTL_MS:-}"
 
 # Require critical variables
 if [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
@@ -152,6 +169,13 @@ docker run -d \
   -e "AI_MODEL_IMAGE=${AI_MODEL_IMAGE}" \
   -e "AI_MODEL_AUDIO=${AI_MODEL_AUDIO}" \
   -e "SEARCH_API_KEY=${SEARCH_API_KEY}" \
+  -e "ADMIN_UIDS=${ADMIN_UIDS}" \
+  -e "GOOGLE_SEARCH_ENABLED=${GOOGLE_SEARCH_ENABLED}" \
+  -e "GOOGLE_SEARCH_DAILY_QUOTA=${GOOGLE_SEARCH_DAILY_QUOTA}" \
+  -e "GOOGLE_SEARCH_CACHE_TTL_MS=${GOOGLE_SEARCH_CACHE_TTL_MS}" \
+  -e "GOOGLE_SEARCH_VALIDATE_URLS=${GOOGLE_SEARCH_VALIDATE_URLS}" \
+  -e "URL_VALIDATION_TIMEOUT_MS=${URL_VALIDATION_TIMEOUT_MS}" \
+  -e "URL_VALIDATION_CACHE_TTL_MS=${URL_VALIDATION_CACHE_TTL_MS}" \
   -e "VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}" \
   -e "VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}" \
   -e "VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}" \

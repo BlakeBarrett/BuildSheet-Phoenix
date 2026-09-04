@@ -12,6 +12,7 @@ import { generationRouter } from './routes/generation.js';
 import { projectsRouter } from './routes/projects.js';
 import { sharesRouter, sharePageRouter } from './routes/shares.js';
 import aiRouter from './routes/ai.js';
+import { adminRouter } from './routes/admin.js';
 import { createAiService } from './services/aiServiceFactory.js';
 import { requestLogger } from './middleware/logger.js';
 
@@ -55,7 +56,7 @@ if (!firebaseProjectId) {
     // initializeApp() succeeds even without credentials — getFirestore() is
     // where the "Could not load the default credentials" error actually fires.
     // Test it now so firebaseInitialized reflects real availability.
-    try { getFirestore(); } catch (err: any) {
+    try { getFirestore(); firebaseInitialized = true; } catch (err: any) {
       firebaseInitialized = false;
       firebaseErrorMessage = err.message || 'Failed to connect to Firestore (missing credentials).';
       console.error('[Server] Firebase Admin: getFirestore() failed after initializeApp() —', err.message);
@@ -81,6 +82,10 @@ console.log(`[Server] AI Service: ${aiService.name} (offline=${aiService.isOffli
 // Express App
 // ---------------------------------------------------------------------------
 const app = express();
+
+// Trust the proxy (nginx/Cloud Run) so req.ip reflects the real client IP
+// for rate-limit keys instead of the internal load-balancer address.
+app.set('trust proxy', 1);
 
 // Security headers
 app.use(helmet({
@@ -130,6 +135,7 @@ app.use('/api/v1/generate', generationRouter);
 app.use('/api/v1/projects', projectsRouter);
 app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1/ai', aiRouter);
+app.use('/api/v1/admin', adminRouter);
 
 // ---------------------------------------------------------------------------
 // Error Handler

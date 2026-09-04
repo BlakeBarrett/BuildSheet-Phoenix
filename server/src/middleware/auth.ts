@@ -77,6 +77,22 @@ async function authenticateRequest(
     };
     next();
   } catch (err: any) {
+    // Firebase itself unavailable (not initialized, or credentials missing).
+    // In production this is a server misconfiguration: a token was PRESENTED
+    // but cannot be verified. Failing open would downgrade the caller to
+    // guest/dev-user privileges — including on quota-spending endpoints like
+    // /sourcing/search — so we fail closed instead.
+    const firebaseUnavailable =
+      err.code === 'app/no-app' ||
+      err.message?.includes('credentials') ||
+      err.message?.includes('Could not load the default');
+
+    if (firebaseUnavailable && !isDev) {
+      console.error('[Auth] Firebase unavailable in production — rejecting request (fail-closed):', err.message);
+      res.status(503).json({ error: 'Authentication service temporarily unavailable' });
+      return;
+    }
+
     // If Firebase Admin isn't initialized (dev mode), allow through as guest
     if (err.code === 'app/no-app') {
       console.warn('[Auth] Firebase Admin not initialized — allowing as guest');

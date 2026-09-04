@@ -17,8 +17,15 @@ BuildSheet demonstrates the power of advanced multimodal vision AI models as the
 *   **Safety & Compliance:** Automatically flags non-compliant voltage mismatches and safety hazards.
 
 ### 3. Supply Chain Orchestration (Search & Maps Grounding)
+*   **AI Product Search:** The "Google Search Kit" modal and the "Search & Source" button run a **server-side** web product search via Gemini Google Search grounding. It returns structured purchase options (title, price, merchant, URL) grounded in real Google search results — no client-side keys.
 *   **Shopping Graph:** The "Global Source" feature uses advanced search grounding to retrieve real-time pricing and stock status from the open web.
 *   **Hyper-Local Sourcing:** The "Find Local" feature leverages maps grounding to geo-locate physical inventory nearby, supporting local businesses and reducing shipping latency.
+
+### 3b. Anti-Blacklisting Guardrails
+Google blacklists Gemini keys that are (a) used from the browser or (b) hit with bursts of grounding queries. BuildSheet enforces:
+*   **Server-only keys:** All search/grounding runs server-side via `SEARCH_API_KEY` / `AI_KEY`; no search key ever reaches the browser or `localStorage`.
+*   **Grounded-result cache:** Repeat part lookups are served from an in-memory TTL cache (`GOOGLE_SEARCH_CACHE_TTL_MS`, default 1h) and never re-hit Google.
+*   **Rate limits + daily quota:** A dedicated `searchRateLimit` (20/min auth) and `searchQuota` (default 150/day/user) cap grounding volume. See `GOOGLE_SEARCH_DAILY_QUOTA`.
 
 ### 4. Manufacturing Data Engine (MDE) Bridge
 *   **Visual Inspection AI:** The system acts as a Quality Engineer, analyzing component geometry to generate **Inspection Protocols** (JSON) compatible with cloud visual inspection AI, defining critical defect criteria before a single part is manufactured.
@@ -108,7 +115,13 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 | `AI_MODEL_STRUCTURED` | No | Model for structured JSON extraction |
 | `AI_MODEL_IMAGE` | No | Model for image generation |
 | `AI_MODEL_AUDIO` | No | Model for AR guidance |
-| `SEARCH_API_KEY` | No | Separate key for search/grounding (defaults to `AI_KEY`) |
+| `SEARCH_API_KEY` | No | Separate key for search/grounding (defaults to `AI_KEY`). Server-side only — never expose in the browser. |
+| `GOOGLE_SEARCH_ENABLED` | No | Set `0` to disable Google Search grounding and force the verified procurement pipeline |
+| `GOOGLE_SEARCH_CACHE_TTL_MS` | No | TTL for grounded-result cache (default `3600000` = 1h) |
+| `GOOGLE_SEARCH_DAILY_QUOTA` | No | Per-user daily cap on grounding calls (default `150`) |
+| `GOOGLE_SEARCH_VALIDATE_URLS` | No | Validate product URLs server-side before display (`0` disables) |
+| `URL_VALIDATION_TIMEOUT_MS` | No | Per-request validation timeout ms (default `4000`) |
+| `URL_VALIDATION_CACHE_TTL_MS` | No | TTL for URL-validation cache (default `1800000`) |
 | `SEARXNG_BASE_URL` | No | SearXNG instance for procurement discovery |
 | `FIRECRAWL_BASE_URL` | No | Firecrawl instance for web page extraction |
 | `FIRECRAWL_API_KEY` | No | Firecrawl API key |
@@ -120,10 +133,31 @@ BuildSheet follows a **backend-for-frontend** pattern: a React thin client commu
 
 ### Routing
 The nginx config supports dynamic sharing:
-*   **`/`** — Marketing website
-*   **`/app/`** — React SPA
-*   **`/api/v1/`** — Backend API server (proxied to Express on port 8081)
-*   **`/{username}/{slug}`** — Share links (fall through to SPA)
+* **`/`** — Marketing website
+* **`/app/`** — React SPA
+* **`/api/v1/`** — Backend API server (proxied to Express on port 8081)
+* **`/{username}/{slug}`** — Share links (fall through to SPA)
+
+## Fact Verification System
+
+BuildSheet includes a **Fact Verification System** that allows users to submit corrections and technical facts for admin review. This ensures the AI architect has access to accurate, source-attributed knowledge.
+
+### Key Features
+
+- **User Submissions**: Users can submit corrections via `POST /api/v1/architect/correct`
+- **Admin Review**: Admins review and approve/reject corrections via `/api/v1/admin/corrections`
+- **Firestore Storage**: Facts stored with confidence scoring and source attribution
+- **Categorization**: 5 categories (component-specs, compatibility, requirements, procurement, general)
+
+### Configuration
+
+Set `ADMIN_UIDS` in `.env` with comma-separated Firebase user IDs:
+
+```env
+ADMIN_UIDS=firebase-user-id-1,firebase-user-id-2
+```
+
+See [`docs/FACT_VERIFICATION.md`](docs/FACT_VERIFICATION.md) for full documentation.
 
 ## Simulation Mode
 If no API Key is provided, the app gracefully degrades into **Simulation Mode**, using a deterministic `MockService` to demonstrate the UI and logic flow without consuming API credits.

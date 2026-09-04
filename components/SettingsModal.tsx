@@ -9,9 +9,13 @@ import { useTranslation } from 'react-i18next';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
+    /** Current user is in the server's ADMIN_UIDS allowlist — show admin tools. */
+    isAdminUser?: boolean;
+    /** Opens the AdminCorrectionReview surface (closes this modal first). */
+    onOpenAdminReview?: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, isAdminUser = false, onOpenAdminReview }) => {
     const { updateLocalProvider } = useService();
     const { tier } = useTier();
     const isEnterprise = tier === 'enterprise';
@@ -23,7 +27,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [selectedPlanModelId, setSelectedPlanModelId] = useState<string>('');
     const [selectedCadModelId, setSelectedCadModelId] = useState<string>('');
     const [selectedUtilityModelId, setSelectedUtilityModelId] = useState<string>('');
-    const [searchApiKey, setSearchApiKey] = useState<string>('');
     const [selectedSearchReasoningId, setSelectedSearchReasoningId] = useState<string>('');
     const [serverAddress, setServerAddress] = useState<string>('192.168.1.41');
     const [temperature, setTemperature] = useState<number>(0.7);
@@ -87,8 +90,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     setSelectedUtilityModelId(JSON.parse(savedUtility).id);
                 } catch (e) { }
             }
-            const savedSearchKey = localStorage.getItem('searchApiKey');
-            if (savedSearchKey) setSearchApiKey(savedSearchKey);
             const savedSearchBackend = localStorage.getItem('procurementVerificationBackend');
             const savedSearchProvider = localStorage.getItem('localProcurementProvider');
             if (savedSearchBackend === 'local' && savedSearchProvider) {
@@ -105,9 +106,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setLoading(true);
         const fetchedModels: LocalModelProvider[] = [];
 
+        // Bound the scan so an unreachable host can't hang the modal forever.
+        const scanTimeout = (ms: number) => {
+            const ctrl = new AbortController();
+            setTimeout(() => ctrl.abort(), ms);
+            return ctrl.signal;
+        };
+
         // Fetch LM Studio Models
         try {
-            const res = await fetch(`http://${addressToUse}:1234/v1/models`);
+            const res = await fetch(`http://${addressToUse}:1234/v1/models`, { signal: scanTimeout(4000) });
             if (res.ok) {
                 const data = await res.json();
                 if (data.data) {
@@ -127,7 +135,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         // Fetch Ollama Models
         try {
-            const res = await fetch(`http://${addressToUse}:11434/api/tags`);
+            const res = await fetch(`http://${addressToUse}:11434/api/tags`, { signal: scanTimeout(4000) });
             if (res.ok) {
                 const data = await res.json();
                 if (data.models) {
@@ -188,12 +196,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 }
             } else {
                 localStorage.removeItem('localUtilityProvider');
-            }
-            // Save search API key
-            if (searchApiKey.trim()) {
-                localStorage.setItem('searchApiKey', searchApiKey.trim());
-            } else {
-                localStorage.removeItem('searchApiKey');
             }
             // Save search reasoning backend
             if (selectedSearchReasoningId) {
@@ -400,22 +402,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                         ))}
                                     </select>
                                 </div>
-
-                                <div className="mt-5 pt-4 border-t border-gray-100">
-                                    <label htmlFor="search-api-key" className="block text-sm font-bold text-slate-700 mb-2">{t('settings.searchApiKey')}</label>
-                                    <p className="text-xs text-slate-600 mb-3">
-                                        {t('settings.searchApiKeyDescription')}
-                                    </p>
-                                    <input
-                                        id="search-api-key"
-                                        type="password"
-                                        value={searchApiKey}
-                                        onChange={(e) => setSearchApiKey(e.target.value)}
-                                        className="w-full p-3 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono"
-                                        placeholder={t('settings.blankDefault')}
-                                        autoComplete="off"
-                                    />
-                                </div>
                             </>
                         )}
                     </div>
@@ -426,6 +412,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         {isEnterprise && <Button variant="ghost" onClick={() => fetchModels(serverAddress)}>{t('settings.refreshModels')}</Button>}
                         <Button variant="primary" onClick={handleSave}>{t('settings.save')}</Button>
                     </div>
+                    {isAdminUser && onOpenAdminReview && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                            <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.adminTools')}</p>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full transition-colors"
+                                    onClick={onOpenAdminReview}
+                                >
+                                    <span className="material-symbols-rounded text-[14px]" aria-hidden="true">fact_check</span>
+                                    {t('settings.reviewCorrections')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <div className="border-t border-gray-200 pt-3">
                         <p className="text-xs text-slate-600 mb-2 font-medium">{t('settings.privacy')}</p>
                         <div className="flex gap-2">
