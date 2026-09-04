@@ -165,7 +165,7 @@ export interface ProcurementEngineConfig {
 }
 
 function isPlaywrightTestEnv(): boolean {
-  if (typeof window !== 'undefined' && (window as any).__PLAYWRIGHT_TEST__) return true;
+  if (typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window.__PLAYWRIGHT_TEST__) return true;
   if (typeof process !== 'undefined' && process.env?.PLAYWRIGHT_TEST) return true;
   if (typeof import.meta !== 'undefined' && (import.meta as any).env?.PLAYWRIGHT_TEST) return true;
   return false;

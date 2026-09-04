@@ -95,7 +95,7 @@ function getTestOverride(): PlanTier | null {
 function isLocalEnterprise(): boolean {
   const override = getTestOverride();
   if (override !== null) return override === 'enterprise';
-  return typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  return typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window.location.hostname === 'localhost';
 }
 
 /**

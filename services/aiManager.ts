@@ -38,9 +38,9 @@ export class AIManager {
 
     // 1. Priority: Runtime injection — AI_KEY preferred (provider-agnostic)
     // @ts-ignore
-    if (typeof window !== 'undefined' && window._env_ && window._env_.AI_KEY) {
+    if (typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window._env_ && (globalThis as any).window._env_.AI_KEY) {
       // @ts-ignore
-      const runtimeAiKey = window._env_.AI_KEY;
+      const runtimeAiKey = (globalThis as any).window._env_.AI_KEY;
       if (this.isValidKey(runtimeAiKey)) {
         key = runtimeAiKey;
       }
@@ -48,9 +48,9 @@ export class AIManager {
 
     // 1b. Runtime injection: API_KEY (legacy fallback)
     // @ts-ignore
-    if (!key && typeof window !== 'undefined' && window._env_ && window._env_.API_KEY) {
+    if (!key && typeof (globalThis as any).window !== 'undefined' && (globalThis as any).window._env_ && (globalThis as any).window._env_.API_KEY) {
       // @ts-ignore
-      const runtimeKey = window._env_.API_KEY;
+      const runtimeKey = (globalThis as any).window._env_.API_KEY;
       if (this.isValidKey(runtimeKey)) {
         key = runtimeKey;
       }

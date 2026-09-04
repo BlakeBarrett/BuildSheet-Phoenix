@@ -12,7 +12,7 @@ function env(key: string): string {
   // import.meta.env is Vite-only; guard against Node.js / Playwright test runner
   const metaEnv = (import.meta as any).env;
   return (metaEnv?.[key] as string)
-    || (typeof window !== 'undefined' ? (window as any)._env_?.[key] : undefined)
+    || (typeof (globalThis as any).window !== 'undefined' ? (globalThis as any).window._env_?.[key] : undefined)
     || '';
 }
 
@@ -42,7 +42,7 @@ function ensureInitialized() {
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
       db = getFirestore(app);
-      if (firebaseConfig.measurementId && typeof window !== 'undefined') {
+      if (firebaseConfig.measurementId && typeof (globalThis as any).window !== 'undefined') {
         analytics = getAnalytics(app);
       }
     } catch (e: any) {
