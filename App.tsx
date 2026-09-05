@@ -1245,7 +1245,7 @@ const AssemblyModal: React.FC<{
                                     <h4 className="font-bold text-lg mb-1">Multimodal AR Guide</h4>
                                     <p className="text-indigo-100 text-xs font-medium">Live assembly overlay via camera.</p>
                                 </div>
-                                <Button onClick={onLaunchAR} className="relative z-10 bg-white text-indigo-700 hover:bg-indigo-50 border-none" icon="view_in_ar">Launch</Button>
+                                <Button variant="ghost" onClick={onLaunchAR} className="relative z-10 bg-white text-indigo-700 hover:bg-indigo-50 border-none" icon="view_in_ar">Launch</Button>
                             </div>
 
                             <div>
