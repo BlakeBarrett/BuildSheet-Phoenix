@@ -308,7 +308,7 @@ test.describe('LAUNCH100 Promo Code', () => {
             path.join(__dirname, '../services/stripeCheckout.ts'),
             'utf-8'
         );
-        expect(src).toContain('promo_1THXv5DWtg9s0tYcn8ElRlE6');
+        expect(src).toContain('promo_1UCRdjDWtg9s0tYciaV2Mvse');
         expect(src).toContain('LAUNCH_PROMO_CODE');
     });
 
