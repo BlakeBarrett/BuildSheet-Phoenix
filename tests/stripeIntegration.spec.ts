@@ -295,6 +295,22 @@ test.describe('Stripe Integration & Tier Gating', () => {
             expect(modalVisible).toBeGreaterThanOrEqual(1);
         }
     });
+
+    test('Plan button should open assembly modal on fresh build with empty BOM', async ({ page }) => {
+        await page.goto('http://localhost:8080/app/');
+        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.reload();
+        await page.waitForSelector('#main-content', { timeout: 10000 });
+
+        // Click the Plan button (build icon) in the action grid - look for button with text "Plan"
+        const planBtn = page.locator('button:has-text("Plan")').first();
+        await expect(planBtn).toBeVisible();
+        await planBtn.click();
+
+        // The assembly modal should open (showing "No plan generated" for empty BOM)
+        const assemblyModal = page.locator('text=Robotic Assembly Planner');
+        await expect(assemblyModal).toBeVisible({ timeout: 5000 });
+    });
 });
 
 // ---------------------------------------------------------------------------
