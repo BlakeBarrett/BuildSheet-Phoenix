@@ -2617,10 +2617,10 @@ const AppContent: React.FC = () => {
 
         if (!silent) {
             setAssemblyOpen(true);
+            setIsPlanningAssembly(false);
         }
 
-        if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) {
-            if (!silent) setIsPlanningAssembly(false);
+        if (!aiService.generateAssemblyPlan || !currentSession.bom || currentSession.bom.length === 0) {
             return;
         }
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
