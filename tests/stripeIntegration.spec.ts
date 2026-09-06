@@ -310,6 +310,7 @@ test.describe('Stripe Integration & Tier Gating', () => {
         // The assembly modal should open (showing "No plan generated" for empty BOM)
         const assemblyModal = page.locator('text=Robotic Assembly Planner');
         await expect(assemblyModal).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Calculating end-effector paths...')).not.toBeVisible();
     });
 });
 

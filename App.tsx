@@ -2617,7 +2617,6 @@ const AppContent: React.FC = () => {
 
         if (!silent) {
             setAssemblyOpen(true);
-            setIsPlanningAssembly(true);
         }
 
         if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
@@ -2628,6 +2627,7 @@ const AppContent: React.FC = () => {
             setUpgradeOpen(true);
             return;
         }
+        if (!silent) setIsPlanningAssembly(true);
         try {
             const plan = await aiService.generateAssemblyPlan(currentSession.bom, currentSession.cachedAssemblyPlan);
             if (plan) {
