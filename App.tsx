@@ -2619,7 +2619,10 @@ const AppContent: React.FC = () => {
             setAssemblyOpen(true);
         }
 
-        if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
+        if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) {
+            if (!silent) setIsPlanningAssembly(false);
+            return;
+        }
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
 
         // Tier-based planner limit (skip for silent/cached calls)
