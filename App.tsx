@@ -2617,10 +2617,12 @@ const AppContent: React.FC = () => {
 
         if (!silent) {
             setAssemblyOpen(true);
-            setIsPlanningAssembly(true);
+            setIsPlanningAssembly(false);
         }
 
-        if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
+        if (!aiService.generateAssemblyPlan || !currentSession.bom || currentSession.bom.length === 0) {
+            return;
+        }
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
 
         // Tier-based planner limit (skip for silent/cached calls)
@@ -2628,6 +2630,7 @@ const AppContent: React.FC = () => {
             setUpgradeOpen(true);
             return;
         }
+        if (!silent) setIsPlanningAssembly(true);
         try {
             const plan = await aiService.generateAssemblyPlan(currentSession.bom, currentSession.cachedAssemblyPlan);
             if (plan) {

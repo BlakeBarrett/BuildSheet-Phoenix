@@ -298,7 +298,10 @@ test.describe('Stripe Integration & Tier Gating', () => {
 
     test('Plan button should open assembly modal on fresh build with empty BOM', async ({ page }) => {
         await page.goto('http://localhost:8080/app/');
-        await page.evaluate(() => localStorage.setItem('__test_tier_override__', 'free'));
+        await page.evaluate(() => {
+            localStorage.clear();
+            localStorage.setItem('__test_tier_override__', 'free');
+        });
         await page.reload();
         await page.waitForSelector('#main-content', { timeout: 10000 });
 
@@ -307,9 +310,16 @@ test.describe('Stripe Integration & Tier Gating', () => {
         await expect(planBtn).toBeVisible();
         await planBtn.click();
 
-        // The assembly modal should open (showing "No plan generated" for empty BOM)
+        // The assembly modal should open
         const assemblyModal = page.locator('text=Robotic Assembly Planner');
         await expect(assemblyModal).toBeVisible({ timeout: 5000 });
+        
+        // Wait for loading to finish (either plan generates or shows "No plan generated")
+        await expect(page.getByText('Calculating end-effector paths...')).not.toBeVisible({ timeout: 10000 });
+        
+        // Should show "No plan generated." since BOM is empty
+        const noPlanText = page.locator('text=No plan generated.');
+        await expect(noPlanText).toBeVisible({ timeout: 5000 });
     });
 });
 

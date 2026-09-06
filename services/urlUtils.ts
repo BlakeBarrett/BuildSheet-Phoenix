@@ -3,6 +3,12 @@
  *
  * Keep this dependency-free (no node:net, no undici) so it can be imported
  * into browser bundles and server tests without polyfills.
+ *
+ * NOTE: This logic is duplicated in server/src/services/urlUtils.ts (rather
+ * than imported across the package boundary) because the server's tsconfig
+ * `rootDir` is `./src` — importing the root-level file would fail
+ * `tsc --noEmit` with a "not under rootDir" error. Keep the two copies in sync
+ * if this logic ever changes.
  */
 
 /** True only for well-formed http(s) URLs. */
