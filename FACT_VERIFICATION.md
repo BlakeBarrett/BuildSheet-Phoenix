@@ -150,7 +150,7 @@ The fact verification workflow follows a simple approval process:
 
 **Example**:
 ```env
-ADMIN_UIDS=admin1@example.com,admin2@example.com,abc123def456
+ADMIN_UIDS=uid_1234567890,uid_0987654321,abc123def456
 ```
 
 **Note**: Admin UIDs are Firebase user IDs, not email addresses. You can find these in the Firebase Console under Authentication → Users.
