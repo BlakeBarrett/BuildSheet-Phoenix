@@ -1,6 +1,9 @@
 /**
  * Shared URL validation helpers used by both the client and server code.
  *
+ * Keep this dependency-free (no node:net, no undici) so it can be imported
+ * into browser bundles and server tests without polyfills.
+ *
  * NOTE: This logic is duplicated in server/src/services/urlUtils.ts (rather
  * than imported across the package boundary) because the server's tsconfig
  * `rootDir` is `./src` — importing the root-level file would fail
