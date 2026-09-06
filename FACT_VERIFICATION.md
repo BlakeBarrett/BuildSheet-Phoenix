@@ -24,7 +24,7 @@ The fact verification workflow follows a simple approval process:
 
 ### Workflow Steps
 
-1. **Submission**: Users (authenticated or anonymous) submit corrections or new facts via the `/api/v1/architect/correct` endpoint
+1. **Submission**: Authenticated users submit corrections or new facts via the `/api/v1/architect/correct` endpoint
 2. **Storage**: The system stores the fact with `status: 'pending'` in Firestore
 3. **Review**: Admins review pending corrections via the `/api/v1/admin/corrections` endpoint
 4. **Approval/Rejection**: Admins approve or reject corrections via `/api/v1/admin/corrections/approve`
@@ -36,7 +36,7 @@ The fact verification workflow follows a simple approval process:
 
 **Endpoint**: `POST /api/v1/architect/correct`
 
-**Authentication**: Optional (user ID attached if available)
+**Authentication**: Required
 
 **Request Body**:
 ```json

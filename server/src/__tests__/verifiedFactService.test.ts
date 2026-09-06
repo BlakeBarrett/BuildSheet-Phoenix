@@ -318,6 +318,7 @@ describe('VerifiedFactService', () => {
       };
 
       const stored = await service.storeFact(factInput);
+      const originalCreatedAt = stored.createdAt;
       const originalUpdatedAt = stored.updatedAt;
 
       // Wait a moment to ensure timestamp difference
@@ -332,7 +333,7 @@ describe('VerifiedFactService', () => {
       expect(updated?.statement).toBe('Updated statement');
       expect(updated?.confidence).toBe(0.95);
       expect(updated?.updatedAt).not.toEqual(originalUpdatedAt);
-      expect(updated?.createdAt).toEqual(originalUpdatedAt); // createdAt should be preserved
+      expect(updated?.createdAt).toEqual(originalCreatedAt); // createdAt should be preserved
     });
 
     it('should preserve factId and createdAt on update', async () => {
