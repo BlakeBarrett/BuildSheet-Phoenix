@@ -2614,6 +2614,11 @@ const AppContent: React.FC = () => {
 
     const performPlanAssembly = async (silent = false) => {
         const currentSession = draftingEngine.getSession();
+
+        if (!silent) {
+            setAssemblyOpen(true);
+        }
+
         if (!aiService.generateAssemblyPlan || currentSession.bom.length === 0) return;
         if (silent && !currentSession.cacheIsDirty && currentSession.cachedAssemblyPlan) return;
 
@@ -2622,11 +2627,7 @@ const AppContent: React.FC = () => {
             setUpgradeOpen(true);
             return;
         }
-
-        if (!silent) {
-            setAssemblyOpen(true);
-            setIsPlanningAssembly(true);
-        }
+        if (!silent) setIsPlanningAssembly(true);
         try {
             const plan = await aiService.generateAssemblyPlan(currentSession.bom, currentSession.cachedAssemblyPlan);
             if (plan) {
