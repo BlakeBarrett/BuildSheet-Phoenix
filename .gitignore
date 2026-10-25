@@ -28,6 +28,7 @@ dist-ssr
 # Local environment (contains real secrets — never commit)
 .env
 .env*
+*.env
 
 # Playwright artifacts
 .last-run.json
